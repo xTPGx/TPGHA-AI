@@ -363,18 +363,40 @@ the three `fan.*` services are allowlisted — no arbitrary services are exposed
 
 ## 7. Home Assistant packaging
 
-Two distributable packages live alongside the app (see **Deployment modes**
-above for install steps):
+This repo is itself a valid **Home Assistant add-on repository**. The add-on
+lives at the repo **root** so the Supervisor recognizes it:
 
-**Add-on repository** — `addon-repository/`
+```
+repository.yaml          # add-on repository manifest
+tpg_homeai/              # the add-on
+  config.yaml            # add-on manifest (port 8088, options, version 0.1.1)
+  Dockerfile             # clones repo + builds frontend, installs backend
+  build.yaml             # per-arch base images (amd64, aarch64)
+  run.sh                 # options -> env, seeds config, starts uvicorn
+  README.md
+```
 
-- `repository.yaml` — repository manifest (add this repo's URL in HA).
-- `tpg_homeai/config.yaml` — add-on manifest (port 8088, Ingress, options).
-- `tpg_homeai/Dockerfile` — 2-stage build: compiles the React UI, then runs the
-  FastAPI backend serving the built UI via `STATIC_DIR`.
-- `tpg_homeai/run.sh` — maps add-on options / `SUPERVISOR_TOKEN` to backend env,
-  seeds default config, starts uvicorn.
-- `tpg_homeai/build.yaml` — per-arch base images.
+### Install as a Home Assistant add-on
+
+1. Home Assistant → **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
+2. Add `https://github.com/xTPGx/TPGHA-AI` and close.
+3. Find **TPG HomeAI Orchestrator** in the store and click **Install**.
+4. On the **Configuration** tab, paste your **OpenAI API key**. Leave
+   `home_assistant_token` blank to use the add-on's Supervisor token; leave
+   `home_assistant_url` as `http://supervisor/core`.
+5. **Start** the add-on, then check the **Log** tab for
+   `[tpg_homeai] starting on :8088`.
+6. Open the **Web UI** (or <http://homeassistant.local:8088>), and confirm
+   <http://homeassistant.local:8088/health> returns `status: ok`.
+7. Install the **custom integration** from `custom_components/tpg_homeai/` (via
+   HACS or by copying the folder into `/config/custom_components`), then add it
+   and point the server URL at `http://homeassistant.local:8088`.
+
+> The add-on Dockerfile fetches the app from this public repo at build time
+> (Home Assistant builds with the add-on folder as context, so it can't reach
+> sibling folders). After pushing code changes, **rebuild** the add-on to pick
+> them up. The older `addon-repository/` scaffold is kept for reference but the
+> root-level `tpg_homeai/` is the canonical add-on.
 
 **Custom integration (HACS)** — `custom_components/tpg_homeai/`
 

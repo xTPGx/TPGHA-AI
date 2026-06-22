@@ -1,0 +1,38 @@
+name: "TPG HomeAI Orchestrator"
+version: "0.1.1"
+slug: "tpg_homeai"
+description: "AI smart-home orchestration layer for Home Assistant"
+url: "https://github.com/xTPGx/TPGHA-AI"
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+homeassistant_api: true
+hassio_api: true
+host_network: false
+ports:
+  8088/tcp: 8088
+ports_description:
+  8088/tcp: "TPG HomeAI API and web interface"
+webui: "http://[HOST]:[PORT:8088]"
+map:
+  - type: homeassistant_config
+    read_only: false
+  - type: addon_config
+    read_only: false
+options:
+  home_assistant_url: "http://supervisor/core"
+  home_assistant_token: ""
+  openai_api_key: ""
+  config_dir: "/config"
+  database_url: "sqlite:////config/tpg_homeai.db"
+  log_level: "info"
+schema:
+  home_assistant_url: "str"
+  home_assistant_token: "password?"
+  openai_api_key: "password"
+  config_dir: "str"
+  database_url: "str"
+  log_level: "list(debug|info|warning|error)"
