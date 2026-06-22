@@ -1,5 +1,5 @@
 name: "TPG HomeAI Orchestrator"
-version: "0.1.3"
+version: "0.1.4"
 slug: "tpg_homeai"
 description: "AI smart-home orchestration layer for Home Assistant"
 url: "https://github.com/xTPGx/TPGHA-AI"
