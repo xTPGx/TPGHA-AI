@@ -21,7 +21,8 @@ WORKDIR /src/frontend
 RUN npm install && npm run build
 
 # ---- Stage 2: backend runtime on a Home Assistant Python base image ----
-FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12
+# HA base-python tags are "<py>-alpine<ver>"; a bare ":3.12" tag does not exist.
+FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12-alpine3.21
 
 ENV PYTHONUNBUFFERED=1 \
     STATIC_DIR=/app/static \
@@ -46,7 +47,7 @@ RUN chmod a+x /run.sh
 LABEL \
   io.hass.name="TPG HomeAI Orchestrator" \
   io.hass.type="app" \
-  io.hass.version="0.1.2" \
+  io.hass.version="0.1.3" \
   io.hass.arch="amd64|aarch64"
 
 EXPOSE 8088
