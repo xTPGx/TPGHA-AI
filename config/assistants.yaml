@@ -1,0 +1,47 @@
+# Users and the assistants that belong to them.
+# Each assistant is owned by exactly one user. The assistant inherits that
+# user's music account and permissions unless overridden.
+
+users:
+  - id: shawn
+    name: Shawn
+    aliases: ["shawn", "boss", "owner"]
+    # Music Assistant provider key (see devices.yaml -> music_accounts).
+    music_account: spotify_xtpgx
+    # Per-user permission overrides (optional). Falls back to permissions.yaml.
+    permissions:
+      can_unlock_doors: true
+      can_open_garage: true
+      can_disarm_alarm: true
+
+  - id: jordie
+    name: Jordie
+    aliases: ["jordie", "jordan", "jordie rae"]
+    music_account: spotify_jordierae22
+    permissions:
+      can_unlock_doors: true
+      can_open_garage: true
+      can_disarm_alarm: true
+
+assistants:
+  - id: atlas
+    name: Atlas
+    owner: shawn
+    aliases: ["atlas"]
+    personality: >
+      Atlas is Shawn's assistant. Calm, precise, and confident with a touch of
+      dry wit. Speaks like a capable chief-of-staff: concise confirmations, no
+      filler, always states exactly what was done or why it could not be done.
+    tone: confident
+    voice: neutral
+
+  - id: chatty
+    name: Chatty
+    owner: jordie
+    aliases: ["chatty", "chat"]
+    personality: >
+      Chatty is Jordie's assistant. Warm, upbeat, and friendly. Conversational
+      and encouraging while still being clear about what happened. Adds a little
+      personality but never hides the result of an action.
+    tone: friendly
+    voice: bright

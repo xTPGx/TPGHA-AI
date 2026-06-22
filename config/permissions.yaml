@@ -1,0 +1,50 @@
+# Permission rules for the orchestrator.
+#
+# `sensitive_actions` always require confirmation before the backend executes
+# them. The AI never executes anything directly; the backend gates execution
+# on these rules.
+
+# Actions that require an explicit confirmation step.
+sensitive_actions:
+  - unlock_door
+  - open_garage
+  - disarm_alarm
+  - disable_camera
+  - disable_security
+  - change_lock_code
+  - disable_notifications
+  - remove_device
+  - delete_automation
+
+# Human-friendly confirmation prompts per action. {target} is interpolated.
+confirmation_messages:
+  unlock_door: "Confirm: unlock the {target}?"
+  open_garage: "Confirm: open the {target}?"
+  disarm_alarm: "Confirm: disarm the alarm?"
+  disable_camera: "Confirm: disable the {target} camera?"
+  disable_security: "Confirm: disable security?"
+  change_lock_code: "Confirm: change the lock code on {target}?"
+  disable_notifications: "Confirm: disable notifications?"
+  remove_device: "Confirm: remove {target}?"
+  delete_automation: "Confirm: delete the automation {target}?"
+
+# How long (seconds) a pending confirmation token stays valid.
+confirmation_ttl_seconds: 60
+
+# Default per-action allow rules. Per-user overrides live in assistants.yaml.
+defaults:
+  can_unlock_doors: true
+  can_open_garage: true
+  can_disarm_alarm: true
+  can_lock_doors: true
+  can_control_lights: true
+  can_control_fans: true
+  can_control_climate: true
+  can_control_music: true
+  can_control_covers: true
+  can_view_cameras: true
+
+# Privacy: a user's music account must never be used by another user's
+# assistant. Enforced in music actions regardless of this flag, but kept here
+# for visibility.
+enforce_music_account_ownership: true

@@ -1,0 +1,58 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+backend/.venv/
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.npm/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Databases / runtime data
+*.db
+*.sqlite
+*.sqlite3
+tpg_homeai.db
+backend/tpg_homeai.db
+config/discovered.yaml
+config/runtime/
+data/
+logs/
+
+# Home Assistant runtime/generated
+.storage/
+home-assistant.log
+home-assistant.log.*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Docker
+*.pid

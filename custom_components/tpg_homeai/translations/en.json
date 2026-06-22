@@ -1,0 +1,105 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to TPG HomeAI",
+        "description": "Enter the URL of your running TPG HomeAI Orchestrator server (the add-on or a standalone Docker instance).",
+        "data": {
+          "url": "TPG HomeAI server URL",
+          "api_key": "API key (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the TPG HomeAI server at that URL.",
+      "invalid_auth": "The TPG HomeAI server rejected the API key.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This TPG HomeAI server is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TPG HomeAI options",
+        "description": "Defaults and behavior for the orchestrator integration.",
+        "data": {
+          "assistant_id": "Default assistant id",
+          "user_id": "Default user id",
+          "enable_persistent_notifications": "Create persistent notifications",
+          "scan_interval_minutes": "Discovery/poll interval (minutes)",
+          "create_repairs": "Create Home Assistant Repairs issues",
+          "auto_approve_low_risk_entities": "Auto-approve low-risk discovered entities",
+          "auto_approve_domains": "Auto-approve domains (comma-separated, e.g. light,switch)"
+        }
+      }
+    }
+  },
+  "issues": {
+    "backend_offline": {
+      "title": "TPG HomeAI backend offline",
+      "description": "Home Assistant cannot reach the TPG HomeAI Orchestrator backend. Check that the add-on/container is running and the server URL is correct."
+    },
+    "config_error": {
+      "title": "TPG HomeAI configuration error",
+      "description": "The orchestrator failed to load its YAML configuration and is running in degraded mode. Fix config/*.yaml and reload."
+    },
+    "pending_approvals": {
+      "title": "TPG HomeAI devices pending approval",
+      "description": "Discovery found new devices awaiting review. Approve or ignore them from the TPG HomeAI device page or services."
+    }
+  },
+  "services": {
+    "reload_config": {
+      "name": "Reload config",
+      "description": "Hot-reload the TPG HomeAI server YAML configuration."
+    },
+    "scan_devices": {
+      "name": "Scan devices",
+      "description": "Run a Home Assistant discovery scan and queue new entities for approval."
+    },
+    "approve_discovered_entity": {
+      "name": "Approve discovered entity",
+      "description": "Approve a discovered entity and write it into the device config."
+    },
+    "ignore_discovered_entity": {
+      "name": "Ignore discovered entity",
+      "description": "Add an entity to the avoid list so the AI never targets it."
+    },
+    "map_entity": {
+      "name": "Map entity",
+      "description": "Map a discovered entity as a specific device type."
+    },
+    "confirm_action": {
+      "name": "Confirm action",
+      "description": "Confirm a pending sensitive action using its token."
+    },
+    "cancel_confirmation": {
+      "name": "Cancel confirmation",
+      "description": "Cancel a pending sensitive action without executing it."
+    },
+    "test_command": {
+      "name": "Test command",
+      "description": "Send a natural-language command to the TPG HomeAI server and return the result.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "The natural-language command to send."
+        },
+        "assistant_id": {
+          "name": "Assistant",
+          "description": "Assistant id to use (defaults to the integration option)."
+        },
+        "user_id": {
+          "name": "User",
+          "description": "User id to attribute the command to (defaults to the integration option)."
+        },
+        "conversation_id": {
+          "name": "Conversation ID",
+          "description": "Optional conversation id to continue a session."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,628 @@
+# Device mapping for Palmer House.
+#
+# This file maps Home Assistant entity IDs to friendly concepts the
+# orchestrator and AI understand: rooms, cameras, locks, speakers,
+# displays, climate, lights, fans, sensors, and music accounts.
+
+music_accounts:
+  spotify_xtpgx:
+    name: "Spotify [xTPGx]"
+    provider: spotify
+    account: xTPGx
+    owner: shawn
+
+  spotify_jordierae22:
+    name: "Spotify [jordierae22]"
+    provider: spotify
+    account: jordierae22
+    owner: jordie
+
+
+rooms:
+  - id: office
+    name: Office
+    aliases:
+      - office
+      - my office
+      - study
+      - work room
+      - workspace
+      - shawn office
+      - shawns office
+      - shawn's office
+    speaker: media_player.office_speaker
+    display: media_player.office_office_monitor_1
+    lights:
+      - light.office
+      - light.office_hex_lights
+    fans:
+      - fan.office
+
+  - id: living_room
+    name: Living Room
+    aliases:
+      - living room
+      - lounge
+      - family room
+      - great room
+      - downstairs
+    speaker: media_player.living_room_living_room
+    climate: climate.living_room_living_room
+    lights:
+      - light.living_room
+    fans:
+      - fan.living_room
+
+  - id: bedroom
+    name: Primary Bedroom
+    aliases:
+      - primary bedroom
+      - primary
+      - master bedroom
+      - master
+      - main bedroom
+      - our bedroom
+      - shawn bedroom
+      - shawns bedroom
+      - shawn's bedroom
+      - jordie bedroom
+      - jordies bedroom
+      - jordie's bedroom
+    speaker: media_player.bedroom_speaker
+    lights:
+      - light.bedroom_fan
+    fans:
+      - fan.bedroom_fan
+
+  - id: kitchen
+    name: Kitchen
+    aliases:
+      - kitchen
+      - kitchen display
+    speaker: media_player.kitchen_display
+    display: media_player.kitchen_display
+    lights: []
+    fans: []
+
+  - id: bathroom
+    name: Bathroom
+    aliases:
+      - bathroom
+      - bath
+    speaker: media_player.bathroom_speaker
+    lights: []
+    fans: []
+
+  - id: den
+    name: Den
+    aliases:
+      - den
+      - den room
+    speaker: media_player.den_speaker
+    lights:
+      - light.den_fan
+    fans:
+      - fan.den_fan
+
+  - id: brances_room
+    name: Guest Bedroom / Jordie’s Office
+    aliases:
+      - guest bedroom
+      - guest room
+      - bedroom 2
+      - bedroom two
+      - second bedroom
+      - spare bedroom
+      - spare room
+      - jordie office
+      - jordies office
+      - jordie's office
+      - jordie’s office
+      - office bedroom
+      - guest office
+      - brance room
+      - brances room
+      - brance's room
+      - brance’s room
+      - brance
+    speaker: media_player.brances_speaker
+    display: media_player.brances_room_tv
+    lights:
+      - light.brances
+    fans:
+      - fan.brances
+
+  - id: garage
+    name: Garage
+    aliases:
+      - garage
+      - car port
+      - carport
+    lights:
+      - light.garage
+    fans:
+      - fan.garage
+
+  - id: front_door
+    name: Front Door
+    aliases:
+      - front door
+      - porch
+      - entry
+      - entryway
+      - entrance
+      - doorbell
+      - front doorbell
+    camera: camera.front_door_front_door_doorbell
+    lock: lock.front_door
+    lights: []
+    fans: []
+
+  - id: front_yard
+    name: Front Yard
+    aliases:
+      - front yard
+      - driveway
+      - front
+      - front camera
+      - driveway camera
+    camera: camera.front_yard_front_yard
+    lights: []
+    fans: []
+
+  - id: back_yard
+    name: Back Yard
+    aliases:
+      - back yard
+      - backyard
+      - rear
+      - back
+      - back camera
+    camera: camera.backyard_backyard
+    lights: []
+    fans: []
+
+  - id: east_yard
+    name: East Yard
+    aliases:
+      - east yard
+      - east side
+      - east
+      - east camera
+    camera: camera.eastyard_eastyard
+    lights: []
+    fans: []
+
+  - id: west_yard
+    name: West Yard
+    aliases:
+      - west yard
+      - west side
+      - west
+      - west camera
+    camera: camera.westyard_westyard
+    lights: []
+    fans: []
+
+
+cameras:
+  - id: front_door
+    name: Front Doorbell
+    entity_id: camera.front_door_front_door_doorbell
+    aliases:
+      - front door
+      - doorbell
+      - front doorbell
+      - front door camera
+      - porch
+      - porch camera
+      - entry camera
+      - who is at the door
+
+  - id: front_yard
+    name: Front Yard / Driveway
+    entity_id: camera.front_yard_front_yard
+    aliases:
+      - front yard
+      - driveway
+      - driveway camera
+      - front
+      - front camera
+      - front yard camera
+
+  - id: back_yard
+    name: Back Yard
+    entity_id: camera.backyard_backyard
+    aliases:
+      - back yard
+      - backyard
+      - rear
+      - rear camera
+      - back camera
+
+  - id: east_yard
+    name: East Yard
+    entity_id: camera.eastyard_eastyard
+    aliases:
+      - east yard
+      - east side
+      - east
+      - east camera
+
+  - id: west_yard
+    name: West Yard
+    entity_id: camera.westyard_westyard
+    aliases:
+      - west yard
+      - west side
+      - west
+      - west camera
+
+
+locks:
+  - id: front_door
+    name: Front Door Lock
+    entity_id: lock.front_door
+    aliases:
+      - front door
+      - front
+      - main door
+      - entry
+      - entry door
+      - front lock
+      - front door lock
+    battery_sensor: sensor.front_door_battery
+
+
+speakers:
+  - id: office
+    name: Office Speaker
+    entity_id: media_player.office_speaker
+    room: office
+    aliases:
+      - office
+      - office speaker
+      - office music
+      - office nest
+      - office nest speaker
+      - shawn office speaker
+      - shawn's office speaker
+
+  - id: everywhere
+    name: Everywhere
+    entity_id: media_player.everywhere
+    room: null
+    aliases:
+      - everywhere
+      - all
+      - whole house
+      - whole home
+      - the house
+      - all speakers
+      - every speaker
+
+  - id: bedroom
+    name: Primary Bedroom Speaker
+    entity_id: media_player.bedroom_speaker
+    room: bedroom
+    aliases:
+      - primary bedroom speaker
+      - primary speaker
+      - master bedroom speaker
+      - master speaker
+      - main bedroom speaker
+      - our bedroom speaker
+      - primary bedroom music
+      - master bedroom music
+
+  - id: bathroom
+    name: Bathroom Speaker
+    entity_id: media_player.bathroom_speaker
+    room: bathroom
+    aliases:
+      - bathroom
+      - bathroom speaker
+      - bathroom music
+
+  - id: den
+    name: Den Speaker
+    entity_id: media_player.den_speaker
+    room: den
+    aliases:
+      - den
+      - den speaker
+      - den music
+
+  - id: kitchen
+    name: Kitchen Display
+    entity_id: media_player.kitchen_display
+    room: kitchen
+    aliases:
+      - kitchen
+      - kitchen display
+      - kitchen speaker
+      - kitchen music
+
+  - id: living_room
+    name: Living Room Speaker
+    entity_id: media_player.living_room_living_room
+    room: living_room
+    aliases:
+      - living room
+      - living room speaker
+      - living room music
+      - lounge
+      - family room
+      - downstairs
+
+  - id: brances_room
+    name: Guest Bedroom Speaker
+    entity_id: media_player.brances_speaker
+    room: brances_room
+    aliases:
+      - guest bedroom speaker
+      - guest room speaker
+      - bedroom 2 speaker
+      - bedroom two speaker
+      - second bedroom speaker
+      - spare bedroom speaker
+      - spare room speaker
+      - jordie office speaker
+      - jordies office speaker
+      - jordie's office speaker
+      - jordie’s office speaker
+      - guest office speaker
+      - brance speaker
+      - brances speaker
+      - brance music
+      - brances music
+      - bedroom 2 music
+      - bedroom two music
+      - guest room music
+      - jordie office music
+
+
+displays:
+  - id: kitchen_display
+    name: Kitchen Display
+    entity_id: media_player.kitchen_display
+    aliases:
+      - kitchen
+      - kitchen display
+      - kitchen screen
+
+  - id: office_monitor
+    name: Office Monitor
+    entity_id: media_player.office_office_monitor_1
+    aliases:
+      - office monitor
+      - office display
+      - office screen
+      - shawn office monitor
+      - shawn's office monitor
+
+  - id: office_monitor_tv
+    name: Office Monitor TV
+    entity_id: media_player.office_office_monitor_1_2
+    aliases:
+      - office monitor tv
+      - office tv monitor
+      - office screen tv
+
+  - id: brances_room_tv
+    name: Guest Bedroom TV
+    entity_id: media_player.brances_room_tv
+    aliases:
+      - guest bedroom tv
+      - guest room tv
+      - bedroom 2 tv
+      - bedroom two tv
+      - second bedroom tv
+      - spare bedroom tv
+      - jordie office tv
+      - jordies office tv
+      - jordie's office tv
+      - brance tv
+      - brances tv
+      - brance room tv
+      - brances room tv
+
+
+climate:
+  - id: living_room
+    name: Living Room Thermostat
+    entity_id: climate.living_room_living_room
+    aliases:
+      - thermostat
+      - living room thermostat
+      - house temperature
+      - home temperature
+      - ac
+      - air conditioner
+      - heater
+      - climate
+      - temperature
+
+
+device_aliases:
+  - id: office_light
+    name: Office Light
+    entity_id: light.office
+    aliases:
+      - office light
+      - office lights
+      - shawn office light
+      - shawn's office light
+
+  - id: office_hex_lights
+    name: Office Hex Lights
+    entity_id: light.office_hex_lights
+    aliases:
+      - hex lights
+      - office hex lights
+      - wall lights
+      - office wall lights
+      - shawn office hex lights
+      - shawn's office hex lights
+
+  - id: office_fan
+    name: Office Fan
+    entity_id: fan.office
+    aliases:
+      - office fan
+      - shawn office fan
+      - shawn's office fan
+
+  - id: living_room_lights
+    name: Living Room Lights
+    entity_id: light.living_room
+    aliases:
+      - living room light
+      - living room lights
+      - downstairs lights
+
+  - id: living_room_fan
+    name: Living Room Fan
+    entity_id: fan.living_room
+    aliases:
+      - living room fan
+      - downstairs fan
+
+  - id: bedroom_light
+    name: Primary Bedroom Light
+    entity_id: light.bedroom_fan
+    aliases:
+      - primary bedroom light
+      - primary bedroom lights
+      - primary light
+      - primary lights
+      - master bedroom light
+      - master bedroom lights
+      - master light
+      - master lights
+      - main bedroom light
+      - our bedroom light
+      - primary fan light
+      - master fan light
+
+  - id: bedroom_fan
+    name: Primary Bedroom Fan
+    entity_id: fan.bedroom_fan
+    aliases:
+      - primary bedroom fan
+      - primary fan
+      - master bedroom fan
+      - master fan
+      - main bedroom fan
+      - our bedroom fan
+
+  - id: brances_light
+    name: Guest Bedroom Light
+    entity_id: light.brances
+    aliases:
+      - guest bedroom light
+      - guest bedroom lights
+      - guest room light
+      - guest room lights
+      - bedroom 2 light
+      - bedroom 2 lights
+      - bedroom two light
+      - bedroom two lights
+      - second bedroom light
+      - spare bedroom light
+      - spare room light
+      - jordie office light
+      - jordies office light
+      - jordie's office light
+      - jordie’s office light
+      - guest office light
+      - brance light
+      - brances light
+      - brance's light
+      - brance’s light
+      - brance room light
+      - brances room light
+
+  - id: brances_fan
+    name: Guest Bedroom Fan
+    entity_id: fan.brances
+    aliases:
+      - guest bedroom fan
+      - guest room fan
+      - bedroom 2 fan
+      - bedroom two fan
+      - second bedroom fan
+      - spare bedroom fan
+      - spare room fan
+      - jordie office fan
+      - jordies office fan
+      - jordie's office fan
+      - jordie’s office fan
+      - guest office fan
+      - brance fan
+      - brances fan
+      - brance's fan
+      - brance’s fan
+      - brance room fan
+      - brances room fan
+
+  - id: den_light
+    name: Den Light
+    entity_id: light.den_fan
+    aliases:
+      - den light
+      - den lights
+      - den fan light
+
+  - id: den_fan
+    name: Den Fan
+    entity_id: fan.den_fan
+    aliases:
+      - den fan
+
+  - id: garage_light
+    name: Garage Light
+    entity_id: light.garage
+    aliases:
+      - garage light
+      - garage lights
+      - garage fan light
+
+  - id: garage_fan
+    name: Garage Fan
+    entity_id: fan.garage
+    aliases:
+      - garage fan
+
+  - id: govee_h6095
+    name: Govee H6095
+    entity_id: light.h6095
+    aliases:
+      - govee light
+      - h6095
+
+
+security_sensors:
+  - entity_id: binary_sensor.eero_wan_status
+    name: Eero WAN Status
+    aliases:
+      - wan
+      - internet
+      - network
+      - internet status
+
+  - entity_id: sensor.front_door_battery
+    name: Front Door Battery
+    aliases:
+      - front door battery
+      - lock battery
+      - front lock battery
+
+  - entity_id: binary_sensor.front_door_keypad_disabled
+    name: Front Door Keypad Disabled
+    aliases:
+      - keypad disabled
+      - front door keypad
+      - front keypad
+
+

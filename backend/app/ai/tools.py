@@ -1,0 +1,187 @@
+"""OpenAI tool/function-calling definitions.
+
+The AI may ONLY select one of these structured tools. It never executes
+anything and never makes arbitrary Home Assistant service calls. The backend
+maps each tool name to a vetted action handler.
+"""
+from __future__ import annotations
+
+# Canonical list of tool/intent names the backend knows how to execute.
+TOOL_NAMES = [
+    "show_camera",
+    "play_music",
+    "stop_music",
+    "set_volume",
+    "lock_door",
+    "unlock_door",
+    "turn_on_light",
+    "turn_off_light",
+    "turn_on_fan",
+    "turn_off_fan",
+    "set_fan_percentage",
+    "set_climate",
+    "security_check",
+    "open_dashboard",
+    "create_simple_automation",
+    "control_device",
+    "query_device",
+]
+
+
+def _fn(name: str, description: str, properties: dict, required: list[str]) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+TOOLS = [
+    _fn(
+        "show_camera",
+        "Show or pull up a security camera feed by friendly name or location "
+        "(e.g. 'driveway', 'front door', 'back yard').",
+        {
+            "camera": {"type": "string", "description": "Camera or location name."},
+            "target": {"type": "string", "description": "Optional display/room to show it on."},
+        },
+        ["camera"],
+    ),
+    _fn(
+        "play_music",
+        "Play music on a speaker/room. Use the requesting user's own music "
+        "account. 'room' may be a room name or 'everywhere'.",
+        {
+            "user": {"type": "string", "description": "User requesting music (defaults to assistant owner)."},
+            "room": {"type": "string", "description": "Room or speaker, e.g. 'office', 'everywhere'."},
+            "query": {"type": "string", "description": "Optional song/artist/playlist."},
+        },
+        ["room"],
+    ),
+    _fn(
+        "stop_music",
+        "Stop music in a room or speaker.",
+        {"room": {"type": "string", "description": "Room or speaker to stop."}},
+        ["room"],
+    ),
+    _fn(
+        "set_volume",
+        "Set the volume of a room/speaker. Level is 0-100 (percent) or 0-1.",
+        {
+            "room": {"type": "string"},
+            "level": {"type": "number", "description": "Volume 0-100 or 0-1."},
+        },
+        ["room", "level"],
+    ),
+    _fn(
+        "lock_door",
+        "Lock a door immediately.",
+        {"door": {"type": "string", "description": "Door name, e.g. 'front door'."}},
+        ["door"],
+    ),
+    _fn(
+        "unlock_door",
+        "Unlock a door. This is sensitive and requires user confirmation.",
+        {"door": {"type": "string"}},
+        ["door"],
+    ),
+    _fn(
+        "turn_on_light",
+        "Turn on a light by entity or room.",
+        {"target": {"type": "string", "description": "Light or room name."}},
+        ["target"],
+    ),
+    _fn(
+        "turn_off_light",
+        "Turn off a light by entity or room.",
+        {"target": {"type": "string"}},
+        ["target"],
+    ),
+    _fn(
+        "turn_on_fan",
+        "Turn on a fan by entity, room, or name (e.g. 'office fan').",
+        {"target": {"type": "string", "description": "Fan or room name, e.g. 'office fan'."}},
+        ["target"],
+    ),
+    _fn(
+        "turn_off_fan",
+        "Turn off a fan by entity, room, or name (e.g. 'office fan').",
+        {"target": {"type": "string", "description": "Fan or room name, e.g. 'office fan'."}},
+        ["target"],
+    ),
+    _fn(
+        "set_fan_percentage",
+        "Set a fan's speed as a percentage (0-100).",
+        {
+            "target": {"type": "string", "description": "Fan or room name, e.g. 'office fan'."},
+            "percentage": {"type": "number", "description": "Fan speed 0-100."},
+        },
+        ["target", "percentage"],
+    ),
+    _fn(
+        "set_climate",
+        "Set thermostat mode and temperature for a room. mode is one of "
+        "heat, cool, heat_cool, auto, off.",
+        {
+            "room": {"type": "string"},
+            "mode": {"type": "string", "description": "heat|cool|heat_cool|auto|off"},
+            "temperature": {"type": "number"},
+        },
+        ["mode", "temperature"],
+    ),
+    _fn(
+        "security_check",
+        "Report the security status: locks, cameras, and security sensors.",
+        {},
+        [],
+    ),
+    _fn(
+        "open_dashboard",
+        "Open a Home Assistant dashboard or a specific view.",
+        {
+            "target": {"type": "string", "description": "Optional area/room context."},
+            "dashboard": {"type": "string", "description": "Dashboard key e.g. security, cameras, music."},
+        },
+        [],
+    ),
+    _fn(
+        "create_simple_automation",
+        "Draft a simple automation from natural language. Never created live; "
+        "returned for human approval.",
+        {
+            "trigger_description": {"type": "string"},
+            "action_description": {"type": "string"},
+        },
+        ["trigger_description", "action_description"],
+    ),
+    _fn(
+        "control_device",
+        "Generic device control for any supported device by friendly name, "
+        "room, or entity id. Use when no specific tool fits. action is a verb "
+        "like 'turn_on', 'turn_off', 'set_percentage', 'open', 'close', "
+        "'set_temperature', 'set_volume'. Sensitive actions (unlock, open "
+        "garage, disarm) are confirmation-gated by the backend.",
+        {
+            "target": {"type": "string", "description": "Device/room/entity, e.g. 'office fan'."},
+            "action": {"type": "string", "description": "Verb to perform."},
+            "value": {"type": "string",
+                      "description": "Optional value as text (percentage, temperature, source, etc.)."},
+        },
+        ["target", "action"],
+    ),
+    _fn(
+        "query_device",
+        "Get the current status/state of a device by friendly name, room, or "
+        "entity id.",
+        {"target": {"type": "string", "description": "Device/room/entity to query."}},
+        ["target"],
+    ),
+]

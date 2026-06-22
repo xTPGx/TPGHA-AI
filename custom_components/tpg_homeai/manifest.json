@@ -1,0 +1,13 @@
+{
+  "domain": "tpg_homeai",
+  "name": "TPG HomeAI",
+  "version": "0.1.0",
+  "documentation": "https://github.com/your-org/tpg-homeai",
+  "issue_tracker": "https://github.com/your-org/tpg-homeai/issues",
+  "codeowners": ["@your-org"],
+  "config_flow": true,
+  "dependencies": ["conversation", "persistent_notification"],
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "requirements": []
+}

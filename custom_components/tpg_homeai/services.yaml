@@ -1,0 +1,150 @@
+reload_config:
+  name: Reload config
+  description: >
+    Tell the TPG HomeAI server to hot-reload its YAML configuration
+    (households, assistants, devices, permissions).
+
+scan_devices:
+  name: Scan devices
+  description: >
+    Run a discovery scan against Home Assistant. Classifies entities and queues
+    new ones for approval (never auto-approves high/critical risk).
+
+approve_discovered_entity:
+  name: Approve discovered entity
+  description: Approve a discovered entity and write it into the device config.
+  fields:
+    entity_id:
+      name: Entity
+      required: true
+      example: light.new_lamp
+      selector:
+        text:
+    mapping:
+      name: Mapping section
+      description: device_aliases | cameras | locks | speakers | displays | climate | security_sensors
+      required: false
+      example: device_aliases
+      selector:
+        text:
+    room:
+      name: Room
+      required: false
+      example: office
+      selector:
+        text:
+    friendly_name:
+      name: Friendly name
+      required: false
+      example: Office Lamp
+      selector:
+        text:
+    aliases:
+      name: Aliases
+      required: false
+      selector:
+        object:
+
+ignore_discovered_entity:
+  name: Ignore discovered entity
+  description: Add an entity to the avoid list so the AI never targets it.
+  fields:
+    entity_id:
+      name: Entity
+      required: true
+      example: media_player.dead_old_tv
+      selector:
+        text:
+    reason:
+      name: Reason
+      required: false
+      example: duplicate
+      selector:
+        text:
+
+map_entity:
+  name: Map entity
+  description: Map a discovered entity as a specific device type.
+  fields:
+    entity_id:
+      name: Entity
+      required: true
+      selector:
+        text:
+    target:
+      name: Target type
+      description: speaker | display | camera | security_sensor | lock | climate | device
+      required: true
+      example: speaker
+      selector:
+        text:
+    room:
+      name: Room
+      required: false
+      selector:
+        text:
+    friendly_name:
+      name: Friendly name
+      required: false
+      selector:
+        text:
+    aliases:
+      name: Aliases
+      required: false
+      selector:
+        object:
+
+confirm_action:
+  name: Confirm action
+  description: Confirm a pending sensitive action using its confirmation token.
+  fields:
+    confirmation_token:
+      name: Confirmation token
+      required: true
+      selector:
+        text:
+
+cancel_confirmation:
+  name: Cancel confirmation
+  description: Cancel a pending sensitive action without executing it.
+  fields:
+    confirmation_token:
+      name: Confirmation token
+      required: true
+      selector:
+        text:
+
+test_command:
+  name: Test command
+  description: >
+    Send a natural-language command to the TPG HomeAI server and return the
+    structured result (intent, resolved entity, message). Useful for testing
+    without going through Assist.
+  fields:
+    text:
+      name: Text
+      description: The natural-language command to send.
+      required: true
+      example: "show me the driveway"
+      selector:
+        text:
+    assistant_id:
+      name: Assistant
+      description: Assistant id to use (defaults to the integration option).
+      required: false
+      example: atlas
+      selector:
+        text:
+    user_id:
+      name: User
+      description: User id to attribute the command to (defaults to the integration option).
+      required: false
+      example: shawn
+      selector:
+        text:
+    conversation_id:
+      name: Conversation ID
+      description: Optional conversation id to continue a session.
+      required: false
+      selector:
+        text:

@@ -1,0 +1,35 @@
+# Development stack for the TPG HomeAI Orchestrator.
+#   backend  -> FastAPI on :8088
+#   frontend -> Vite dev server on :5173
+# Secrets come from .env (never committed). Config is mounted read-write so you
+# can edit YAML and hit "Reload config" in the UI.
+services:
+  backend:
+    build: ./backend
+    container_name: tpg-homeai-backend
+    ports:
+      - "8088:8088"
+    env_file:
+      - .env
+    environment:
+      CONFIG_DIR: /app/config
+      DATABASE_URL: sqlite:////data/tpg_homeai.db
+    volumes:
+      - ./config:/app/config
+      - tpg_data:/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: tpg-homeai-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # The browser talks to the backend directly on the host.
+      VITE_API_BASE: http://localhost:8088
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  tpg_data:

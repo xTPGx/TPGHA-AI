@@ -1,0 +1,18 @@
+# Household configuration for the TPG HomeAI Orchestrator.
+# Start with a single household. Additional households can be added to the
+# `households` list later without changing application code.
+households:
+  - id: palmer_house
+    name: Palmer House
+    timezone: America/Los_Angeles
+    default: true
+    # Default Home Assistant dashboards used by open_dashboard / show_camera.
+    dashboards:
+      default: lovelace
+      security: lovelace/security
+      cameras: lovelace/cameras
+      music: lovelace/music
+      climate: lovelace/climate
+    # Default surface used to render cameras (Browser Mod target).
+    # When null, camera actions return a "open from dashboard" style response.
+    default_display: null
