@@ -5,8 +5,11 @@
 # we fetch the application from the public repo at build time. Only run.sh is
 # taken from the local build context.
 #
-# Stage 1: clone the repo + build the React frontend.
-# Stage 2: install the FastAPI backend on a Home Assistant Python base image.
+# The base image is resolved from BUILD_ARCH (the Supervisor always passes it),
+# so no build.yaml is required. Declared as a GLOBAL arg so it is usable in the
+# stage-2 FROM line.
+
+ARG BUILD_ARCH=amd64
 
 # ---- Stage 1: source + frontend build ----
 FROM node:20-alpine AS build
@@ -17,12 +20,8 @@ RUN git clone --depth 1 --branch "${REF}" "${REPO}" /src
 WORKDIR /src/frontend
 RUN npm install && npm run build
 
-# ---- Stage 2: backend runtime ----
-# Explicit base image (Supervisor no longer injects a default BUILD_FROM). The
-# per-arch image is supplied by build.yaml; the default keeps standalone builds
-# working on amd64.
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12
-FROM ${BUILD_FROM}
+# ---- Stage 2: backend runtime on a Home Assistant Python base image ----
+FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12
 
 ENV PYTHONUNBUFFERED=1 \
     STATIC_DIR=/app/static \
@@ -47,7 +46,7 @@ RUN chmod a+x /run.sh
 LABEL \
   io.hass.name="TPG HomeAI Orchestrator" \
   io.hass.type="app" \
-  io.hass.version="0.1.1" \
+  io.hass.version="0.1.2" \
   io.hass.arch="amd64|aarch64"
 
 EXPOSE 8088

@@ -1,6 +1,0 @@
-# Home Assistant Add-on repository manifest.
-# Add this repo's URL under Settings -> Add-ons -> Add-on Store -> (top-right)
-# Repositories, to make the TPG HomeAI Orchestrator add-on installable.
-name: TPG HomeAI Add-ons
-url: https://github.com/your-org/tpg-homeai
-maintainer: TPG <you@example.com>

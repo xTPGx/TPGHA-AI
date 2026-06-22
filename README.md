@@ -81,7 +81,7 @@ There are three ways to run TPG HomeAI, plus the dev workflow. They share the
 | Mode | What runs | Package | Use when |
 | --- | --- | --- | --- |
 | **Standalone Docker** | backend + UI | `docker-compose.yml` | Dev, or running on a separate box |
-| **HA Add-on** | backend + UI inside HA | `addon-repository/tpg_homeai` | You want it managed by Home Assistant |
+| **HA Add-on** | backend + UI inside HA | `tpg_homeai/` (repo root) | You want it managed by Home Assistant |
 | **HACS integration** | thin Assist bridge | `custom_components/tpg_homeai` | You want to talk to it through HA Assist/voice |
 
 > The HACS integration is **not** a copy of the backend. It only connects HA
@@ -119,7 +119,7 @@ Home Assistant on port `8088`, with an Ingress panel in the HA sidebar.
    automatically (no manual long-lived token needed).
 3. Open the UI via **Open Web UI**.
 
-Full add-on docs: [`addon-repository/tpg_homeai/README.md`](addon-repository/tpg_homeai/README.md).
+Full add-on docs: [`tpg_homeai/README.md`](tpg_homeai/README.md).
 
 ### C. HACS custom integration mode (Home Assistant Assist)
 
@@ -369,12 +369,15 @@ lives at the repo **root** so the Supervisor recognizes it:
 ```
 repository.yaml          # add-on repository manifest
 tpg_homeai/              # the add-on
-  config.yaml            # add-on manifest (port 8088, options, version 0.1.1)
-  Dockerfile             # clones repo + builds frontend, installs backend
-  build.yaml             # per-arch base images (amd64, aarch64)
+  config.yaml            # add-on manifest (port 8088, options, version 0.1.2)
+  Dockerfile             # clones repo + builds frontend; base from BUILD_ARCH
   run.sh                 # options -> env, seeds config, starts uvicorn
   README.md
 ```
+
+The base image is resolved from the `BUILD_ARCH` build-arg that the Supervisor
+always passes (`ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12`), so no
+`build.yaml` is needed.
 
 ### Install as a Home Assistant add-on
 
@@ -395,8 +398,7 @@ tpg_homeai/              # the add-on
 > The add-on Dockerfile fetches the app from this public repo at build time
 > (Home Assistant builds with the add-on folder as context, so it can't reach
 > sibling folders). After pushing code changes, **rebuild** the add-on to pick
-> them up. The older `addon-repository/` scaffold is kept for reference but the
-> root-level `tpg_homeai/` is the canonical add-on.
+> them up. The root-level `tpg_homeai/` is the canonical (and only) add-on.
 
 **Custom integration (HACS)** — `custom_components/tpg_homeai/`
 
@@ -423,8 +425,7 @@ sections 9–12 for discovery, approvals, notifications, and the security model.
 
 When run as the add-on, the server can use the Supervisor proxy
 (`http://supervisor/core`) + `SUPERVISOR_TOKEN` instead of a manual long-lived
-token. (Note: `addon/` is the original minimal scaffold; `addon-repository/` is
-the full distributable package.)
+token.
 
 ---
 
