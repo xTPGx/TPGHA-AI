@@ -15,6 +15,7 @@ CONF_SCAN_INTERVAL = "scan_interval_minutes"
 CONF_CREATE_REPAIRS = "create_repairs"
 CONF_AUTO_APPROVE_LOW_RISK = "auto_approve_low_risk_entities"
 CONF_AUTO_APPROVE_DOMAINS = "auto_approve_domains"
+CONF_ENABLE_SIDEBAR_PANEL = "enable_sidebar_panel"
 
 DEFAULT_ASSISTANT_ID = "atlas"
 DEFAULT_USER_ID = "shawn"
@@ -23,6 +24,7 @@ DEFAULT_SCAN_INTERVAL = 15  # minutes
 DEFAULT_ENABLE_NOTIFICATIONS = True
 DEFAULT_CREATE_REPAIRS = True
 DEFAULT_AUTO_APPROVE_LOW_RISK = False
+DEFAULT_ENABLE_SIDEBAR_PANEL = True
 
 # Service names
 SERVICE_RELOAD_CONFIG = "reload_config"
@@ -33,6 +35,8 @@ SERVICE_IGNORE = "ignore_discovered_entity"
 SERVICE_MAP_ENTITY = "map_entity"
 SERVICE_CONFIRM_ACTION = "confirm_action"
 SERVICE_CANCEL_CONFIRMATION = "cancel_confirmation"
+SERVICE_DASHBOARD_DRAFT = "dashboard_draft"
+SERVICE_OPEN_PANEL = "open_panel"
 
 # Home Assistant events fired by this integration.
 EVENT_DISCOVERY_FOUND = "tpg_homeai_discovery_found"

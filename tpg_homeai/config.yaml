@@ -1,5 +1,5 @@
 name: "TPG HomeAI Orchestrator"
-version: "0.1.10"
+version: "0.1.11"
 slug: "tpg_homeai"
 description: "AI smart-home orchestration layer for Home Assistant"
 url: "https://github.com/xTPGx/TPGHA-AI"
@@ -17,6 +17,10 @@ ports:
 ports_description:
   8088/tcp: "TPG HomeAI API and web interface"
 webui: "http://[HOST]:[PORT:8088]"
+ingress: true
+ingress_port: 8088
+panel_icon: mdi:robot-happy
+panel_title: "TPG HomeAI"
 map:
   - type: homeassistant_config
     read_only: false

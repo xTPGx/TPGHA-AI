@@ -114,6 +114,65 @@ cancel_confirmation:
       selector:
         text:
 
+dashboard_draft:
+  name: Create dashboard draft
+  description: >
+    Generate a Lovelace dashboard YAML draft from approved TPG HomeAI rooms and
+    devices. This returns YAML for review; it does not overwrite Home Assistant
+    dashboards.
+  fields:
+    title:
+      name: Title
+      required: false
+      default: TPG Home
+      selector:
+        text:
+    style:
+      name: Style
+      required: false
+      default: native
+      selector:
+        select:
+          options:
+            - native
+            - mushroom
+    room:
+      name: Room
+      description: Optional room id/name to generate a single-room dashboard.
+      required: false
+      selector:
+        text:
+    include_browser_mod:
+      name: Include Browser Mod helper
+      required: false
+      default: true
+      selector:
+        boolean:
+
+open_panel:
+  name: Open TPG HomeAI panel
+  description: >
+    Open or navigate to the TPG HomeAI panel. If Browser Mod is installed, this
+    can navigate a specific browser/display.
+  fields:
+    path:
+      name: Path
+      required: false
+      default: /tpg-homeai
+      selector:
+        text:
+    browser_id:
+      name: Browser ID
+      required: false
+      selector:
+        text:
+    use_browser_mod:
+      name: Use Browser Mod
+      required: false
+      default: true
+      selector:
+        boolean:
+
 test_command:
   name: Test command
   description: >

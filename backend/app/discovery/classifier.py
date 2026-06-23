@@ -40,6 +40,14 @@ _MOBILE_HINTS = (
     "geocoded_location", "sim_1", "sim_2",
 )
 
+_NO_ROOM_HINTS = (
+    "backup", "app version", "app_version", "location permission",
+    "location_permission", "audio output", "audio_output", "bssid", "ssid",
+    "connection type", "connection_type", "geocoded location",
+    "geocoded_location", "last update", "last_update", "sim 1", "sim_1",
+    "sim 2", "sim_2",
+)
+
 
 @dataclass
 class EntityClassification:
@@ -76,11 +84,25 @@ def _norm(s: str) -> str:
     return " ".join(str(s).strip().lower().split())
 
 
+def _tokens(s: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", str(s).lower().replace("_", " "))
+
+
+def _contains_phrase(tokens: list[str], phrase: str) -> bool:
+    p = _tokens(phrase)
+    if not p or len(p) > len(tokens):
+        return False
+    return any(tokens[i:i + len(p)] == p for i in range(len(tokens) - len(p) + 1))
+
+
 def _guess_room(entity_id: str, friendly: str, room_idx: dict[str, str]) -> Optional[str]:
-    text = f"{entity_id} {friendly}".lower().replace(".", " ").replace("_", " ")
+    raw_text = f"{entity_id} {friendly}".lower().replace(".", " ").replace("_", " ")
+    if any(hint.replace("_", " ") in raw_text for hint in _NO_ROOM_HINTS):
+        return None
+    tokens = _tokens(raw_text)
     # Prefer the longest matching room phrase.
-    for phrase in sorted(room_idx, key=len, reverse=True):
-        if phrase and phrase in text:
+    for phrase in sorted(room_idx, key=lambda p: len(_tokens(p)), reverse=True):
+        if _contains_phrase(tokens, phrase):
             return room_idx[phrase]
     return None
 

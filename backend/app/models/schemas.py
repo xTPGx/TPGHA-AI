@@ -305,6 +305,14 @@ class DraftUpdateRequest(BaseModel):
     status: Optional[str] = None
 
 
+class DashboardDraftRequest(BaseModel):
+    title: str = "TPG Home"
+    style: Literal["native", "mushroom"] = "native"
+    room: Optional[str] = None
+    include_browser_mod: bool = True
+    include_unavailable: bool = False
+
+
 class HAEntity(BaseModel):
     entity_id: str
     state: str

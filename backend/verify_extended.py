@@ -56,13 +56,17 @@ FAKE_STATES = {
     "climate.living_room_living_room": "cool",
     "camera.front_yard_front_yard": "streaming",
     "media_player.office_speaker": "idle",
+    "sensor.backup_backup_manager_state": "idle",
     "sensor.tpg_iphone17_app_version": "2026.1",
+    "sensor.tpg_iphone17_bssid": "unavailable",
     "device_tracker.ipad1": "home",
 }
 FAKE_FRIENDLY = {
     "light.new_lamp": "Office Lamp",
     "fan.den_fan": "Den Fan",
+    "sensor.backup_backup_manager_state": "Backup Backup Manager state",
     "sensor.tpg_iphone17_app_version": "TPG iPhone17 App Version",
+    "sensor.tpg_iphone17_bssid": "TPG iPhone17 BSSID",
     "device_tracker.ipad1": "iPad1",
 }
 
@@ -196,9 +200,20 @@ async def main():
     check("P2 iPhone maps to personal_devices",
           phone_c and phone_c["suggested_mapping"] == "personal_devices",
           str(phone_c))
+    check("P2 iPhone diagnostic has no guessed room",
+          phone_c and phone_c["likely_room"] is None, str(phone_c))
+    phone_bssid = next((e for e in res["entities"]
+                        if e["entity_id"] == "sensor.tpg_iphone17_bssid"), None)
+    check("P2 iPhone BSSID classified personal_device",
+          phone_bssid and phone_bssid["suggested_category"] == "personal_device",
+          str(phone_bssid))
     ipad_c = next((e for e in res["entities"] if e["entity_id"] == "device_tracker.ipad1"), None)
     check("P2 iPad tracker classified personal_device",
           ipad_c and ipad_c["likely_device_type"] == "tablet", str(ipad_c))
+    backup_c = next((e for e in res["entities"]
+                     if e["entity_id"] == "sensor.backup_backup_manager_state"), None)
+    check("P2 backup sensor does not match back yard",
+          backup_c and backup_c["likely_room"] is None, str(backup_c))
 
     # approve writes overlay + reload exposes it
     from app.discovery import registry

@@ -93,6 +93,13 @@ def main() -> int:
     r = client.get("/config")
     check("/config is JSON", is_json(r))
 
+    r = client.post("/dashboards/draft", json={"title": "TPG Home", "style": "native"})
+    check("/dashboards/draft returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    body = r.json()
+    check("/dashboards/draft includes yaml", bool(body.get("yaml")) and "views:" in body["yaml"],
+          str(body))
+
     r = client.post("/chat", json={
         "assistant": "atlas",
         "user": "shawn",
@@ -118,6 +125,10 @@ def main() -> int:
     # Unknown API route under a known prefix => JSON 404, not HTML.
     r = client.get("/discovery/does-not-exist")
     check("unknown API route is JSON 404", r.status_code == 404 and is_json(r) and not is_html(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.get("/dashboards/does-not-exist")
+    check("unknown dashboard API route is JSON 404",
+          r.status_code == 404 and is_json(r) and not is_html(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
 
     print("Frontend routes return HTML")

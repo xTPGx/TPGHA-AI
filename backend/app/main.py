@@ -29,6 +29,7 @@ from .models.schemas import (
     ChatRequest,
     CommandRequest,
     ConfirmRequest,
+    DashboardDraftRequest,
     DraftUpdateRequest,
     IgnoreRequest,
     MapRequest,
@@ -38,6 +39,7 @@ from .models.schemas import (
 )
 from .router import intent_router
 from .router.permissions import get_confirmation_store
+from .actions.dashboards import build_dashboard_draft
 from .router.resolver import Resolver
 from .settings import get_settings
 
@@ -45,13 +47,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.10"
+APP_VERSION = "0.1.11"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "test", "tools", "docs", "redoc", "openapi.json",
+    "dashboards", "test", "tools", "docs", "redoc", "openapi.json",
 )
 
 
@@ -421,6 +423,36 @@ async def test_action(req: TestActionRequest):
 @app.get("/tools")
 async def list_tools():
     return {"tools": TOOL_NAMES}
+
+
+# ------------------------------------------------------------ dashboards
+@app.post("/dashboards/draft")
+async def dashboard_draft(req: DashboardDraftRequest):
+    cfg = get_config()
+    return build_dashboard_draft(
+        cfg,
+        title=req.title,
+        style=req.style,
+        room=req.room,
+        include_browser_mod=req.include_browser_mod,
+    )
+
+
+@app.get("/dashboards/draft")
+async def dashboard_draft_get(
+    title: str = "TPG Home",
+    style: str = "native",
+    room: str | None = None,
+    include_browser_mod: bool = True,
+):
+    cfg = get_config()
+    return build_dashboard_draft(
+        cfg,
+        title=title,
+        style=style,
+        room=room,
+        include_browser_mod=include_browser_mod,
+    )
 
 
 # -------------------------------------------------------------- draft inbox

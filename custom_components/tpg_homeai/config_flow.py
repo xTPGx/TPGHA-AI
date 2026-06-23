@@ -23,6 +23,7 @@ from .const import (
     CONF_AUTO_APPROVE_DOMAINS,
     CONF_AUTO_APPROVE_LOW_RISK,
     CONF_CREATE_REPAIRS,
+    CONF_ENABLE_SIDEBAR_PANEL,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_SCAN_INTERVAL,
     CONF_URL,
@@ -30,6 +31,7 @@ from .const import (
     DEFAULT_ASSISTANT_ID,
     DEFAULT_AUTO_APPROVE_LOW_RISK,
     DEFAULT_CREATE_REPAIRS,
+    DEFAULT_ENABLE_SIDEBAR_PANEL,
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TIMEOUT,
@@ -153,6 +155,11 @@ class TPGHomeAIOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_CREATE_REPAIRS,
                     default=opts.get(CONF_CREATE_REPAIRS, DEFAULT_CREATE_REPAIRS),
+                ): bool,
+                vol.Optional(
+                    CONF_ENABLE_SIDEBAR_PANEL,
+                    default=opts.get(CONF_ENABLE_SIDEBAR_PANEL,
+                                     DEFAULT_ENABLE_SIDEBAR_PANEL),
                 ): bool,
                 vol.Optional(
                     CONF_AUTO_APPROVE_LOW_RISK,

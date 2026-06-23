@@ -32,20 +32,24 @@ from .const import (
     CONF_ASSISTANT_ID,
     CONF_AUTO_APPROVE_DOMAINS,
     CONF_AUTO_APPROVE_LOW_RISK,
+    CONF_ENABLE_SIDEBAR_PANEL,
     CONF_URL,
     CONF_USER_ID,
     DATA_CLIENT,
     DATA_COORDINATOR,
     DEFAULT_ASSISTANT_ID,
     DEFAULT_AUTO_APPROVE_LOW_RISK,
+    DEFAULT_ENABLE_SIDEBAR_PANEL,
     DEFAULT_TIMEOUT,
     DEFAULT_USER_ID,
     DOMAIN,
     SERVICE_APPROVE,
     SERVICE_CANCEL_CONFIRMATION,
     SERVICE_CONFIRM_ACTION,
+    SERVICE_DASHBOARD_DRAFT,
     SERVICE_IGNORE,
     SERVICE_MAP_ENTITY,
+    SERVICE_OPEN_PANEL,
     SERVICE_RELOAD_CONFIG,
     SERVICE_SCAN_DEVICES,
     SERVICE_TEST_COMMAND,
@@ -117,6 +121,17 @@ class TPGHomeAIClient:
     async def async_pending(self) -> dict[str, Any]:
         return await self._request("GET", "/discovery/pending")
 
+    async def async_dashboard_draft(self, title: str = "TPG Home",
+                                    style: str = "native",
+                                    room: str | None = None,
+                                    include_browser_mod: bool = True) -> dict[str, Any]:
+        return await self._request("POST", "/dashboards/draft", json={
+            "title": title,
+            "style": style,
+            "room": room,
+            "include_browser_mod": include_browser_mod,
+        })
+
     async def async_reload_config(self) -> dict[str, Any]:
         return await self._request("POST", "/config/reload")
 
@@ -183,6 +198,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    _register_sidebar_panel(hass, entry)
     _register_services(hass)
     return True
 
@@ -190,6 +206,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        _remove_sidebar_panel(hass)
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data[DOMAIN]:
             _unregister_services(hass)
@@ -247,6 +264,48 @@ MAP_SCHEMA = vol.Schema({
     vol.Optional("aliases"): vol.All(cv.ensure_list, [cv.string]),
 })
 TOKEN_SCHEMA = vol.Schema({vol.Required("confirmation_token"): cv.string})
+DASHBOARD_DRAFT_SCHEMA = vol.Schema({
+    vol.Optional("title", default="TPG Home"): cv.string,
+    vol.Optional("style", default="native"): vol.In(["native", "mushroom"]),
+    vol.Optional("room"): cv.string,
+    vol.Optional("include_browser_mod", default=True): cv.boolean,
+})
+OPEN_PANEL_SCHEMA = vol.Schema({
+    vol.Optional("path", default="/tpg-homeai"): cv.string,
+    vol.Optional("browser_id"): cv.string,
+    vol.Optional("use_browser_mod", default=True): cv.boolean,
+})
+
+
+def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    enabled = entry.options.get(CONF_ENABLE_SIDEBAR_PANEL,
+                                DEFAULT_ENABLE_SIDEBAR_PANEL)
+    if not enabled:
+        _remove_sidebar_panel(hass)
+        return
+    try:
+        from homeassistant.components import frontend
+
+        frontend.async_register_built_in_panel(
+            hass,
+            component_name="iframe",
+            sidebar_title="TPG HomeAI",
+            sidebar_icon="mdi:robot-happy",
+            frontend_url_path="tpg-homeai",
+            config={"url": entry.data[CONF_URL], "require_admin": False},
+            require_admin=False,
+        )
+    except Exception as err:  # noqa: BLE001 - sidebar is best-effort
+        _LOGGER.debug("Could not register TPG HomeAI sidebar panel: %s", err)
+
+
+def _remove_sidebar_panel(hass: HomeAssistant) -> None:
+    try:
+        from homeassistant.components import frontend
+
+        frontend.async_remove_panel(hass, "tpg-homeai")
+    except Exception:  # noqa: BLE001 - panel may not exist on this HA version
+        pass
 
 
 def _register_services(hass: HomeAssistant) -> None:
@@ -303,6 +362,31 @@ def _register_services(hass: HomeAssistant) -> None:
         await _first_client(hass).async_cancel(call.data["confirmation_token"])
         await _refresh()
 
+    async def _dashboard_draft(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_dashboard_draft(
+            title=call.data.get("title", "TPG Home"),
+            style=call.data.get("style", "native"),
+            room=call.data.get("room"),
+            include_browser_mod=call.data.get("include_browser_mod", True),
+        )
+
+    async def _open_panel(call: ServiceCall) -> ServiceResponse:
+        path = call.data.get("path", "/tpg-homeai")
+        use_browser_mod = call.data.get("use_browser_mod", True)
+        browser_id = call.data.get("browser_id")
+        browser_mod_used = False
+        if use_browser_mod and hass.services.has_service("browser_mod", "navigate"):
+            data: dict[str, Any] = {"path": path}
+            if browser_id:
+                data["browser_id"] = browser_id
+            await hass.services.async_call("browser_mod", "navigate", data, blocking=False)
+            browser_mod_used = True
+        return {
+            "path": path,
+            "panel": "/tpg-homeai",
+            "browser_mod_used": browser_mod_used,
+        }
+
     async def _test_command(call: ServiceCall) -> ServiceResponse:
         entry = _first_entry(hass)
         options = entry.options if entry else {}
@@ -325,6 +409,10 @@ def _register_services(hass: HomeAssistant) -> None:
     reg(DOMAIN, SERVICE_CONFIRM_ACTION, _confirm_action, schema=TOKEN_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL)
     reg(DOMAIN, SERVICE_CANCEL_CONFIRMATION, _cancel_confirmation, schema=TOKEN_SCHEMA)
+    reg(DOMAIN, SERVICE_DASHBOARD_DRAFT, _dashboard_draft, schema=DASHBOARD_DRAFT_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_OPEN_PANEL, _open_panel, schema=OPEN_PANEL_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL)
     reg(DOMAIN, SERVICE_TEST_COMMAND, _test_command, schema=TEST_COMMAND_SCHEMA,
         supports_response=SupportsResponse.ONLY)
 
@@ -332,5 +420,6 @@ def _register_services(hass: HomeAssistant) -> None:
 def _unregister_services(hass: HomeAssistant) -> None:
     for service in (SERVICE_RELOAD_CONFIG, SERVICE_SCAN_DEVICES, SERVICE_APPROVE,
                     SERVICE_IGNORE, SERVICE_MAP_ENTITY, SERVICE_CONFIRM_ACTION,
-                    SERVICE_CANCEL_CONFIRMATION, SERVICE_TEST_COMMAND):
+                    SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
+                    SERVICE_OPEN_PANEL, SERVICE_TEST_COMMAND):
         hass.services.async_remove(DOMAIN, service)

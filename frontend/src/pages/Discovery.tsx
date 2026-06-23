@@ -6,8 +6,14 @@ interface Discovered {
   entity_id: string;
   domain: string;
   friendly_name: string;
+  device_name?: string;
+  source?: string;
+  source_detail?: string;
+  semantic_category?: string;
   suggested_category: string;
+  suggested_mapping?: string;
   likely_room?: string;
+  room?: string;
   risk_level: string;
   suggested_aliases: string[];
   is_available: boolean;
@@ -22,16 +28,43 @@ const RISK_COLORS: Record<string, string> = {
   critical: "bg-rose-500/20 text-rose-300",
 };
 
-const MAP_TARGETS = [
-  "device",
-  "personal_device",
-  "speaker",
-  "display",
-  "camera",
-  "security_sensor",
-  "lock",
-  "climate",
-];
+const TARGET_LABELS: Record<string, string> = {
+  device: "Approve as status",
+  personal_device: "Map as personal device",
+  speaker: "Map as speaker",
+  display: "Map as display",
+  camera: "Map as camera",
+  security_sensor: "Map as security sensor",
+  lock: "Map as lock",
+  climate: "Map as climate",
+};
+
+function prettyCategory(value?: string) {
+  return (value || "other").replace(/_/g, " ");
+}
+
+function categoryOf(d: Discovered) {
+  return d.semantic_category || d.suggested_category || "other";
+}
+
+function roomOf(d: Discovered) {
+  return d.likely_room || d.room || "";
+}
+
+function mapTargets(d: Discovered) {
+  const category = categoryOf(d);
+  const domain = d.domain;
+  if (category === "personal_device") return ["personal_device", "device"];
+  if (["system_backup", "diagnostic_sensor", "network", "person"].includes(category)) {
+    return ["device"];
+  }
+  if (domain === "camera") return ["camera", "device"];
+  if (domain === "lock") return ["lock", "device"];
+  if (domain === "climate") return ["climate", "device"];
+  if (domain === "binary_sensor") return ["security_sensor", "device"];
+  if (domain === "media_player") return ["speaker", "display", "device"];
+  return ["device", "speaker", "display", "camera", "security_sensor", "lock", "climate"];
+}
 
 export default function Discovery() {
   const [pending, setPending] = useState<Discovered[]>([]);
@@ -74,7 +107,7 @@ export default function Discovery() {
       if (target === "device") {
         await api.approve({
           entity_id: d.entity_id,
-          room: d.likely_room,
+          room: roomOf(d),
           friendly_name: d.friendly_name,
           aliases: d.suggested_aliases,
         });
@@ -82,7 +115,7 @@ export default function Discovery() {
         await api.mapEntity({
           entity_id: d.entity_id,
           target,
-          room: d.likely_room,
+          room: roomOf(d),
           friendly_name: d.friendly_name,
           aliases: d.suggested_aliases,
         });
@@ -111,7 +144,7 @@ export default function Discovery() {
     <div>
       <PageHeader
         title="Discovery"
-        subtitle="Find, classify, and approve Home Assistant entities"
+        subtitle="Classifies entities Home Assistant already knows about"
         actions={
           <button className="btn" onClick={scan} disabled={loading}>
             {loading ? "Scanning…" : "Scan now"}
@@ -132,6 +165,9 @@ export default function Discovery() {
 
       <div className="card">
         <div className="mb-3 text-sm font-medium text-slate-300">Pending approvals ({pending.length})</div>
+        <div className="mb-4 text-xs text-slate-500">
+          Source: Home Assistant entity states. This is not a direct LAN scan.
+        </div>
         {pending.length === 0 && <div className="text-slate-500">No new entities. Run a scan to discover devices.</div>}
         <div className="space-y-3">
           {pending.map((d) => (
@@ -139,7 +175,7 @@ export default function Discovery() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm text-brand">{d.entity_id}</span>
                 <span className={`badge ${RISK_COLORS[d.risk_level] || ""}`}>{d.risk_level}</span>
-                <span className="badge bg-slate-700/50 text-slate-300">{d.suggested_category}</span>
+                <span className="badge bg-slate-700/50 text-slate-300">{prettyCategory(categoryOf(d))}</span>
                 {!d.is_available && <span className="badge bg-slate-700/50 text-slate-400">unavailable</span>}
                 {d.is_duplicate_candidate && (
                   <span className="badge bg-orange-500/20 text-orange-300">duplicate?</span>
@@ -147,18 +183,24 @@ export default function Discovery() {
               </div>
               <div className="mt-1 text-sm text-slate-300">{d.friendly_name}</div>
               <div className="mt-1 text-xs text-slate-500">
-                Room: {d.likely_room || "—"} · Aliases: {(d.suggested_aliases || []).join(", ") || "—"}
+                Device: {d.device_name || "—"} · Source: {d.source_detail || d.source || "Home Assistant"}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Room: {roomOf(d) || "—"} · Domain: {d.domain} · Mapping: {d.suggested_mapping || "device_aliases"}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Aliases: {(d.suggested_aliases || []).join(", ") || "—"}
               </div>
               <div className="mt-1 text-xs text-slate-600">{d.reason}</div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                {MAP_TARGETS.map((t) => (
+                {mapTargets(d).map((t) => (
                   <button
                     key={t}
                     className="btn-ghost text-xs"
                     disabled={busy === d.entity_id}
                     onClick={() => approve(d, t)}
                   >
-                    {t === "device" ? "Approve" : `Map as ${t.replace("_", " ")}`}
+                    {TARGET_LABELS[t] || `Map as ${t.replace("_", " ")}`}
                   </button>
                 ))}
                 <button

@@ -54,6 +54,70 @@ def _slug(entity_id: str) -> str:
     return re.sub(r"[^a-z0-9_]+", "_", base.lower()).strip("_") or "device"
 
 
+def _humanize_slug(value: str) -> str:
+    return re.sub(r"\s+", " ", value.replace("_", " ")).strip().title()
+
+
+def _derive_device_name(entity_id: str, friendly: str = "") -> str:
+    text = f"{entity_id} {friendly}".lower()
+    mobile_match = re.search(r"(tpg[ _-]*)?(iphone|ipad|watch|android)[ _-]*([a-z0-9]+)?", text)
+    if mobile_match:
+        prefix = "TPG " if mobile_match.group(1) else ""
+        kind = mobile_match.group(2)
+        suffix = mobile_match.group(3) or ""
+        display_kind = {"iphone": "iPhone", "ipad": "iPad", "android": "Android",
+                        "watch": "Watch"}.get(kind, kind.title())
+        return f"{prefix}{display_kind}{suffix}"
+    if entity_id.startswith("person."):
+        return friendly or _humanize_slug(entity_id.split(".", 1)[-1])
+    if friendly:
+        words = friendly.split()
+        if len(words) >= 2 and words[0].lower() == words[1].lower():
+            return words[0].title()
+        if words:
+            return words[0] if len(words) > 2 else friendly
+    return _humanize_slug(entity_id.split(".", 1)[-1])
+
+
+def _semantic_category(entity_id: str, domain: str, category: str = "",
+                       friendly: str = "") -> str:
+    text = f"{entity_id} {friendly} {category}".lower()
+    if category == "personal_device" or domain == "device_tracker" or any(
+        h in text for h in ("iphone", "ipad", "android", "mobile", "watch")
+    ):
+        return "personal_device"
+    if domain == "person":
+        return "person"
+    if "backup" in text:
+        return "system_backup"
+    if any(h in text for h in ("bssid", "ssid", "connection", "router", "eero", "wan", "internet")):
+        return "network"
+    if any(h in text for h in (
+        "app_version", "app version", "audio_output", "audio output",
+        "location_permission", "location permission", "geocoded_location",
+        "geocoded location", "last_update", "last update", "sim_1", "sim 1",
+        "sim_2", "sim 2",
+    )):
+        return "diagnostic_sensor"
+    return category or domain or "other"
+
+
+def _suggested_mapping(category: str, domain: str) -> str:
+    if category == "personal_device":
+        return "personal_devices"
+    if domain == "camera":
+        return "cameras"
+    if domain == "lock":
+        return "locks"
+    if domain == "media_player":
+        return "speakers"
+    if domain == "climate":
+        return "climate"
+    if domain == "binary_sensor":
+        return "security_sensors"
+    return "device_aliases"
+
+
 # --------------------------------------------------------------------------
 # SQLite sync of classifications
 # --------------------------------------------------------------------------
@@ -99,11 +163,21 @@ def _row_dict(r: DiscoveredEntity) -> dict[str, Any]:
         aliases = json.loads(r.suggested_aliases) if r.suggested_aliases else []
     except json.JSONDecodeError:
         aliases = []
+    semantic = _semantic_category(r.entity_id, r.domain or "", r.category or "",
+                                  r.friendly_name or "")
+    device_name = _derive_device_name(r.entity_id, r.friendly_name or "")
+    suggested_mapping = _suggested_mapping(semantic, r.domain or "")
     return {
         "entity_id": r.entity_id, "status": r.status, "domain": r.domain,
-        "friendly_name": r.friendly_name, "category": r.category, "room": r.room,
+        "friendly_name": r.friendly_name, "category": r.category,
+        "suggested_category": r.category, "semantic_category": semantic,
+        "room": r.room, "likely_room": r.room,
+        "device_name": device_name, "source": "Home Assistant",
+        "source_detail": "Home Assistant entity state registry (/api/states)",
+        "suggested_mapping": suggested_mapping,
         "risk_level": r.risk_level, "suggested_aliases": aliases,
         "reason": r.reason, "is_available": r.is_available,
+        "is_duplicate_candidate": "possible duplicate" in (r.reason or "").lower(),
         "ignore_reason": r.ignore_reason,
     }
 
