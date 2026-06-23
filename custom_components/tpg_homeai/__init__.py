@@ -47,9 +47,14 @@ from .const import (
     SERVICE_CANCEL_CONFIRMATION,
     SERVICE_CONFIRM_ACTION,
     SERVICE_DASHBOARD_DRAFT,
+    SERVICE_DRAFT_MEMORY,
+    SERVICE_GENERATE_SUGGESTIONS,
+    SERVICE_GET_KNOWLEDGE_GRAPH,
     SERVICE_IGNORE,
+    SERVICE_IGNORE_MEMORY,
     SERVICE_MAP_ENTITY,
     SERVICE_OPEN_PANEL,
+    SERVICE_APPROVE_MEMORY,
     SERVICE_RELOAD_CONFIG,
     SERVICE_SCAN_DEVICES,
     SERVICE_TEST_COMMAND,
@@ -120,6 +125,33 @@ class TPGHomeAIClient:
 
     async def async_pending(self) -> dict[str, Any]:
         return await self._request("GET", "/discovery/pending")
+
+    async def async_knowledge_graph(self, include_registries: bool = True) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/knowledge/graph?include_registries={'true' if include_registries else 'false'}",
+        )
+
+    async def async_generate_suggestions(self) -> dict[str, Any]:
+        return await self._request("POST", "/suggestions/generate")
+
+    async def async_draft_memory(self, scope: str, subject: str, key: str, value: str,
+                                 owner: str | None = None,
+                                 source: str = "home_assistant") -> dict[str, Any]:
+        return await self._request("POST", "/memory/draft", json={
+            "scope": scope,
+            "owner": owner,
+            "subject": subject,
+            "key": key,
+            "value": value,
+            "source": source,
+        })
+
+    async def async_approve_memory(self, memory_id: int) -> dict[str, Any]:
+        return await self._request("POST", f"/memory/{memory_id}/approve")
+
+    async def async_ignore_memory(self, memory_id: int) -> dict[str, Any]:
+        return await self._request("POST", f"/memory/{memory_id}/ignore")
 
     async def async_dashboard_draft(self, title: str = "TPG Home",
                                     style: str = "native",
@@ -275,6 +307,17 @@ OPEN_PANEL_SCHEMA = vol.Schema({
     vol.Optional("browser_id"): cv.string,
     vol.Optional("use_browser_mod", default=True): cv.boolean,
 })
+KNOWLEDGE_GRAPH_SCHEMA = vol.Schema({
+    vol.Optional("include_registries", default=True): cv.boolean,
+})
+MEMORY_DRAFT_SCHEMA = vol.Schema({
+    vol.Optional("scope", default="house"): vol.In(["house", "user", "room", "device"]),
+    vol.Optional("owner"): cv.string,
+    vol.Required("subject"): cv.string,
+    vol.Required("key"): cv.string,
+    vol.Required("value"): cv.string,
+})
+MEMORY_ID_SCHEMA = vol.Schema({vol.Required("memory_id"): vol.Coerce(int)})
 
 
 def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -387,6 +430,30 @@ def _register_services(hass: HomeAssistant) -> None:
             "browser_mod_used": browser_mod_used,
         }
 
+    async def _get_knowledge_graph(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_knowledge_graph(
+            include_registries=call.data.get("include_registries", True))
+
+    async def _generate_suggestions(call: ServiceCall) -> ServiceResponse:
+        result = await _first_client(hass).async_generate_suggestions()
+        await _refresh()
+        return result
+
+    async def _draft_memory(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_draft_memory(
+            scope=call.data.get("scope", "house"),
+            owner=call.data.get("owner"),
+            subject=call.data["subject"],
+            key=call.data["key"],
+            value=call.data["value"],
+        )
+
+    async def _approve_memory(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_approve_memory(call.data["memory_id"])
+
+    async def _ignore_memory(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_ignore_memory(call.data["memory_id"])
+
     async def _test_command(call: ServiceCall) -> ServiceResponse:
         entry = _first_entry(hass)
         options = entry.options if entry else {}
@@ -413,6 +480,16 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_OPEN_PANEL, _open_panel, schema=OPEN_PANEL_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL)
+    reg(DOMAIN, SERVICE_GET_KNOWLEDGE_GRAPH, _get_knowledge_graph,
+        schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GENERATE_SUGGESTIONS, _generate_suggestions,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_DRAFT_MEMORY, _draft_memory, schema=MEMORY_DRAFT_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_APPROVE_MEMORY, _approve_memory, schema=MEMORY_ID_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_IGNORE_MEMORY, _ignore_memory, schema=MEMORY_ID_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_TEST_COMMAND, _test_command, schema=TEST_COMMAND_SCHEMA,
         supports_response=SupportsResponse.ONLY)
 
@@ -421,5 +498,8 @@ def _unregister_services(hass: HomeAssistant) -> None:
     for service in (SERVICE_RELOAD_CONFIG, SERVICE_SCAN_DEVICES, SERVICE_APPROVE,
                     SERVICE_IGNORE, SERVICE_MAP_ENTITY, SERVICE_CONFIRM_ACTION,
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
-                    SERVICE_OPEN_PANEL, SERVICE_TEST_COMMAND):
+                    SERVICE_OPEN_PANEL, SERVICE_GET_KNOWLEDGE_GRAPH,
+                    SERVICE_GENERATE_SUGGESTIONS, SERVICE_DRAFT_MEMORY,
+                    SERVICE_APPROVE_MEMORY, SERVICE_IGNORE_MEMORY,
+                    SERVICE_TEST_COMMAND):
         hass.services.async_remove(DOMAIN, service)

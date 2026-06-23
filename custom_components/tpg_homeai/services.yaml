@@ -173,6 +173,87 @@ open_panel:
       selector:
         boolean:
 
+get_knowledge_graph:
+  name: Get knowledge graph
+  description: >
+    Return TPG HomeAI's current house graph, optionally enriched from Home
+    Assistant area/device/entity registries.
+  fields:
+    include_registries:
+      name: Include HA registries
+      required: false
+      default: true
+      selector:
+        boolean:
+
+generate_suggestions:
+  name: Generate proactive suggestions
+  description: >
+    Ask TPG HomeAI to analyze the current house graph and create suggested
+    actions for review.
+
+draft_memory:
+  name: Draft memory
+  description: >
+    Propose a long-term house/user preference. It must be approved before it
+    becomes active AI context.
+  fields:
+    scope:
+      name: Scope
+      required: false
+      default: house
+      selector:
+        select:
+          options:
+            - house
+            - user
+            - room
+            - device
+    owner:
+      name: Owner
+      required: false
+      selector:
+        text:
+    subject:
+      name: Subject
+      required: true
+      selector:
+        text:
+    key:
+      name: Key
+      required: true
+      selector:
+        text:
+    value:
+      name: Value
+      required: true
+      selector:
+        text:
+
+approve_memory:
+  name: Approve memory
+  description: Approve a drafted memory so it becomes active AI context.
+  fields:
+    memory_id:
+      name: Memory ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+ignore_memory:
+  name: Ignore memory
+  description: Ignore a drafted memory so it is not used as AI context.
+  fields:
+    memory_id:
+      name: Memory ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
 test_command:
   name: Test command
   description: >

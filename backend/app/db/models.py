@@ -63,3 +63,36 @@ class AutomationDraft(Base):
     action_description: Mapped[str] = mapped_column(Text, default="")
     proposed_yaml: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="draft")
+
+
+class MemoryItem(Base):
+    """Approved or proposed long-term house/user memory."""
+
+    __tablename__ = "memory_item"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    scope: Mapped[str] = mapped_column(String(32), default="house")  # house|user|room|device
+    owner: Mapped[str] = mapped_column(String(64), default="")
+    subject: Mapped[str] = mapped_column(String(255), default="")
+    key: Mapped[str] = mapped_column(String(128), default="")
+    value: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(64), default="user")
+    status: Mapped[str] = mapped_column(String(32), default="draft")  # draft|approved|ignored
+
+
+class Suggestion(Base):
+    """A proactive recommendation awaiting approve/edit/ignore."""
+
+    __tablename__ = "suggestion"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    message: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[str] = mapped_column(String(64), default="")
+    priority: Mapped[str] = mapped_column(String(16), default="normal")
+    action_type: Mapped[str] = mapped_column(String(64), default="")
+    payload: Mapped[str] = mapped_column(Text, default="{}")  # JSON object
+    status: Mapped[str] = mapped_column(String(32), default="suggested")

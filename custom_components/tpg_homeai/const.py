@@ -37,6 +37,11 @@ SERVICE_CONFIRM_ACTION = "confirm_action"
 SERVICE_CANCEL_CONFIRMATION = "cancel_confirmation"
 SERVICE_DASHBOARD_DRAFT = "dashboard_draft"
 SERVICE_OPEN_PANEL = "open_panel"
+SERVICE_GENERATE_SUGGESTIONS = "generate_suggestions"
+SERVICE_DRAFT_MEMORY = "draft_memory"
+SERVICE_APPROVE_MEMORY = "approve_memory"
+SERVICE_IGNORE_MEMORY = "ignore_memory"
+SERVICE_GET_KNOWLEDGE_GRAPH = "get_knowledge_graph"
 
 # Home Assistant events fired by this integration.
 EVENT_DISCOVERY_FOUND = "tpg_homeai_discovery_found"

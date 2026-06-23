@@ -33,6 +33,7 @@ from .models.schemas import (
     DraftUpdateRequest,
     IgnoreRequest,
     MapRequest,
+    MemoryDraftRequest,
     ResolveRequest,
     ScanRequest,
     TestActionRequest,
@@ -40,6 +41,8 @@ from .models.schemas import (
 from .router import intent_router
 from .router.permissions import get_confirmation_store
 from .actions.dashboards import build_dashboard_draft
+from .knowledge import build_house_graph
+from . import memory as memory_store
 from .router.resolver import Resolver
 from .settings import get_settings
 
@@ -47,13 +50,14 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.11"
+APP_VERSION = "0.1.12"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "test", "tools", "docs", "redoc", "openapi.json",
+    "dashboards", "knowledge", "memory", "test", "tools", "docs", "redoc",
+    "openapi.json",
 )
 
 
@@ -425,6 +429,46 @@ async def list_tools():
     return {"tools": TOOL_NAMES}
 
 
+# --------------------------------------------------------------- knowledge
+@app.get("/knowledge/graph")
+async def knowledge_graph(include_registries: bool = True):
+    return await build_house_graph(include_registries=include_registries)
+
+
+# ------------------------------------------------------------------ memory
+@app.get("/memory")
+async def memory_list(status: str | None = None):
+    return {"memories": memory_store.list_memories(status=status)}
+
+
+@app.post("/memory/draft")
+async def memory_draft(req: MemoryDraftRequest):
+    return {"memory": memory_store.propose_memory(
+        scope=req.scope,
+        owner=req.owner or "",
+        subject=req.subject,
+        key=req.key,
+        value=req.value,
+        source=req.source,
+    )}
+
+
+@app.post("/memory/{memory_id}/approve")
+async def memory_approve(memory_id: int):
+    try:
+        return {"memory": memory_store.approve_memory(memory_id)}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+
+@app.post("/memory/{memory_id}/ignore")
+async def memory_ignore(memory_id: int):
+    try:
+        return {"memory": memory_store.ignore_memory(memory_id)}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+
 # ------------------------------------------------------------ dashboards
 @app.post("/dashboards/draft")
 async def dashboard_draft(req: DashboardDraftRequest):
@@ -489,6 +533,32 @@ async def suggestions():
             AutomationDraft.status.in_(["draft", "suggested", "edited"])
         ).order_by(AutomationDraft.created_at.desc()).all()
         return {"suggestions": [_draft_dict(d) for d in rows]}
+
+
+@app.post("/suggestions/generate")
+async def suggestions_generate():
+    return await memory_store.generate_suggestions()
+
+
+@app.get("/suggestions/proactive")
+async def proactive_suggestions(status: str | None = None):
+    return {"suggestions": memory_store.list_suggestions(status=status)}
+
+
+@app.post("/suggestions/proactive/{suggestion_id}/approve")
+async def proactive_suggestion_approve(suggestion_id: int):
+    try:
+        return {"suggestion": memory_store.update_suggestion(suggestion_id, "approved")}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+
+
+@app.post("/suggestions/proactive/{suggestion_id}/ignore")
+async def proactive_suggestion_ignore(suggestion_id: int):
+    try:
+        return {"suggestion": memory_store.update_suggestion(suggestion_id, "ignored")}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
 
 
 @app.post("/automation/drafts/{draft_id}/edit")

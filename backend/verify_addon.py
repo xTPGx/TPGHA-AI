@@ -100,6 +100,34 @@ def main() -> int:
     check("/dashboards/draft includes yaml", bool(body.get("yaml")) and "views:" in body["yaml"],
           str(body))
 
+    r = client.get("/knowledge/graph?include_registries=false")
+    check("/knowledge/graph returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/knowledge/graph has counts", "counts" in r.json(), str(r.json()))
+
+    r = client.post("/memory/draft", json={
+        "scope": "user",
+        "owner": "shawn",
+        "subject": "office",
+        "key": "fan_preference",
+        "value": "prefers high while gaming",
+    })
+    check("/memory/draft returns JSON", r.status_code == 200 and is_json(r), r.text)
+    memory_id = r.json().get("memory", {}).get("id")
+    check("/memory/draft creates id", bool(memory_id), str(r.json()))
+    if memory_id:
+        r = client.post(f"/memory/{memory_id}/approve")
+        check("/memory/{id}/approve works",
+              r.status_code == 200 and r.json().get("memory", {}).get("status") == "approved",
+              r.text)
+
+    r = client.post("/suggestions/generate")
+    check("/suggestions/generate returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.get("/suggestions/proactive")
+    check("/suggestions/proactive returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code}")
+
     r = client.post("/chat", json={
         "assistant": "atlas",
         "user": "shawn",
@@ -128,6 +156,10 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     r = client.get("/dashboards/does-not-exist")
     check("unknown dashboard API route is JSON 404",
+          r.status_code == 404 and is_json(r) and not is_html(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.get("/memory/does-not-exist")
+    check("unknown memory API route is JSON 404",
           r.status_code == 404 and is_json(r) and not is_html(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
 

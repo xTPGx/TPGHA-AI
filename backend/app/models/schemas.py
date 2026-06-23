@@ -313,6 +313,15 @@ class DashboardDraftRequest(BaseModel):
     include_unavailable: bool = False
 
 
+class MemoryDraftRequest(BaseModel):
+    scope: Literal["house", "user", "room", "device"] = "house"
+    owner: Optional[str] = None
+    subject: str
+    key: str
+    value: str
+    source: str = "user"
+
+
 class HAEntity(BaseModel):
     entity_id: str
     state: str

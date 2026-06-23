@@ -9,6 +9,7 @@ def build_system_prompt(
     config: AppConfig,
     assistant: Optional[Assistant],
     user: Optional[User],
+    extra_context: str = "",
 ) -> str:
     household = config.household.default_household()
     house_name = household.name if household else "the home"
@@ -49,4 +50,5 @@ Guidelines:
 Known rooms: {rooms}.
 Known cameras: {cameras}.
 Current user: {owner}.
+{extra_context}
 """

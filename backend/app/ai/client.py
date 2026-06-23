@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from ..models.schemas import AppConfig, Assistant, User
 from ..settings import get_settings
+from ..memory import approved_memory_context
 from .prompts import build_system_prompt
 from .tools import TOOLS, TOOL_NAMES
 
@@ -74,7 +75,12 @@ class AIClient:
         assistant: Optional[Assistant],
         user: Optional[User],
     ) -> Optional[ToolCall]:
-        system = build_system_prompt(config, assistant, user)
+        system = build_system_prompt(
+            config,
+            assistant,
+            user,
+            extra_context=approved_memory_context(),
+        )
         resp = self._client.chat.completions.create(  # type: ignore[union-attr]
             model=self.settings.openai_model,
             messages=[
