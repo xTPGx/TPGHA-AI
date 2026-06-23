@@ -121,6 +121,14 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
     uid = user.id if user else None
 
     # Automation / scheduling first (so "turn on lights at 7am" -> automation).
+    if any(k in text for k in ["movie mode", "bedtime routine", "morning routine",
+                               "leaving routine", "away routine", "security routine",
+                               "make a routine", "build a routine"]):
+        return ToolCall("create_routine", {
+            "routine": message,
+            "room": _extract_after(text, ["in the", "for the", "for"]) or "",
+        }, source="fallback")
+
     if _TIME_RE.search(text) and any(k in text for k in [
         "turn", "lock", "play", "set", "light", "on", "off", "tv", "display",
         "screen", "brightness", "dim", "sleep", "suggest", "recommend",
@@ -222,6 +230,13 @@ def pre_route(message: str) -> Optional["ToolCall"]:
 
     # Scheduling / automation phrasing must reach the AI (create_simple_automation),
     # so don't deterministically execute it as a direct command.
+    if any(k in text for k in ["movie mode", "bedtime routine", "morning routine",
+                               "leaving routine", "away routine", "security routine"]):
+        return ToolCall("create_routine", {
+            "routine": message,
+            "room": _extract_after(text, ["in the", "for the", "for"]) or "",
+        }, source=src)
+
     if _looks_scheduled(text):
         return None
 

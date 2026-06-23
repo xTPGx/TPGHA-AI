@@ -82,6 +82,10 @@ class AutomationDraft(Base):
     action_description: Mapped[str] = mapped_column(Text, default="")
     proposed_yaml: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="draft")
+    installed_id: Mapped[str] = mapped_column(String(255), default="")
+    installed_path: Mapped[str] = mapped_column(String(512), default="")
+    installed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    install_error: Mapped[str] = mapped_column(Text, default="")
 
 
 class MemoryItem(Base):

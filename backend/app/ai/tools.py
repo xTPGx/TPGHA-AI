@@ -23,6 +23,7 @@ TOOL_NAMES = [
     "security_check",
     "open_dashboard",
     "create_simple_automation",
+    "create_routine",
     "control_device",
     "query_device",
 ]
@@ -166,6 +167,17 @@ TOOLS = [
             "action_description": {"type": "string"},
         },
         ["trigger_description", "action_description"],
+    ),
+    _fn(
+        "create_routine",
+        "Draft a named multi-step house routine such as movie mode, bedtime, "
+        "morning, leaving home, or security check. Returned for approval before "
+        "installing.",
+        {
+            "routine": {"type": "string", "description": "Routine name/type."},
+            "room": {"type": "string", "description": "Optional room context."},
+        },
+        ["routine"],
     ),
     _fn(
         "control_device",

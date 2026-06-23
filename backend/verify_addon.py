@@ -20,14 +20,17 @@ from pathlib import Path
 # ---- Environment MUST be set before importing the app (settings/db cache it).
 _TMP = tempfile.mkdtemp(prefix="tpg_addon_test_")
 _CFG = os.path.join(_TMP, "cfg")
+_HA_CFG = os.path.join(_TMP, "ha")
 _STATIC = os.path.join(_TMP, "static")
 os.makedirs(os.path.join(_STATIC, "assets"), exist_ok=True)
+os.makedirs(_HA_CFG, exist_ok=True)
 with open(os.path.join(_STATIC, "index.html"), "w", encoding="utf-8") as fh:
     fh.write("<!doctype html><html><body><div id='root'></div></body></html>")
 with open(os.path.join(_STATIC, "assets", "app.js"), "w", encoding="utf-8") as fh:
     fh.write("console.log('tpg');")
 
 os.environ["CONFIG_DIR"] = _CFG
+os.environ["HA_CONFIG_DIR"] = _HA_CFG
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_TMP, 'test.db')}"
 os.environ["STATIC_DIR"] = _STATIC
 os.environ["HOME_ASSISTANT_URL"] = ""       # not configured -> degraded
@@ -143,6 +146,13 @@ def main() -> int:
     check("/dashboards/draft includes yaml", bool(body.get("yaml")) and "views:" in body["yaml"],
           str(body))
 
+    r = client.post("/dashboards/install", json={"title": "TPG Home", "style": "native"})
+    check("/dashboards/install returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    install_path = r.json().get("install", {}).get("path")
+    check("/dashboards/install writes file", bool(install_path) and os.path.isfile(install_path),
+          str(r.json()))
+
     r = client.get("/knowledge/graph?include_registries=false")
     check("/knowledge/graph returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -166,6 +176,9 @@ def main() -> int:
 
     r = client.post("/suggestions/generate")
     check("/suggestions/generate returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.post("/monitor/scan")
+    check("/monitor/scan returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     r = client.get("/suggestions/proactive")
     check("/suggestions/proactive returns JSON", r.status_code == 200 and is_json(r),
@@ -192,6 +205,11 @@ def main() -> int:
         check("/automation/drafts/{id}/approve works",
               r.status_code == 200 and r.json().get("approved") is True,
               r.text)
+        check("/automation/drafts/{id}/approve installs",
+              r.json().get("installed") is True,
+              r.text)
+        check("automations.yaml written",
+              os.path.isfile(os.path.join(_HA_CFG, "automations.yaml")))
 
     # Unknown API route under a known prefix => JSON 404, not HTML.
     r = client.get("/discovery/does-not-exist")

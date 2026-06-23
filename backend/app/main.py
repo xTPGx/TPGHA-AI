@@ -40,9 +40,11 @@ from .models.schemas import (
 )
 from .router import intent_router
 from .router.permissions import get_confirmation_store
-from .actions.dashboards import build_dashboard_draft
+from .actions.dashboards import build_dashboard_draft, install_dashboard_yaml
+from .actions.automation_installer import install_automation_yaml
 from .knowledge import build_house_graph
 from . import memory as memory_store
+from . import proactive as proactive_store
 from .router.resolver import Resolver
 from .settings import get_settings
 
@@ -50,7 +52,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.17"
+APP_VERSION = "0.1.18"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -265,7 +267,7 @@ async def chat(req: ChatRequest):
     mode = "conversation"
     if resp.requires_confirmation:
         mode = "confirmation_required"
-    elif resp.intent == "create_simple_automation":
+    elif resp.intent in ("create_simple_automation", "create_routine"):
         mode = "proposal"
     elif resp.executed:
         mode = "action"
@@ -530,6 +532,20 @@ async def dashboard_draft_get(
     )
 
 
+@app.post("/dashboards/install")
+async def dashboard_install(req: DashboardDraftRequest):
+    cfg = get_config()
+    draft = build_dashboard_draft(
+        cfg,
+        title=req.title,
+        style=req.style,
+        room=req.room,
+        include_browser_mod=req.include_browser_mod,
+    )
+    install = install_dashboard_yaml(draft["yaml"], req.title)
+    return {"draft": draft, "install": install}
+
+
 # -------------------------------------------------------------- draft inbox
 def _draft_dict(draft) -> dict:
     return {
@@ -539,6 +555,10 @@ def _draft_dict(draft) -> dict:
         "action_description": draft.action_description,
         "proposed_yaml": draft.proposed_yaml,
         "status": draft.status,
+        "installed_id": getattr(draft, "installed_id", ""),
+        "installed_path": getattr(draft, "installed_path", ""),
+        "installed_at": draft.installed_at.isoformat() if getattr(draft, "installed_at", None) else None,
+        "install_error": getattr(draft, "install_error", ""),
     }
 
 
@@ -574,6 +594,13 @@ async def suggestions_generate():
 @app.get("/suggestions/proactive")
 async def proactive_suggestions(status: str | None = None):
     return {"suggestions": memory_store.list_suggestions(status=status)}
+
+
+@app.post("/monitor/scan")
+async def monitor_scan():
+    generated = await memory_store.generate_suggestions()
+    proactive = await proactive_store.scan_proactive()
+    return {"suggestions": generated, "proactive": proactive}
 
 
 @app.post("/suggestions/proactive/{suggestion_id}/approve")
@@ -614,11 +641,8 @@ async def automation_draft_edit(draft_id: int, req: DraftUpdateRequest):
 
 @app.post("/automation/drafts/{draft_id}/approve")
 async def automation_draft_approve(draft_id: int):
-    """Mark a proposal approved.
-
-    This is intentionally not yet a live HA automation install. It creates the
-    explicit approval/edit boundary needed before we add write-to-HA behavior.
-    """
+    """Approve and install an automation draft into Home Assistant."""
+    from datetime import datetime, timezone
     from .db.database import get_session
     from .db.models import AutomationDraft
 
@@ -626,12 +650,38 @@ async def automation_draft_approve(draft_id: int):
         draft = session.get(AutomationDraft, draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail="Draft not found")
-        draft.status = "approved"
+        try:
+            installed = await install_automation_yaml(
+                proposed_yaml=draft.proposed_yaml,
+                draft_id=draft.id,
+                ha=get_ha_client(),
+            )
+        except Exception as exc:  # noqa: BLE001 - surface install failure in UI
+            draft.status = "approved_install_failed"
+            draft.install_error = str(exc)
+            session.commit()
+            return {
+                "approved": True,
+                "installed": False,
+                "message": f"Approved, but install failed: {exc}",
+                "draft": _draft_dict(draft),
+            }
+
+        draft.status = "installed"
+        draft.installed_id = installed["installed_id"]
+        draft.installed_path = installed["path"]
+        draft.installed_at = datetime.now(timezone.utc)
+        draft.install_error = installed.get("reload_error") or ""
         session.commit()
         return {
             "approved": True,
-            "installed": False,
-            "message": "Approved for install. Live HA automation install is not enabled yet.",
+            "installed": True,
+            "message": (
+                "Automation installed in Home Assistant."
+                if installed.get("reload_ok")
+                else "Automation file installed, but Home Assistant reload failed."
+            ),
+            "install": installed,
             "draft": _draft_dict(draft),
         }
 

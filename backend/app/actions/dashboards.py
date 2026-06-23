@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
+import os
+import re
 
 import yaml
 
@@ -205,4 +208,22 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
         "dashboard": dashboard,
         "yaml": yaml_text,
         "notes": notes,
+    }
+
+
+def install_dashboard_yaml(yaml_text: str, title: str) -> dict[str, Any]:
+    root = Path(os.environ.get("HA_CONFIG_DIR", "/config")).expanduser()
+    folder = root / "tpg_homeai_dashboards"
+    folder.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r"[^a-zA-Z0-9_]+", "_", title.lower()).strip("_") or "tpg_home"
+    path = folder / f"{slug}.yaml"
+    path.write_text(yaml_text, encoding="utf-8")
+    return {
+        "installed": True,
+        "path": str(path),
+        "dashboard_key": slug,
+        "note": (
+            "Dashboard YAML written. Add it to Lovelace YAML dashboards or use "
+            "the HA UI to import/recreate it from this file."
+        ),
     }

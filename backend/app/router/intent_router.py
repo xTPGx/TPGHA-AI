@@ -61,6 +61,7 @@ _HANDLERS = {
     "security_check": security_action.security_check,
     "open_dashboard": dashboards_action.open_dashboard,
     "create_simple_automation": automations_action.create_simple_automation,
+    "create_routine": automations_action.create_routine,
     "control_device": control_action.control_device,
     "query_device": control_action.query_device,
 }

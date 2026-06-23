@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.18
+
+- Added approved automation draft installation into Home Assistant automations.yaml.
+- Added routine draft builder for movie, bedtime, morning, away, and security routines.
+- Added proactive monitor scan for security, maintenance, and sleep-timer suggestions.
+- Added dashboard YAML install endpoint and Home Assistant services for new actions.
+- Added additive SQLite migrations for persisted add-on upgrades.
+
 ## 0.1.17
 
 - Added persisted short-term conversation context for follow-up commands.

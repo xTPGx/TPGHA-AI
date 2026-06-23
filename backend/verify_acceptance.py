@@ -8,9 +8,11 @@ resolved entities and confirmation gating.
 import asyncio
 import os
 import sys
+import tempfile
 
 os.environ.setdefault("CONFIG_DIR", os.path.join(os.path.dirname(__file__), "..", "config"))
 os.environ["DATABASE_URL"] = "sqlite:///./verify_tmp.db"
+os.environ["HA_CONFIG_DIR"] = tempfile.mkdtemp(prefix="tpg_ha_cfg_")
 # Ensure no OpenAI usage.
 os.environ.pop("OPENAI_API_KEY", None)
 
@@ -183,6 +185,12 @@ async def main():
     check("Q12 dim includes brightness", "brightness_pct" in r.data.get("proposed_yaml", ""),
           r.data.get("proposed_yaml", ""))
     check("Q12 dim parses 10 PM", "at: '22:00:00'" in r.data.get("proposed_yaml", ""),
+          r.data.get("proposed_yaml", ""))
+
+    r = await intent_router.handle_command("atlas", "shawn", "Make a movie mode for the living room.")
+    check("Q13 movie mode -> create_routine", r.intent == "create_routine", r.intent)
+    check("Q13 routine draft created", bool(r.data.get("draft_id")), str(r.data))
+    check("Q13 routine has light dim action", "brightness_pct" in r.data.get("proposed_yaml", ""),
           r.data.get("proposed_yaml", ""))
 
     # 11. Fan control --------------------------------------------------------

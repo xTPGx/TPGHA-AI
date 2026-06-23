@@ -149,6 +149,39 @@ dashboard_draft:
       selector:
         boolean:
 
+dashboard_install:
+  name: Install dashboard YAML
+  description: >
+    Generate a TPG HomeAI Lovelace dashboard and write the YAML into the Home
+    Assistant config folder for review/import.
+  fields:
+    title:
+      name: Title
+      required: false
+      default: TPG Home
+      selector:
+        text:
+    style:
+      name: Style
+      required: false
+      default: native
+      selector:
+        select:
+          options:
+            - native
+            - mushroom
+    room:
+      name: Room
+      required: false
+      selector:
+        text:
+    include_browser_mod:
+      name: Include Browser Mod helper
+      required: false
+      default: true
+      selector:
+        boolean:
+
 open_panel:
   name: Open TPG HomeAI panel
   description: >
@@ -191,6 +224,24 @@ generate_suggestions:
   description: >
     Ask TPG HomeAI to analyze the current house graph and create suggested
     actions for review.
+
+monitor_scan:
+  name: Run proactive monitor scan
+  description: >
+    Scan live Home Assistant state for security, maintenance, media, and sleep
+    timer suggestions.
+
+approve_automation_draft:
+  name: Approve automation draft
+  description: Approve and install a pending TPG HomeAI automation draft.
+  fields:
+    draft_id:
+      name: Draft ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
 
 draft_memory:
   name: Draft memory

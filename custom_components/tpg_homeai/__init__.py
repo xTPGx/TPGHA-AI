@@ -45,10 +45,13 @@ from .const import (
     DOMAIN,
     SERVICE_APPROVE,
     SERVICE_CANCEL_CONFIRMATION,
+    SERVICE_APPROVE_AUTOMATION_DRAFT,
     SERVICE_CONFIRM_ACTION,
     SERVICE_DASHBOARD_DRAFT,
+    SERVICE_DASHBOARD_INSTALL,
     SERVICE_DRAFT_MEMORY,
     SERVICE_GENERATE_SUGGESTIONS,
+    SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
     SERVICE_IGNORE,
     SERVICE_IGNORE_MEMORY,
@@ -163,6 +166,23 @@ class TPGHomeAIClient:
             "room": room,
             "include_browser_mod": include_browser_mod,
         })
+
+    async def async_dashboard_install(self, title: str = "TPG Home",
+                                      style: str = "native",
+                                      room: str | None = None,
+                                      include_browser_mod: bool = True) -> dict[str, Any]:
+        return await self._request("POST", "/dashboards/install", json={
+            "title": title,
+            "style": style,
+            "room": room,
+            "include_browser_mod": include_browser_mod,
+        })
+
+    async def async_monitor_scan(self) -> dict[str, Any]:
+        return await self._request("POST", "/monitor/scan")
+
+    async def async_approve_automation_draft(self, draft_id: int) -> dict[str, Any]:
+        return await self._request("POST", f"/automation/drafts/{draft_id}/approve")
 
     async def async_reload_config(self) -> dict[str, Any]:
         return await self._request("POST", "/config/reload")
@@ -318,6 +338,7 @@ MEMORY_DRAFT_SCHEMA = vol.Schema({
     vol.Required("value"): cv.string,
 })
 MEMORY_ID_SCHEMA = vol.Schema({vol.Required("memory_id"): vol.Coerce(int)})
+AUTOMATION_DRAFT_ID_SCHEMA = vol.Schema({vol.Required("draft_id"): vol.Coerce(int)})
 
 
 def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -413,6 +434,14 @@ def _register_services(hass: HomeAssistant) -> None:
             include_browser_mod=call.data.get("include_browser_mod", True),
         )
 
+    async def _dashboard_install(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_dashboard_install(
+            title=call.data.get("title", "TPG Home"),
+            style=call.data.get("style", "native"),
+            room=call.data.get("room"),
+            include_browser_mod=call.data.get("include_browser_mod", True),
+        )
+
     async def _open_panel(call: ServiceCall) -> ServiceResponse:
         path = call.data.get("path", "/tpg-homeai")
         use_browser_mod = call.data.get("use_browser_mod", True)
@@ -436,6 +465,16 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def _generate_suggestions(call: ServiceCall) -> ServiceResponse:
         result = await _first_client(hass).async_generate_suggestions()
+        await _refresh()
+        return result
+
+    async def _monitor_scan(call: ServiceCall) -> ServiceResponse:
+        result = await _first_client(hass).async_monitor_scan()
+        await _refresh()
+        return result
+
+    async def _approve_automation_draft(call: ServiceCall) -> ServiceResponse:
+        result = await _first_client(hass).async_approve_automation_draft(call.data["draft_id"])
         await _refresh()
         return result
 
@@ -478,12 +517,18 @@ def _register_services(hass: HomeAssistant) -> None:
     reg(DOMAIN, SERVICE_CANCEL_CONFIRMATION, _cancel_confirmation, schema=TOKEN_SCHEMA)
     reg(DOMAIN, SERVICE_DASHBOARD_DRAFT, _dashboard_draft, schema=DASHBOARD_DRAFT_SCHEMA,
         supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_DASHBOARD_INSTALL, _dashboard_install, schema=DASHBOARD_DRAFT_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_OPEN_PANEL, _open_panel, schema=OPEN_PANEL_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL)
     reg(DOMAIN, SERVICE_GET_KNOWLEDGE_GRAPH, _get_knowledge_graph,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GENERATE_SUGGESTIONS, _generate_suggestions,
         supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_MONITOR_SCAN, _monitor_scan,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_APPROVE_AUTOMATION_DRAFT, _approve_automation_draft,
+        schema=AUTOMATION_DRAFT_ID_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_DRAFT_MEMORY, _draft_memory, schema=MEMORY_DRAFT_SCHEMA,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_APPROVE_MEMORY, _approve_memory, schema=MEMORY_ID_SCHEMA,
@@ -498,8 +543,10 @@ def _unregister_services(hass: HomeAssistant) -> None:
     for service in (SERVICE_RELOAD_CONFIG, SERVICE_SCAN_DEVICES, SERVICE_APPROVE,
                     SERVICE_IGNORE, SERVICE_MAP_ENTITY, SERVICE_CONFIRM_ACTION,
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
-                    SERVICE_OPEN_PANEL, SERVICE_GET_KNOWLEDGE_GRAPH,
-                    SERVICE_GENERATE_SUGGESTIONS, SERVICE_DRAFT_MEMORY,
+                    SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
+                    SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GENERATE_SUGGESTIONS,
+                    SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,
+                    SERVICE_DRAFT_MEMORY,
                     SERVICE_APPROVE_MEMORY, SERVICE_IGNORE_MEMORY,
                     SERVICE_TEST_COMMAND):
         hass.services.async_remove(DOMAIN, service)
