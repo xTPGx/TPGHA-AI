@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sys
 import tempfile
+from pathlib import Path
 
 # ---- Environment MUST be set before importing the app (settings/db cache it).
 _TMP = tempfile.mkdtemp(prefix="tpg_addon_test_")
@@ -36,8 +38,9 @@ os.environ["SCAN_ON_START"] = "true"
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import bootstrap as bootstrap_mod  # noqa: E402
+from app import __version__ as backend_package_version  # noqa: E402
 from app.db.database import init_db  # noqa: E402
-from app.main import app  # noqa: E402
+from app.main import APP_VERSION, app  # noqa: E402
 
 _PASS = 0
 _FAIL = 0
@@ -69,6 +72,26 @@ def main() -> int:
 
     # TestClient WITHOUT a context manager => no lifespan, no double bootstrap.
     client = TestClient(app)
+
+    print("PART 0 — add-on update metadata is internally consistent")
+    repo_root = Path(__file__).resolve().parents[1]
+    addon_config = (repo_root / "tpg_homeai" / "config.yaml").read_text(encoding="utf-8")
+    dockerfile = (repo_root / "tpg_homeai" / "Dockerfile").read_text(encoding="utf-8")
+    manifest = (repo_root / "custom_components" / "tpg_homeai" / "manifest.json").read_text(encoding="utf-8")
+    cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
+    docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
+    manifest_version = re.search(r'"version":\s*"([^"]+)"', manifest)
+    versions = {
+        "config.yaml": cfg_version.group(1) if cfg_version else None,
+        "Dockerfile": docker_version.group(1) if docker_version else None,
+        "manifest.json": manifest_version.group(1) if manifest_version else None,
+        "APP_VERSION": APP_VERSION,
+        "package": backend_package_version,
+    }
+    check("version metadata present", all(versions.values()), str(versions))
+    check("version metadata aligned", len(set(versions.values())) == 1, str(versions))
+    check("add-on changelog exists", (repo_root / "tpg_homeai" / "CHANGELOG.md").is_file())
+    check("ingress sidebar enabled", "ingress: true" in addon_config and "panel_title:" in addon_config)
 
     print("PART 1 — API routing returns JSON, SPA never shadows API routes")
     r = client.get("/health")

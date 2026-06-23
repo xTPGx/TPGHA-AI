@@ -5,6 +5,10 @@ import react from "@vitejs/plugin-react";
 // also proxy /api to the backend so the frontend can call relative paths.
 export default defineConfig({
   plugins: [react()],
+  // Home Assistant add-on ingress serves the UI under /<addon_slug>/.
+  // Relative asset URLs keep the built JS/CSS loading both at / and under
+  // ingress instead of requesting /assets from the HA frontend root.
+  base: "./",
   server: {
     host: true,
     port: 5173,
