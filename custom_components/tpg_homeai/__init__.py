@@ -51,8 +51,11 @@ from .const import (
     SERVICE_DASHBOARD_INSTALL,
     SERVICE_DRAFT_MEMORY,
     SERVICE_GENERATE_SUGGESTIONS,
+    SERVICE_GET_AI_PROVIDERS,
+    SERVICE_GET_BRAIN_LAYERS,
     SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
+    SERVICE_GET_PHYSICAL_DEVICES,
     SERVICE_GET_COMMANDS,
     SERVICE_GET_LAST_COMMAND,
     SERVICE_IGNORE,
@@ -138,6 +141,21 @@ class TPGHomeAIClient:
             f"/knowledge/graph?include_registries={'true' if include_registries else 'false'}",
         )
 
+    async def async_brain_layers(self, include_registries: bool = True) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/brain/layers?include_registries={'true' if include_registries else 'false'}",
+        )
+
+    async def async_physical_devices(self, include_registries: bool = True) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/knowledge/physical-devices?include_registries={'true' if include_registries else 'false'}",
+        )
+
+    async def async_ai_providers(self) -> dict[str, Any]:
+        return await self._request("GET", "/ai/providers")
+
     async def async_last_command(self) -> dict[str, Any]:
         return await self._request("GET", "/debug/last-command")
 
@@ -221,26 +239,29 @@ class TPGHomeAIClient:
             "entity_id": entity_id, "target": target, "room": room,
             "friendly_name": friendly_name, "aliases": aliases})
 
-    async def async_confirm(self, token: str) -> dict[str, Any]:
+    async def async_confirm(self, token: str, security_pin: str | None = None) -> dict[str, Any]:
         return await self._request("POST", "/confirm",
-                                   json={"confirmation_token": token})
+                                   json={"confirmation_token": token, "security_pin": security_pin})
 
     async def async_cancel(self, token: str) -> dict[str, Any]:
         return await self._request("POST", "/confirm/cancel",
                                    json={"confirmation_token": token})
 
     async def async_command(self, text: str, assistant_id: str, user_id: str | None,
-                            conversation_id: str | None) -> dict[str, Any]:
+                            conversation_id: str | None, room: str | None = None,
+                            security_pin: str | None = None) -> dict[str, Any]:
         return await self._request("POST", "/command", json={
             "assistant_id": assistant_id, "user_id": user_id, "text": text,
-            "conversation_id": conversation_id})
+            "conversation_id": conversation_id, "room": room,
+            "security_pin": security_pin})
 
     async def async_preview_command(self, text: str, assistant_id: str,
                                     user_id: str | None,
-                                    conversation_id: str | None) -> dict[str, Any]:
+                                    conversation_id: str | None,
+                                    room: str | None = None) -> dict[str, Any]:
         return await self._request("POST", "/command/preview", json={
             "assistant_id": assistant_id, "user_id": user_id, "text": text,
-            "conversation_id": conversation_id})
+            "conversation_id": conversation_id, "room": room})
 
 
 def _build_client(hass: HomeAssistant, entry: ConfigEntry) -> TPGHomeAIClient:
@@ -312,6 +333,8 @@ TEST_COMMAND_SCHEMA = vol.Schema({
     vol.Optional("assistant_id"): cv.string,
     vol.Optional("user_id"): cv.string,
     vol.Optional("conversation_id"): cv.string,
+    vol.Optional("room"): cv.string,
+    vol.Optional("security_pin"): cv.string,
 })
 APPROVE_SCHEMA = vol.Schema({
     vol.Required("entity_id"): cv.string,
@@ -331,7 +354,10 @@ MAP_SCHEMA = vol.Schema({
     vol.Optional("friendly_name"): cv.string,
     vol.Optional("aliases"): vol.All(cv.ensure_list, [cv.string]),
 })
-TOKEN_SCHEMA = vol.Schema({vol.Required("confirmation_token"): cv.string})
+TOKEN_SCHEMA = vol.Schema({
+    vol.Required("confirmation_token"): cv.string,
+    vol.Optional("security_pin"): cv.string,
+})
 DASHBOARD_DRAFT_SCHEMA = vol.Schema({
     vol.Optional("title", default="TPG Home"): cv.string,
     vol.Optional("style", default="native"): vol.In(["native", "mushroom"]),
@@ -436,7 +462,8 @@ def _register_services(hass: HomeAssistant) -> None:
         await _refresh()
 
     async def _confirm_action(call: ServiceCall) -> ServiceResponse:
-        result = await _first_client(hass).async_confirm(call.data["confirmation_token"])
+        result = await _first_client(hass).async_confirm(
+            call.data["confirmation_token"], security_pin=call.data.get("security_pin"))
         await _refresh()
         return {"success": result.get("success"), "executed": result.get("executed"),
                 "message": result.get("message")}
@@ -482,6 +509,17 @@ def _register_services(hass: HomeAssistant) -> None:
         return await _first_client(hass).async_knowledge_graph(
             include_registries=call.data.get("include_registries", True))
 
+    async def _get_brain_layers(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_brain_layers(
+            include_registries=call.data.get("include_registries", True))
+
+    async def _get_physical_devices(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_physical_devices(
+            include_registries=call.data.get("include_registries", True))
+
+    async def _get_ai_providers(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_ai_providers()
+
     async def _get_last_command(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_last_command()
 
@@ -526,7 +564,9 @@ def _register_services(hass: HomeAssistant) -> None:
         user_id = call.data.get("user_id") or options.get(CONF_USER_ID, DEFAULT_USER_ID)
         result = await _first_client(hass).async_command(
             text=call.data["text"], assistant_id=assistant_id, user_id=user_id,
-            conversation_id=call.data.get("conversation_id"))
+            conversation_id=call.data.get("conversation_id"),
+            room=call.data.get("room"),
+            security_pin=call.data.get("security_pin"))
         return {k: result.get(k) for k in (
             "success", "intent", "message", "executed", "requires_confirmation",
             "confirmation_token", "resolved")}
@@ -539,7 +579,8 @@ def _register_services(hass: HomeAssistant) -> None:
         user_id = call.data.get("user_id") or options.get(CONF_USER_ID, DEFAULT_USER_ID)
         result = await _first_client(hass).async_preview_command(
             text=call.data["text"], assistant_id=assistant_id, user_id=user_id,
-            conversation_id=call.data.get("conversation_id"))
+            conversation_id=call.data.get("conversation_id"),
+            room=call.data.get("room"))
         return {k: result.get(k) for k in (
             "success", "intent", "message", "executed", "requires_confirmation",
             "confirmation_message", "resolved", "data", "tool_call", "error")}
@@ -561,6 +602,12 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.OPTIONAL)
     reg(DOMAIN, SERVICE_GET_KNOWLEDGE_GRAPH, _get_knowledge_graph,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_BRAIN_LAYERS, _get_brain_layers,
+        schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_PHYSICAL_DEVICES, _get_physical_devices,
+        schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_AI_PROVIDERS, _get_ai_providers,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_LAST_COMMAND, _get_last_command,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_COMMANDS, _get_commands, schema=COMMANDS_SCHEMA,
@@ -588,7 +635,9 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_IGNORE, SERVICE_MAP_ENTITY, SERVICE_CONFIRM_ACTION,
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
                     SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
-                    SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_LAST_COMMAND,
+                    SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_BRAIN_LAYERS,
+                    SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_AI_PROVIDERS,
+                    SERVICE_GET_LAST_COMMAND,
                     SERVICE_GET_COMMANDS, SERVICE_GENERATE_SUGGESTIONS,
                     SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,
                     SERVICE_DRAFT_MEMORY,

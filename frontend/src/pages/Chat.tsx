@@ -152,6 +152,7 @@ export default function Chat() {
   );
   const [assistant, setAssistant] = useState("atlas");
   const [user, setUser] = useState("shawn");
+  const [room, setRoom] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -187,7 +188,7 @@ export default function Chat() {
     if (appendUser) {
       setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
     }
-    const r = await api.chat(assistant, user, message, conversationId);
+    const r = await api.chat(assistant, user, message, conversationId, room || undefined);
     const command = r.command as CommandResponse | undefined;
     const response = r.response || command?.message || "Done.";
     appendAssistant({
@@ -209,7 +210,7 @@ export default function Chat() {
     setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
     try {
       if (safePreview) {
-        const preview = await api.chatPreview(assistant, user, message, conversationId);
+        const preview = await api.chatPreview(assistant, user, message, conversationId, room || undefined);
         const command = preview.command as CommandResponse | undefined;
         if (shouldPauseForReview(command)) {
           const response = preview.response || command?.message || "Preview ready.";
@@ -249,7 +250,9 @@ export default function Chat() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.confirm(token);
+      const needsPin = messages.some((m) => m.command?.confirmation_token === token && m.command?.data?.security?.pin_required);
+      const pin = needsPin ? window.prompt("Enter security PIN") || "" : undefined;
+      const r = await api.confirm(token, pin);
       appendAssistant({
         text: r.message || "Confirmed.",
         mode: r.executed ? "confirmed" : "confirmation",
@@ -345,6 +348,12 @@ export default function Chat() {
           <option value="shawn">Shawn</option>
           <option value="jordie">Jordie</option>
         </select>
+        <input
+          className="input max-w-[12rem]"
+          value={room}
+          onChange={(e) => setRoom(e.target.value)}
+          placeholder="Room context"
+        />
         <button
           className={`btn-ghost min-h-[2.75rem] min-w-[2.75rem] ${listening ? "border-rose-400 bg-rose-500/20 text-rose-100" : ""}`}
           onClick={toggleListening}
@@ -399,6 +408,7 @@ export default function Chat() {
                   {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
                   {serviceSummary(m.command) && <div><span className="text-slate-500">Would call:</span> {serviceSummary(m.command)}</div>}
                   {m.command.data?.policy?.decision && <div><span className="text-slate-500">Policy:</span> {m.command.data.policy.decision}</div>}
+                  {m.command.data?.security?.pin_required && <div className="text-amber-200">Security PIN required</div>}
                   {m.command.requires_confirmation && <div className="text-amber-200">Confirmation required</div>}
                 </div>
               )}

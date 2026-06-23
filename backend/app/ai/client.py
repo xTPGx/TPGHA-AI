@@ -54,6 +54,32 @@ class AIClient:
     def using_openai(self) -> bool:
         return self._client is not None
 
+    def provider_status(self) -> dict[str, Any]:
+        return {
+            "active": "openai" if self.using_openai else "fallback_parser",
+            "providers": {
+                "openai": {
+                    "configured": self.settings.openai_configured,
+                    "available": self.using_openai,
+                    "model": self.settings.openai_model,
+                    "role": "primary_reasoning",
+                },
+                "ollama": {
+                    "configured": bool(self.settings.ollama_base_url and self.settings.ollama_model),
+                    "available": False,
+                    "model": self.settings.ollama_model,
+                    "base_url": self.settings.ollama_base_url,
+                    "role": "planned_local_fallback",
+                },
+                "fallback_parser": {
+                    "configured": True,
+                    "available": True,
+                    "model": "deterministic_rules",
+                    "role": "safety_and_offline_control",
+                },
+            },
+        }
+
     def select_tool(
         self,
         message: str,

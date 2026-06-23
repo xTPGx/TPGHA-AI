@@ -140,7 +140,7 @@ async def build_house_graph(include_registries: bool = True) -> dict[str, Any]:
         })
 
     summary = await scanner.summary()
-    return {
+    graph = {
         "source": {
             "homeai_config": True,
             "ha_registries": not bool(registries.get("error")),
@@ -162,6 +162,95 @@ async def build_house_graph(include_registries: bool = True) -> dict[str, Any]:
             "ungrouped_entities": len(ungrouped_entities),
         },
     }
+    graph["physical_devices"] = build_physical_devices(graph)
+    return graph
+
+
+def build_physical_devices(graph: dict[str, Any]) -> list[dict[str, Any]]:
+    """Group noisy HA entities into real-world devices.
+
+    HA often exposes phones, TVs, and Tuya devices as many entities. This view
+    creates one user-facing device record with controllable, presence, status,
+    and diagnostic members so the UI/AI can reason about the thing, not the
+    entity spam.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+
+    def add_entity(entity: dict[str, Any], device_name: str | None = None,
+                   area: str | None = None) -> None:
+        name = device_name or entity.get("name") or entity.get("entity_id") or "Unknown"
+        key = _physical_key(name, entity.get("entity_id", ""))
+        group = groups.setdefault(key, {
+            "id": key,
+            "name": _friendly_physical_name(name),
+            "area": area or entity.get("area"),
+            "device_type": _physical_type(name, entity.get("domain", ""), entity.get("entity_id", "")),
+            "entities": [],
+            "controllable_entities": [],
+            "diagnostic_entities": [],
+            "presence_entities": [],
+            "status_entities": [],
+        })
+        group["entities"].append(entity)
+        category = entity.get("category")
+        if category == "controllable":
+            group["controllable_entities"].append(entity)
+        elif category == "diagnostic":
+            group["diagnostic_entities"].append(entity)
+        elif category == "presence":
+            group["presence_entities"].append(entity)
+        else:
+            group["status_entities"].append(entity)
+
+    for device in graph.get("devices", []):
+        for ent in device.get("entities", []):
+            add_entity(ent, device.get("name"), device.get("area"))
+
+    for ent in graph.get("ungrouped_entities", []):
+        add_entity(ent)
+
+    return sorted(groups.values(), key=lambda d: (d.get("area") or "", d.get("name") or ""))
+
+
+def _physical_key(name: str, entity_id: str) -> str:
+    text = f"{name} {entity_id}".lower()
+    text = text.replace("_", " ")
+    for suffix in (
+        " app version", " bssid", " ssid", " sim 1", " sim 2", " audio output",
+        " location permission", " geocoded location", " last update trigger",
+        " battery level", " battery state", " connection type", " activity",
+    ):
+        text = text.replace(suffix, " ")
+    words = [w for w in text.split() if w not in {"sensor", "device", "tracker"}]
+    return "_".join(words[:4]) or entity_id.replace(".", "_")
+
+
+def _friendly_physical_name(name: str) -> str:
+    cleaned = name
+    for suffix in (
+        " App Version", " BSSID", " SSID", " SIM 1", " SIM 2", " Audio Output",
+        " Location permission", " Geocoded Location", " Last Update Trigger",
+        " Battery Level", " Battery State", " Connection Type",
+    ):
+        cleaned = cleaned.replace(suffix, "")
+    return cleaned.strip() or name
+
+
+def _physical_type(name: str, domain: str, entity_id: str) -> str:
+    text = f"{name} {domain} {entity_id}".lower()
+    if any(k in text for k in ("iphone", "android", "phone")):
+        return "phone"
+    if any(k in text for k in ("ipad", "tablet")):
+        return "tablet"
+    if any(k in text for k in ("tv", "television", "monitor", "display")):
+        return "display"
+    if "fan" in text:
+        return "fan"
+    if "light" in text or "lamp" in text:
+        return "light"
+    if domain in {"person", "device_tracker"}:
+        return "presence"
+    return domain or "device"
 
 
 def graph_prompt_context(graph: dict[str, Any], max_devices: int = 25) -> str:

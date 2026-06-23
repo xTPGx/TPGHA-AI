@@ -17,7 +17,8 @@ class PendingConfirmation:
     def __init__(self, token: str, intent: str, params: dict[str, Any],
                  assistant: Optional[str], user: Optional[str], expires_at: float,
                  created_at: float, message: str, plan: dict[str, Any],
-                 risk_level: str = "critical", target: str = ""):
+                 risk_level: str = "critical", target: str = "",
+                 pin_required: bool = False):
         self.token = token
         self.intent = intent
         self.params = params
@@ -31,6 +32,7 @@ class PendingConfirmation:
         self.plan = plan
         self.risk_level = risk_level
         self.target = target
+        self.pin_required = pin_required
 
     @property
     def expired(self) -> bool:
@@ -49,6 +51,7 @@ class PendingConfirmation:
             "message": self.message,
             "target": self.target,
             "risk_level": self.risk_level,
+            "pin_required": self.pin_required,
             "age_seconds": round(self.age_seconds, 1),
             "expires_in": round(max(0.0, self.expires_at - time.monotonic()), 1),
         }
@@ -63,13 +66,14 @@ class ConfirmationStore:
     def create(self, intent: str, params: dict[str, Any], message: str,
                ttl: int, assistant: Optional[str], user: Optional[str],
                plan: dict[str, Any], risk_level: str = "critical",
-               target: str = "") -> PendingConfirmation:
+               target: str = "", pin_required: bool = False) -> PendingConfirmation:
         token = secrets.token_urlsafe(16)
         now = time.monotonic()
         pc = PendingConfirmation(
             token=token, intent=intent, params=params, assistant=assistant,
             user=user, expires_at=now + ttl, created_at=now, message=message,
             plan=plan, risk_level=risk_level, target=target,
+            pin_required=pin_required,
         )
         self._items[token] = pc
         return pc
@@ -119,6 +123,22 @@ class PermissionEngine:
                 if val is not None:
                     return bool(val)
         return bool(default_val) if default_val is not None else True
+
+    def configured_security_pin(self) -> str:
+        from ..settings import get_settings
+
+        return (get_settings().security_pin or self.perms.security_pin or "").strip()
+
+    def pin_required(self, intent: str, risk_level: str = "critical") -> bool:
+        return bool(self.configured_security_pin()) and (
+            risk_level == "critical" or intent in {"unlock_door", "open_garage", "disarm_alarm"}
+        )
+
+    def verify_pin(self, supplied_pin: Optional[str]) -> bool:
+        expected = self.configured_security_pin()
+        if not expected:
+            return True
+        return str(supplied_pin or "").strip() == expected
 
 
 _store: Optional[ConfirmationStore] = None

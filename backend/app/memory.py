@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from .db.database import get_session
-from .db.models import MemoryItem, Suggestion
+from .db.models import CommandLog, MemoryItem, Suggestion
 from .knowledge import build_house_graph
 
 
@@ -55,6 +55,37 @@ def propose_memory(scope: str, subject: str, key: str, value: str,
     with get_session() as session:
         row = MemoryItem(scope=scope, owner=owner, subject=subject, key=key,
                          value=value, source=source, status="draft")
+        session.add(row)
+        session.commit()
+        return _memory_dict(row)
+
+
+def propose_correction_memory(user: str, message: str, result: Any) -> dict[str, Any] | None:
+    """Draft memory from a successful correction without auto-learning it."""
+    resolved = getattr(result, "resolved", {}) or {}
+    subject = resolved.get("label") or resolved.get("target") or resolved.get("entity_id")
+    if not subject:
+        return None
+    value = f"When user corrected with '{message}', resolve to {subject}."
+    with get_session() as session:
+        existing = session.query(MemoryItem).filter(
+            MemoryItem.status.in_(["draft", "approved"]),
+            MemoryItem.owner == (user or ""),
+            MemoryItem.subject == str(subject),
+            MemoryItem.key == "correction_routing",
+            MemoryItem.value == value,
+        ).first()
+        if existing:
+            return _memory_dict(existing)
+        row = MemoryItem(
+            scope="user",
+            owner=user or "",
+            subject=str(subject),
+            key="correction_routing",
+            value=value,
+            source="correction",
+            status="draft",
+        )
         session.add(row)
         session.commit()
         return _memory_dict(row)
@@ -176,9 +207,67 @@ async def generate_suggestions() -> dict[str, Any]:
                 payload={"style": "native"},
             )
             created += 1
+
+        created += _mine_command_routines(session)
         session.commit()
 
     return {"created_candidates": created, "suggestions": list_suggestions()}
+
+
+def _mine_command_routines(session) -> int:
+    rows = session.query(CommandLog).filter(
+        CommandLog.success.is_(True),
+        CommandLog.executed.is_(True),
+    ).order_by(CommandLog.created_at.desc()).limit(250).all()
+    buckets: dict[tuple[str, str], list[CommandLog]] = {}
+    for row in rows:
+        target = ""
+        try:
+            resolved = json.loads(row.resolved or "{}")
+            target = (
+                resolved.get("label")
+                or resolved.get("target")
+                or resolved.get("entity_id")
+                or resolved.get("door")
+                or ""
+            )
+        except json.JSONDecodeError:
+            target = ""
+        if not row.intent or row.intent in {"unlock_door", "explain_last_action"}:
+            continue
+        key = (row.intent, str(target))
+        buckets.setdefault(key, []).append(row)
+
+    created = 0
+    for (intent, target), items in buckets.items():
+        if len(items) < 3:
+            continue
+        hours = [i.created_at.hour for i in items if i.created_at]
+        if not hours:
+            continue
+        common_hour = max(set(hours), key=hours.count)
+        if hours.count(common_hour) < 2:
+            continue
+        title = f"Consider automating {intent.replace('_', ' ')} for {target or 'this device'}"
+        _add_suggestion(
+            session,
+            title=title,
+            message=(
+                f"You have run {intent.replace('_', ' ')} for {target or 'this target'} "
+                f"{len(items)} times recently, often around {common_hour:02d}:00."
+            ),
+            category="routine_mining",
+            priority="normal",
+            action_type="automation_draft",
+            payload={
+                "intent": intent,
+                "target": target,
+                "observed_count": len(items),
+                "suggested_hour": common_hour,
+            },
+        )
+        created += 1
+    return created
 
 
 def list_suggestions(status: str | None = None) -> list[dict[str, Any]]:

@@ -30,7 +30,9 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
 
     settings = get_settings()
     ai = get_ai_client()
+    providers = ai.provider_status()
     counts = graph.get("counts", {})
+    physical = graph.get("physical_devices", [])
     pending = int(graph.get("pending_approvals") or 0)
     unavailable = int(graph.get("unavailable_devices") or 0)
     controllable = _controllable_count(graph)
@@ -50,6 +52,30 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add per-user risk preferences and PIN-backed unlock confirmation.",
         },
         {
+            "id": "room_context",
+            "title": "Room-Aware Voice Context",
+            "status": "ready" if counts.get("rooms", 0) else "partial",
+            "score": 84 if counts.get("rooms", 0) else 58,
+            "evidence": [
+                "Commands accept room, source_device_id, and source_entity_id context.",
+                "Router applies room context to generic targets like light, fan, TV, and speaker.",
+                f"{counts.get('rooms', 0)} configured rooms available for context resolution.",
+            ],
+            "next": "Map HA Assist satellite/device IDs to rooms automatically.",
+        },
+        {
+            "id": "security_identity",
+            "title": "PIN + User Identity Security",
+            "status": "ready" if settings.security_pin else "partial",
+            "score": 86 if settings.security_pin else 70,
+            "evidence": [
+                "Critical confirmations can require a configured security PIN.",
+                "User permission checks still run before confirmation tokens are created.",
+                f"Security PIN configured: {bool(settings.security_pin)}.",
+            ],
+            "next": "Add trusted-device and outside/guest voice policies.",
+        },
+        {
             "id": "capability_graph",
             "title": "Real Device Capability Graph",
             "status": "ready" if controllable else "partial",
@@ -57,6 +83,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "evidence": [
                 f"{len(capabilities.DOMAIN_CAPABILITIES)} HA domains mapped.",
                 f"{controllable} controllable entities and {diagnostic} diagnostic entities seen.",
+                f"{len(physical)} physical device groups built from HA registries/entities.",
                 f"{pending} pending approvals and {unavailable} unavailable entities.",
             ],
             "next": "Use HA device registry IDs to merge every phone/TV/fan into physical device cards.",
@@ -117,7 +144,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "evidence": [
                 "OpenAI tool selection is available." if ai.using_openai else "Fallback parser is active.",
                 f"OpenAI configured: {settings.openai_configured}.",
-                "Local Ollama routing is not configured in the add-on yet.",
+                f"Ollama configured: {providers['providers']['ollama']['configured']}.",
             ],
             "next": "Add optional Ollama-compatible local model provider with OpenAI as high-reasoning primary.",
         },
@@ -128,9 +155,10 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "overall_score": overall,
         "status": "ready" if overall >= 85 else "building",
         "layers": layers,
-        "summary": {
+            "summary": {
             "rooms": counts.get("rooms", 0),
             "devices": counts.get("devices", 0),
+            "physical_devices": len(physical),
             "entities": counts.get("entities", 0),
             "controllable_entities": controllable,
             "diagnostic_entities": diagnostic,

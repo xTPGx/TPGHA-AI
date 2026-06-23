@@ -56,13 +56,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.24"
+APP_VERSION = "0.1.25"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "debug", "knowledge", "memory", "brain", "test", "tools", "docs", "redoc",
+    "dashboards", "debug", "knowledge", "memory", "brain", "ai", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
 
@@ -73,7 +73,7 @@ _API_PREFIXES = (
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "config", "command", "confirm",
     "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "brain",
-    "test", "tools", "docs", "redoc", "openapi.json",
+    "ai", "test", "tools", "docs", "redoc", "openapi.json",
 )
 
 
@@ -82,6 +82,14 @@ def _iso(ts: float | None) -> str | None:
         return None
     return datetime.datetime.fromtimestamp(
         ts, datetime.timezone.utc).isoformat()
+
+
+def _command_context(req: CommandRequest) -> dict:
+    return {
+        "room": req.room,
+        "source_device_id": req.source_device_id,
+        "source_entity_id": req.source_entity_id,
+    }
 
 
 @asynccontextmanager
@@ -251,7 +259,8 @@ async def ha_entity(entity_id: str):
 @app.post("/command", response_model=CommandResponse)
 async def command(req: CommandRequest):
     resp = await intent_router.handle_command(
-        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id,
+        command_context=_command_context(req),
     )
     resp.conversation_id = req.conversation_id
     return resp
@@ -260,7 +269,8 @@ async def command(req: CommandRequest):
 @app.post("/command/preview", response_model=CommandResponse)
 async def command_preview(req: CommandRequest):
     resp = await intent_router.handle_preview(
-        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id,
+        command_context=_command_context(req),
     )
     resp.conversation_id = req.conversation_id
     return resp
@@ -274,7 +284,8 @@ async def chat(req: ChatRequest):
     replies as normal conversation instead of a failed device command.
     """
     resp = await intent_router.handle_command(
-        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id,
+        command_context=_command_context(req),
     )
     resp.conversation_id = req.conversation_id
     mode = "conversation"
@@ -298,7 +309,8 @@ async def chat(req: ChatRequest):
 @app.post("/chat/preview")
 async def chat_preview(req: ChatRequest):
     resp = await intent_router.handle_preview(
-        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id,
+        command_context=_command_context(req),
     )
     resp.conversation_id = req.conversation_id
     mode = "preview_confirmation_required" if resp.requires_confirmation else "preview"
@@ -312,7 +324,7 @@ async def chat_preview(req: ChatRequest):
 
 @app.post("/confirm", response_model=CommandResponse)
 async def confirm(req: ConfirmRequest):
-    return await intent_router.handle_confirmation(req.confirmation_token)
+    return await intent_router.handle_confirmation(req.confirmation_token, req.security_pin)
 
 
 @app.post("/confirm/cancel", response_model=CommandResponse)
@@ -544,10 +556,21 @@ async def knowledge_graph(include_registries: bool = True):
     return await build_house_graph(include_registries=include_registries)
 
 
+@app.get("/knowledge/physical-devices")
+async def physical_devices(include_registries: bool = True):
+    graph = await build_house_graph(include_registries=include_registries)
+    return {"devices": graph.get("physical_devices", [])}
+
+
 @app.get("/brain/layers")
 async def brain_layers(include_registries: bool = True):
     graph = await build_house_graph(include_registries=include_registries)
     return build_brain_layers(graph)
+
+
+@app.get("/ai/providers")
+async def ai_providers():
+    return get_ai_client().provider_status()
 
 
 # ------------------------------------------------------------------ memory

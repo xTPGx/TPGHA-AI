@@ -103,6 +103,11 @@ confirm_action:
       required: true
       selector:
         text:
+    security_pin:
+      name: Security PIN
+      required: false
+      selector:
+        text:
 
 cancel_confirmation:
   name: Cancel confirmation
@@ -218,6 +223,32 @@ get_knowledge_graph:
       default: true
       selector:
         boolean:
+
+get_brain_layers:
+  name: Get Jarvis brain layers
+  description: Return the live readiness map for the TPG HomeAI Jarvis layers.
+  fields:
+    include_registries:
+      name: Include HA registries
+      required: false
+      default: true
+      selector:
+        boolean:
+
+get_physical_devices:
+  name: Get physical devices
+  description: Return grouped real-world devices built from HA entities and registries.
+  fields:
+    include_registries:
+      name: Include HA registries
+      required: false
+      default: true
+      selector:
+        boolean:
+
+get_ai_providers:
+  name: Get AI providers
+  description: Return OpenAI, local/Ollama, and fallback parser readiness.
 
 get_last_command:
   name: Get last command
@@ -361,6 +392,19 @@ test_command:
       required: false
       selector:
         text:
+    room:
+      name: Room context
+      description: Optional room context for room-aware commands.
+      required: false
+      example: office
+      selector:
+        text:
+    security_pin:
+      name: Security PIN
+      description: Optional PIN for sensitive confirmation-aware commands.
+      required: false
+      selector:
+        text:
 
 preview_command:
   name: Preview command
@@ -390,5 +434,11 @@ preview_command:
     conversation_id:
       name: Conversation ID
       required: false
+      selector:
+        text:
+    room:
+      name: Room context
+      required: false
+      example: office
       selector:
         text:

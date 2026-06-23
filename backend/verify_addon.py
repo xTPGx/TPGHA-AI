@@ -162,8 +162,21 @@ def main() -> int:
     check("/brain/layers returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     brain = r.json()
-    check("/brain/layers has seven layers", len(brain.get("layers", [])) == 7,
+    check("/brain/layers has Jarvis layers", len(brain.get("layers", [])) >= 7,
           str(brain))
+
+    r = client.get("/knowledge/physical-devices?include_registries=false")
+    check("/knowledge/physical-devices returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/knowledge/physical-devices has devices list", isinstance(r.json().get("devices"), list),
+          str(r.json()))
+
+    r = client.get("/ai/providers")
+    check("/ai/providers returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ai/providers has fallback parser",
+          r.json().get("providers", {}).get("fallback_parser", {}).get("available") is True,
+          str(r.json()))
 
     r = client.post("/memory/draft", json={
         "scope": "user",

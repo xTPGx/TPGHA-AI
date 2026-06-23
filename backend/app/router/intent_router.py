@@ -40,6 +40,7 @@ from ..events import (
 )
 from ..homeassistant.rest import get_ha_client
 from ..homeassistant.services import safe_get_states
+from ..memory import propose_correction_memory
 from ..models.results import ActionResult, CommandResponse
 from .permissions import PermissionEngine, get_confirmation_store
 from .permissions import PendingConfirmation
@@ -73,7 +74,11 @@ _HANDLERS = {
 }
 
 
-async def build_context(assistant_name: Optional[str], user_name: Optional[str]) -> ActionContext:
+async def build_context(
+    assistant_name: Optional[str],
+    user_name: Optional[str],
+    command_context: Optional[dict[str, Any]] = None,
+) -> ActionContext:
     config = get_config()
     live = await safe_get_states()
     resolver = Resolver(config, live)
@@ -92,7 +97,7 @@ async def build_context(assistant_name: Optional[str], user_name: Optional[str])
     if user_obj is None and assistant_obj is not None:
         user_obj = resolver.get_user(assistant_obj.owner)
 
-    return ActionContext(
+    ctx = ActionContext(
         config=config,
         resolver=resolver,
         ha=get_ha_client(),
@@ -101,6 +106,8 @@ async def build_context(assistant_name: Optional[str], user_name: Optional[str])
         assistant=assistant_obj,
         user=user_obj,
     )
+    ctx.command_context = command_context or {}
+    return ctx
 
 
 def _safe_json(value: Any) -> str:
@@ -141,8 +148,9 @@ async def handle_command(
     user_name: Optional[str],
     message: str,
     conversation_id: Optional[str] = None,
+    command_context: Optional[dict[str, Any]] = None,
 ) -> CommandResponse:
-    ctx = await build_context(assistant_name, user_name)
+    ctx = await build_context(assistant_name, user_name, command_context)
 
     if ctx.assistant is None:
         return CommandResponse(
@@ -172,10 +180,13 @@ async def handle_command(
 
     handler = _HANDLERS[tool_call.name]
     result: ActionResult = await handler(ctx, tool_call.arguments)
+    correction_memory = _maybe_draft_correction_memory(ctx, message, result)
     result.data = {
         **(result.data or {}),
         "policy": evaluate_action_policy(result, tool_dict, preview=False),
     }
+    if correction_memory:
+        result.data["memory_draft"] = correction_memory
 
     _log_command(
         ctx.assistant.id,
@@ -205,6 +216,7 @@ async def handle_preview(
     user_name: Optional[str],
     message: str,
     conversation_id: Optional[str] = None,
+    command_context: Optional[dict[str, Any]] = None,
 ) -> CommandResponse:
     """Resolve and run the command path in dry-run mode.
 
@@ -212,7 +224,7 @@ async def handle_preview(
     service calls are recorded instead of sent, and confirmation tokens are not
     armed. This gives the UI/HA a reliable "what would happen?" layer.
     """
-    ctx = await build_context(assistant_name, user_name)
+    ctx = await build_context(assistant_name, user_name, command_context)
 
     if ctx.assistant is None:
         return CommandResponse(
@@ -311,7 +323,33 @@ def _select_tool(
     if tool_call is not None and tool_call.name == "explain_last_action":
         tool_call.arguments = dict(tool_call.arguments or {})
         tool_call.arguments["conversation_id"] = conversation_id or ""
+    tool_call = _apply_room_context(ctx, tool_call)
     return tool_call, (tool_call.to_dict() if tool_call else None)
+
+
+def _apply_room_context(ctx: ActionContext, tool_call: Optional[ToolCall]) -> Optional[ToolCall]:
+    if tool_call is None or not tool_call.name:
+        return tool_call
+    room = str((getattr(ctx, "command_context", {}) or {}).get("room") or "").strip()
+    if not room:
+        return tool_call
+    args = dict(tool_call.arguments or {})
+    key = "target"
+    if tool_call.name in {"show_camera"}:
+        key = "camera"
+    elif tool_call.name in {"lock_door", "unlock_door"}:
+        key = "door"
+    elif tool_call.name in {"play_music", "stop_music", "set_volume", "set_climate"}:
+        key = "room"
+    target = str(args.get(key) or "").strip()
+    generic = {"", "it", "this", "that", "there", "light", "lights", "fan", "fans",
+               "tv", "television", "display", "screen", "speaker", "music"}
+    if target.lower() in generic:
+        suffix = target if target and target.lower() not in {"it", "this", "that", "there"} else ""
+        args[key] = f"{room} {suffix}".strip()
+        return ToolCall(tool_call.name, args, source=f"{tool_call.source}:room_context",
+                        assistant_text=tool_call.assistant_text)
+    return tool_call
 
 
 def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult) -> None:
@@ -343,6 +381,28 @@ def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult)
     elif not result.success:
         bus.emit(EVT_ACTION_FAILED, {"intent": result.intent, "message": result.message,
                                      "error": result.error})
+
+
+_CORRECTION_MEMORY_RE = re.compile(
+    r"\b(that'?s not|not what|i said|i meant|actually|correction|wrong|no,?)\b",
+    re.I,
+)
+
+
+def _maybe_draft_correction_memory(
+    ctx: ActionContext,
+    message: str,
+    result: ActionResult,
+) -> Optional[dict[str, Any]]:
+    if not (result.success and result.executed):
+        return None
+    if not _CORRECTION_MEMORY_RE.search(message):
+        return None
+    try:
+        return propose_correction_memory(ctx.user.id if ctx.user else "", message, result)
+    except Exception:  # pragma: no cover - memory drafting should never break actions
+        logger.debug("Failed to draft correction memory", exc_info=True)
+        return None
 
 
 _ON_RE = re.compile(r"\b(turn|switch|power)\s+on\b|\benable\b", re.I)
@@ -511,7 +571,7 @@ class PreviewConfirmationStore:
     def create(self, intent: str, params: dict[str, Any], message: str,
                ttl: int, assistant: Optional[str], user: Optional[str],
                plan: dict[str, Any], risk_level: str = "critical",
-               target: str = "") -> PendingConfirmation:
+               target: str = "", pin_required: bool = False) -> PendingConfirmation:
         now = time.monotonic()
         pc = PendingConfirmation(
             token=f"preview-{len(self.items) + 1}",
@@ -525,6 +585,7 @@ class PreviewConfirmationStore:
             plan=plan,
             risk_level=risk_level,
             target=target,
+            pin_required=pin_required,
         )
         self.items.append(pc)
         return pc
@@ -542,7 +603,7 @@ class PreviewConfirmationStore:
         return None
 
 
-async def handle_confirmation(token: str) -> CommandResponse:
+async def handle_confirmation(token: str, security_pin: Optional[str] = None) -> CommandResponse:
     store = get_confirmation_store()
     pc = store.pop(token)
     if pc is None:
@@ -552,6 +613,13 @@ async def handle_confirmation(token: str) -> CommandResponse:
             error="invalid_confirmation",
         )
     ctx = await build_context(pc.assistant, pc.user)
+    if pc.pin_required and not ctx.permissions.verify_pin(security_pin):
+        return CommandResponse(
+            success=False,
+            executed=False,
+            message="Security PIN required or incorrect.",
+            error="invalid_security_pin",
+        )
     plan = pc.plan or {}
     friendly = pc.target or plan.get("data", {}).get("entity_id", pc.intent)
 

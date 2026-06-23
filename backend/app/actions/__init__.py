@@ -3,7 +3,7 @@ proposes) a single vetted intent and returns an ActionResult."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from ..homeassistant.rest import HomeAssistantREST
 from ..models.schemas import AppConfig, Assistant, User
@@ -23,3 +23,4 @@ class ActionContext:
     assistant: Optional[Assistant] = None
     user: Optional[User] = None
     dry_run: bool = False
+    command_context: dict[str, Any] | None = None

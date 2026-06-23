@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.25
+
+- Added room/source context fields for room-aware commands from Chat, HA services, and Assist surfaces.
+- Added optional security PIN enforcement for critical confirmations such as unlock.
+- Added physical-device grouping so noisy HA entities can be treated as real devices.
+- Added correction-to-memory drafting for successful user corrections.
+- Added command-history routine mining to proactive suggestions.
+- Added AI provider readiness for OpenAI, optional Ollama configuration, and deterministic fallback parser.
+- Added HA-native services for Jarvis layers, physical devices, and AI provider status.
+
 ## 0.1.24
 
 - Added a backend action policy brain that labels every command/preview as execute-now, confirmation-required, proposal-required, review-required, clarify, or answer-only.

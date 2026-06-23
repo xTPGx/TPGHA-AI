@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # --- AI ---
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")
+    ollama_model: str = Field(default="", alias="OLLAMA_MODEL")
 
     # --- Home Assistant ---
     home_assistant_url: str = Field(default="", alias="HOME_ASSISTANT_URL")
@@ -46,6 +48,7 @@ class Settings(BaseSettings):
         default=False, alias="AUTO_APPROVE_LOW_RISK_ENTITIES"
     )
     auto_approve_domains: str = Field(default="", alias="AUTO_APPROVE_DOMAINS")
+    security_pin: str = Field(default="", alias="TPG_SECURITY_PIN")
     ha_connect_timeout_seconds: float = Field(
         default=10.0, alias="HA_CONNECT_TIMEOUT_SECONDS"
     )
@@ -104,6 +107,10 @@ class Settings(BaseSettings):
         return {
             "openai_configured": self.openai_configured,
             "openai_model": self.openai_model,
+            "ollama_configured": bool(self.ollama_base_url and self.ollama_model),
+            "ollama_base_url": self.ollama_base_url,
+            "ollama_model": self.ollama_model,
+            "security_pin_configured": bool(self.security_pin),
             "home_assistant_url": self.home_assistant_url,
             "ha_configured": self.ha_configured,
             "config_dir": self.config_dir,

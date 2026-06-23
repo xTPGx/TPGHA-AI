@@ -15,6 +15,9 @@ if command -v bashio >/dev/null 2>&1; then
   HA_URL="$(bashio::config 'home_assistant_url')"
   HA_TOKEN="$(bashio::config 'home_assistant_token')"
   OPENAI_KEY="$(bashio::config 'openai_api_key')"
+  OLLAMA_URL="$(bashio::config 'ollama_base_url')"
+  OLLAMA_MODEL="$(bashio::config 'ollama_model')"
+  SECURITY_PIN="$(bashio::config 'security_pin')"
   CONFIG_DIR_OPT="$(bashio::config 'config_dir')"
   DB_URL="$(bashio::config 'database_url')"
   LOG_LEVEL="$(bashio::config 'log_level')"
@@ -28,6 +31,9 @@ else
   HA_URL="$(jq -r '.home_assistant_url // ""' "${OPTIONS_FILE}")"
   HA_TOKEN="$(jq -r '.home_assistant_token // ""' "${OPTIONS_FILE}")"
   OPENAI_KEY="$(jq -r '.openai_api_key // ""' "${OPTIONS_FILE}")"
+  OLLAMA_URL="$(jq -r '.ollama_base_url // ""' "${OPTIONS_FILE}")"
+  OLLAMA_MODEL="$(jq -r '.ollama_model // ""' "${OPTIONS_FILE}")"
+  SECURITY_PIN="$(jq -r '.security_pin // ""' "${OPTIONS_FILE}")"
   CONFIG_DIR_OPT="$(jq -r '.config_dir // "/config/tpg_homeai"' "${OPTIONS_FILE}")"
   DB_URL="$(jq -r '.database_url // "sqlite:////config/tpg_homeai/tpg_homeai.db"' "${OPTIONS_FILE}")"
   LOG_LEVEL="$(jq -r '.log_level // "info"' "${OPTIONS_FILE}")"
@@ -40,7 +46,7 @@ else
 fi
 
 # bashio/jq may yield the literal "null" for empty values.
-for var in HA_URL HA_TOKEN OPENAI_KEY CONFIG_DIR_OPT DB_URL LOG_LEVEL \
+for var in HA_URL HA_TOKEN OPENAI_KEY OLLAMA_URL OLLAMA_MODEL SECURITY_PIN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
            SCAN_ON_START SCAN_INTERVAL NOTIFY_NEW NOTIFY_UNAVAIL \
            AUTO_LOW_RISK AUTO_DOMAINS; do
   if [ "$(eval echo \$$var)" = "null" ]; then eval "$var=''"; fi
@@ -62,6 +68,9 @@ if [ -z "${HA_TOKEN}" ] && [ -n "${SUPERVISOR_TOKEN}" ]; then HA_TOKEN="${SUPERV
 export HOME_ASSISTANT_URL="${HA_URL}"
 export HOME_ASSISTANT_TOKEN="${HA_TOKEN}"
 export OPENAI_API_KEY="${OPENAI_KEY}"
+export OLLAMA_BASE_URL="${OLLAMA_URL}"
+export OLLAMA_MODEL="${OLLAMA_MODEL}"
+export TPG_SECURITY_PIN="${SECURITY_PIN}"
 export CONFIG_DIR="${CONFIG_DIR_OPT}"
 export DATABASE_URL="${DB_URL}"
 export LOG_LEVEL="${LOG_LEVEL}"

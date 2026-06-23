@@ -103,20 +103,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ assistant, user, message, conversation_id }),
     }),
-  chat: (assistant: string, user: string, message: string, conversation_id?: string) =>
+  chat: (assistant: string, user: string, message: string, conversation_id?: string, room?: string) =>
     http<any>("/chat", {
       method: "POST",
-      body: JSON.stringify({ assistant, user, message, conversation_id }),
+      body: JSON.stringify({ assistant, user, message, conversation_id, room }),
     }),
-  chatPreview: (assistant: string, user: string, message: string, conversation_id?: string) =>
+  chatPreview: (assistant: string, user: string, message: string, conversation_id?: string, room?: string) =>
     http<any>("/chat/preview", {
       method: "POST",
-      body: JSON.stringify({ assistant, user, message, conversation_id }),
+      body: JSON.stringify({ assistant, user, message, conversation_id, room }),
     }),
-  confirm: (confirmation_token: string) =>
+  confirm: (confirmation_token: string, security_pin?: string) =>
     http<CommandResponse>("/confirm", {
       method: "POST",
-      body: JSON.stringify({ confirmation_token }),
+      body: JSON.stringify({ confirmation_token, security_pin }),
     }),
   cancelConfirm: (confirmation_token: string) =>
     http<CommandResponse>("/confirm/cancel", {

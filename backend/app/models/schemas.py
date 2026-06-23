@@ -224,6 +224,7 @@ class PermissionsConfig(_CfgBase):
     confirmation_ttl_seconds: int = 60
     defaults: UserPermissions = Field(default_factory=UserPermissions)
     enforce_music_account_ownership: bool = True
+    security_pin: Optional[str] = None
 
 
 class AppConfig(BaseModel):
@@ -249,6 +250,10 @@ class CommandRequest(BaseModel):
     )
     message: str = Field(validation_alias=AliasChoices("message", "text"))
     conversation_id: Optional[str] = None
+    room: Optional[str] = Field(default=None, validation_alias=AliasChoices("room", "room_id"))
+    source_device_id: Optional[str] = None
+    source_entity_id: Optional[str] = None
+    security_pin: Optional[str] = None
 
 
 class ChatRequest(CommandRequest):
@@ -257,6 +262,7 @@ class ChatRequest(CommandRequest):
 
 class ConfirmRequest(BaseModel):
     confirmation_token: str
+    security_pin: Optional[str] = None
 
 
 class ScanRequest(BaseModel):

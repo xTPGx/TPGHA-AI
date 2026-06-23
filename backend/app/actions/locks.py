@@ -63,5 +63,8 @@ async def unlock_door(ctx: ActionContext, params: dict[str, Any]) -> ActionResul
         plan=plan,
         risk_level="critical",
         target=res.name,
+        pin_required=ctx.permissions.pin_required(intent, "critical"),
     )
-    return ActionResult.needs_confirmation(intent, msg, pc.token, resolved)
+    result = ActionResult.needs_confirmation(intent, msg, pc.token, resolved)
+    result.data = {"security": {"pin_required": pc.pin_required}}
+    return result
