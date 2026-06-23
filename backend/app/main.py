@@ -7,7 +7,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -43,11 +43,11 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.5"
+APP_VERSION = "0.1.6"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
-    "health", "state", "events", "config", "discovery", "command", "confirm",
+    "api", "health", "state", "events", "config", "discovery", "command", "confirm",
     "confirmations", "ha", "test", "tools", "docs", "redoc", "openapi.json",
 )
 
@@ -93,6 +93,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def api_prefix_compatibility(request: Request, call_next):
+    """Accept legacy frontend calls built with VITE_API_BASE=/api."""
+    path = request.scope.get("path", "")
+    if path == "/api":
+        request.scope["path"] = "/"
+    elif path.startswith("/api/"):
+        request.scope["path"] = path[4:]
+    return await call_next(request)
 
 
 # --------------------------------------------------------------------- health

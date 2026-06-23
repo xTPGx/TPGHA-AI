@@ -75,6 +75,14 @@ def main() -> int:
     check("/health is JSON", is_json(r) and not is_html(r), r.headers.get("content-type", ""))
     check("/health has status", r.json().get("status") in ("ok", "degraded", "initializing"))
 
+    r = client.get("/api/health")
+    check("/api/health legacy prefix is JSON", is_json(r) and not is_html(r),
+          r.headers.get("content-type", ""))
+
+    r = client.post("/api/config/reload", json={})
+    check("/api/config/reload legacy prefix works", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+
     r = client.get("/discovery/summary")
     check("/discovery/summary is JSON", is_json(r), r.headers.get("content-type", ""))
     check("/discovery/summary has pending_count", "pending_count" in r.json())
