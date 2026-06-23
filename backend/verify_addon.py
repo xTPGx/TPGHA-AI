@@ -194,6 +194,20 @@ def main() -> int:
     body = r.json()
     check("/chat creates proposal mode", body.get("mode") == "proposal", str(body))
 
+    r = client.get("/debug/last-command")
+    check("/debug/last-command returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/debug/last-command has command audit",
+          r.json().get("command", {}).get("intent") == "create_simple_automation",
+          str(r.json()))
+
+    r = client.get("/debug/commands?limit=5")
+    check("/debug/commands returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/debug/commands includes parsed tool call",
+          isinstance(r.json().get("commands", [{}])[0].get("tool_call"), dict),
+          str(r.json()))
+
     r = client.get("/suggestions")
     check("/suggestions is JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code}")

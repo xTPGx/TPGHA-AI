@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -11,13 +12,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import desc
 
 from .ai.client import get_ai_client
 from .ai.tools import TOOL_NAMES
 from .bootstrap import bootstrap, get_app_state, periodic_scan_loop
 from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
-from .db.database import init_db
+from .db.database import get_session, init_db
+from .db.models import CommandLog
 from .discovery import registry as discovery_registry
 from .discovery import scanner as discovery_scanner
 from .events import get_event_bus
@@ -52,13 +55,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.18"
+APP_VERSION = "0.1.19"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "knowledge", "memory", "test", "tools", "docs", "redoc",
+    "dashboards", "debug", "knowledge", "memory", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
 
@@ -68,7 +71,7 @@ _API_PREFIXES = (
 # names such as discovery/chat/suggestions/ha; those must serve index.html.
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "config", "command", "confirm",
-    "confirmations", "automation", "dashboards", "knowledge", "memory",
+    "confirmations", "automation", "dashboards", "debug", "knowledge", "memory",
     "test", "tools", "docs", "redoc", "openapi.json",
 )
 
@@ -460,6 +463,54 @@ async def test_action(req: TestActionRequest):
 @app.get("/tools")
 async def list_tools():
     return {"tools": TOOL_NAMES}
+
+
+# --------------------------------------------------------------- debug/audit
+def _command_log_dict(row: CommandLog) -> dict:
+    def _json_obj(value: str | None) -> dict:
+        if not value:
+            return {}
+        try:
+            parsed = json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "assistant": row.assistant,
+        "user": row.user,
+        "conversation_id": row.conversation_id,
+        "message": row.message,
+        "intent": row.intent,
+        "success": row.success,
+        "executed": row.executed,
+        "response_message": row.response_message,
+        "tool_call": _json_obj(row.tool_call),
+        "resolved": _json_obj(row.resolved),
+        "data": _json_obj(row.data),
+        "error": row.error,
+    }
+
+
+@app.get("/debug/commands")
+async def debug_commands(limit: int = 25):
+    limit = max(1, min(100, limit))
+    with get_session() as session:
+        rows = session.query(CommandLog).order_by(
+            desc(CommandLog.created_at), desc(CommandLog.id)
+        ).limit(limit).all()
+        return {"commands": [_command_log_dict(row) for row in rows]}
+
+
+@app.get("/debug/last-command")
+async def debug_last_command():
+    with get_session() as session:
+        row = session.query(CommandLog).order_by(
+            desc(CommandLog.created_at), desc(CommandLog.id)
+        ).first()
+        return {"command": _command_log_dict(row) if row else None}
 
 
 # --------------------------------------------------------------- knowledge

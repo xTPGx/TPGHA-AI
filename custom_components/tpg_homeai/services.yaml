@@ -219,6 +219,28 @@ get_knowledge_graph:
       selector:
         boolean:
 
+get_last_command:
+  name: Get last command
+  description: >
+    Return the most recent TPG HomeAI command audit record, including selected
+    tool, resolved target, result, and error details.
+
+get_commands:
+  name: Get recent commands
+  description: >
+    Return recent TPG HomeAI command audit records for debugging and dashboard
+    display.
+  fields:
+    limit:
+      name: Limit
+      required: false
+      default: 25
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+
 generate_suggestions:
   name: Generate proactive suggestions
   description: >

@@ -26,10 +26,15 @@ class CommandLog(Base):
     assistant: Mapped[str] = mapped_column(String(64), default="")
     user: Mapped[str] = mapped_column(String(64), default="")
     message: Mapped[str] = mapped_column(Text, default="")
+    conversation_id: Mapped[str] = mapped_column(String(128), default="")
     intent: Mapped[str] = mapped_column(String(64), default="")
     success: Mapped[bool] = mapped_column(Boolean, default=False)
     executed: Mapped[bool] = mapped_column(Boolean, default=False)
     response_message: Mapped[str] = mapped_column(Text, default="")
+    tool_call: Mapped[str] = mapped_column(Text, default="{}")
+    resolved: Mapped[str] = mapped_column(Text, default="{}")
+    data: Mapped[str] = mapped_column(Text, default="{}")
+    error: Mapped[str] = mapped_column(Text, default="")
 
 
 class ConversationState(Base):

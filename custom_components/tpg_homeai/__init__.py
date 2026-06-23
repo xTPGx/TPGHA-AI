@@ -53,6 +53,8 @@ from .const import (
     SERVICE_GENERATE_SUGGESTIONS,
     SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
+    SERVICE_GET_COMMANDS,
+    SERVICE_GET_LAST_COMMAND,
     SERVICE_IGNORE,
     SERVICE_IGNORE_MEMORY,
     SERVICE_MAP_ENTITY,
@@ -134,6 +136,12 @@ class TPGHomeAIClient:
             "GET",
             f"/knowledge/graph?include_registries={'true' if include_registries else 'false'}",
         )
+
+    async def async_last_command(self) -> dict[str, Any]:
+        return await self._request("GET", "/debug/last-command")
+
+    async def async_commands(self, limit: int = 25) -> dict[str, Any]:
+        return await self._request("GET", f"/debug/commands?limit={limit}")
 
     async def async_generate_suggestions(self) -> dict[str, Any]:
         return await self._request("POST", "/suggestions/generate")
@@ -339,6 +347,9 @@ MEMORY_DRAFT_SCHEMA = vol.Schema({
 })
 MEMORY_ID_SCHEMA = vol.Schema({vol.Required("memory_id"): vol.Coerce(int)})
 AUTOMATION_DRAFT_ID_SCHEMA = vol.Schema({vol.Required("draft_id"): vol.Coerce(int)})
+COMMANDS_SCHEMA = vol.Schema({
+    vol.Optional("limit", default=25): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
+})
 
 
 def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -463,6 +474,12 @@ def _register_services(hass: HomeAssistant) -> None:
         return await _first_client(hass).async_knowledge_graph(
             include_registries=call.data.get("include_registries", True))
 
+    async def _get_last_command(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_last_command()
+
+    async def _get_commands(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_commands(call.data.get("limit", 25))
+
     async def _generate_suggestions(call: ServiceCall) -> ServiceResponse:
         result = await _first_client(hass).async_generate_suggestions()
         await _refresh()
@@ -523,6 +540,10 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.OPTIONAL)
     reg(DOMAIN, SERVICE_GET_KNOWLEDGE_GRAPH, _get_knowledge_graph,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_LAST_COMMAND, _get_last_command,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_COMMANDS, _get_commands, schema=COMMANDS_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GENERATE_SUGGESTIONS, _generate_suggestions,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_MONITOR_SCAN, _monitor_scan,
@@ -544,7 +565,8 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_IGNORE, SERVICE_MAP_ENTITY, SERVICE_CONFIRM_ACTION,
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
                     SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
-                    SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GENERATE_SUGGESTIONS,
+                    SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_LAST_COMMAND,
+                    SERVICE_GET_COMMANDS, SERVICE_GENERATE_SUGGESTIONS,
                     SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,
                     SERVICE_DRAFT_MEMORY,
                     SERVICE_APPROVE_MEMORY, SERVICE_IGNORE_MEMORY,

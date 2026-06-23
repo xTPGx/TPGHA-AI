@@ -203,6 +203,17 @@ async def main():
     check("L1 does not call light.turn_off", not called("light", "turn_off", "light.office"),
           str(SERVICE_CALLS))
 
+    r = await intent_router.handle_command("atlas", "shawn", "why did you do that?",
+                                           conversation_id="ctx-light")
+    check("L1a explain last action -> explain_last_action",
+          r.intent == "explain_last_action", r.intent)
+    check("L1a explanation references previous light command",
+          "turn_on_light" in r.message and "office" in r.message.lower(),
+          r.message)
+    check("L1a explanation includes audit payload",
+          r.data.get("command", {}).get("intent") == "turn_on_light",
+          str(r.data))
+
     SERVICE_CALLS.clear()
     r = await intent_router.handle_command("atlas", "shawn", "turn it off",
                                            conversation_id="ctx-light")

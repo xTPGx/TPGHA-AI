@@ -10,6 +10,7 @@ This is the orchestration core. It:
 from __future__ import annotations
 
 import logging
+import json
 import re
 from typing import Any, Optional
 
@@ -19,6 +20,7 @@ from ..actions import cameras as cameras_action
 from ..actions import climate as climate_action
 from ..actions import control as control_action
 from ..actions import dashboards as dashboards_action
+from ..actions import debug as debug_action
 from ..actions import fans as fans_action
 from ..actions import lights as lights_action
 from ..actions import locks as locks_action
@@ -62,6 +64,7 @@ _HANDLERS = {
     "open_dashboard": dashboards_action.open_dashboard,
     "create_simple_automation": automations_action.create_simple_automation,
     "create_routine": automations_action.create_routine,
+    "explain_last_action": debug_action.explain_last_action,
     "control_device": control_action.control_device,
     "query_device": control_action.query_device,
 }
@@ -97,13 +100,33 @@ async def build_context(assistant_name: Optional[str], user_name: Optional[str])
     )
 
 
-def _log_command(assistant: str, user: str, message: str, result: ActionResult) -> None:
+def _safe_json(value: Any) -> str:
+    try:
+        return json.dumps(value or {}, default=str)
+    except TypeError:
+        return "{}"
+
+
+def _log_command(
+    assistant: str,
+    user: str,
+    message: str,
+    result: ActionResult,
+    *,
+    conversation_id: Optional[str] = None,
+    tool_call: Optional[dict[str, Any]] = None,
+) -> None:
     try:
         with get_session() as session:
             session.add(CommandLog(
                 assistant=assistant or "", user=user or "", message=message,
+                conversation_id=conversation_id or "",
                 intent=result.intent, success=result.success,
                 executed=result.executed, response_message=result.message,
+                tool_call=_safe_json(tool_call),
+                resolved=_safe_json(result.resolved),
+                data=_safe_json(result.data),
+                error=result.error or "",
             ))
             session.commit()
     except Exception:  # pragma: no cover
@@ -138,6 +161,9 @@ async def handle_command(
         tool_call = ai.select_tool(message, ctx.config, ctx.assistant, ctx.user)
 
     tool_call = _repair_direction_conflict(message, tool_call)
+    if tool_call is not None and tool_call.name == "explain_last_action":
+        tool_call.arguments = dict(tool_call.arguments or {})
+        tool_call.arguments["conversation_id"] = conversation_id or ""
     tool_dict = tool_call.to_dict() if tool_call else None
 
     if tool_call is None or not tool_call.name:
@@ -160,15 +186,23 @@ async def handle_command(
     handler = _HANDLERS[tool_call.name]
     result: ActionResult = await handler(ctx, tool_call.arguments)
 
-    _log_command(ctx.assistant.id, ctx.user.id if ctx.user else "", message, result)
-    _emit_command_events(ctx, message, result)
-    save_context(
-        assistant=ctx.assistant.id,
-        user=ctx.user.id if ctx.user else user_name,
+    _log_command(
+        ctx.assistant.id,
+        ctx.user.id if ctx.user else "",
+        message,
+        result,
         conversation_id=conversation_id,
-        message=message,
-        result=result,
+        tool_call=tool_dict,
     )
+    _emit_command_events(ctx, message, result)
+    if result.intent != "explain_last_action":
+        save_context(
+            assistant=ctx.assistant.id,
+            user=ctx.user.id if ctx.user else user_name,
+            conversation_id=conversation_id,
+            message=message,
+            result=result,
+        )
 
     resp = _to_response(ctx, result, tool_dict)
     resp.conversation_id = conversation_id
@@ -186,6 +220,9 @@ def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult)
         "executed": result.executed,
         "requires_confirmation": result.requires_confirmation,
         "response_message": result.message,
+        "resolved": result.resolved,
+        "data": result.data,
+        "error": result.error,
     })
     if result.requires_confirmation:
         bus.emit(EVT_CONFIRMATION_REQUIRED, {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.19
+
+- Added command audit persistence with selected tool, resolved target, result data, and errors.
+- Added an `explain_last_action` tool so TPG HomeAI can answer why it did something.
+- Added `/debug/commands` and `/debug/last-command` backend endpoints.
+- Added Home Assistant services for recent command audit data.
+- Added additive SQLite migrations for upgraded command history fields.
+
 ## 0.1.18
 
 - Added approved automation draft installation into Home Assistant automations.yaml.

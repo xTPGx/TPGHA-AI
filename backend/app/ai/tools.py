@@ -24,6 +24,7 @@ TOOL_NAMES = [
     "open_dashboard",
     "create_simple_automation",
     "create_routine",
+    "explain_last_action",
     "control_device",
     "query_device",
 ]
@@ -178,6 +179,24 @@ TOOLS = [
             "room": {"type": "string", "description": "Optional room context."},
         },
         ["routine"],
+    ),
+    _fn(
+        "explain_last_action",
+        "Explain the most recent house action: what command was heard, which "
+        "tool was selected, what target was resolved, whether it executed, and "
+        "what error/result came back. Use for questions like 'why did you do "
+        "that?', 'what did you just do?', or 'explain the last action'.",
+        {
+            "conversation_id": {
+                "type": "string",
+                "description": "Optional active conversation id for the chat session.",
+            },
+            "include_failed": {
+                "type": "boolean",
+                "description": "Whether failed commands are allowed in the explanation.",
+            },
+        },
+        [],
     ),
     _fn(
         "control_device",

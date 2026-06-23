@@ -45,6 +45,8 @@ SERVICE_DRAFT_MEMORY = "draft_memory"
 SERVICE_APPROVE_MEMORY = "approve_memory"
 SERVICE_IGNORE_MEMORY = "ignore_memory"
 SERVICE_GET_KNOWLEDGE_GRAPH = "get_knowledge_graph"
+SERVICE_GET_LAST_COMMAND = "get_last_command"
+SERVICE_GET_COMMANDS = "get_commands"
 
 # Home Assistant events fired by this integration.
 EVENT_DISCOVERY_FOUND = "tpg_homeai_discovery_found"

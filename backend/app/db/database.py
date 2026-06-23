@@ -45,19 +45,31 @@ def _migrate_sqlite() -> None:
     if not settings.database_url.startswith("sqlite"):
         return
     inspector = inspect(engine)
-    if "automation_draft" not in inspector.get_table_names():
-        return
-    existing = {col["name"] for col in inspector.get_columns("automation_draft")}
-    additions = {
-        "installed_id": "VARCHAR(255) DEFAULT ''",
-        "installed_path": "VARCHAR(512) DEFAULT ''",
-        "installed_at": "DATETIME",
-        "install_error": "TEXT DEFAULT ''",
-    }
+    tables = set(inspector.get_table_names())
+    if "automation_draft" in tables:
+        _add_missing_columns("automation_draft", {
+            "installed_id": "VARCHAR(255) DEFAULT ''",
+            "installed_path": "VARCHAR(512) DEFAULT ''",
+            "installed_at": "DATETIME",
+            "install_error": "TEXT DEFAULT ''",
+        })
+    if "command_log" in tables:
+        _add_missing_columns("command_log", {
+            "conversation_id": "VARCHAR(128) DEFAULT ''",
+            "tool_call": "TEXT DEFAULT '{}'",
+            "resolved": "TEXT DEFAULT '{}'",
+            "data": "TEXT DEFAULT '{}'",
+            "error": "TEXT DEFAULT ''",
+        })
+
+
+def _add_missing_columns(table: str, additions: dict[str, str]) -> None:
+    inspector = inspect(engine)
+    existing = {col["name"] for col in inspector.get_columns(table)}
     with engine.begin() as conn:
         for name, ddl in additions.items():
             if name not in existing:
-                conn.execute(text(f"ALTER TABLE automation_draft ADD COLUMN {name} {ddl}"))
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def get_session() -> Session:

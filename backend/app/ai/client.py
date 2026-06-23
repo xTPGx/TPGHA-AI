@@ -120,6 +120,9 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
     text = message.lower().strip()
     uid = user.id if user else None
 
+    if _looks_like_explain_request(text):
+        return ToolCall("explain_last_action", {"include_failed": True}, source="fallback")
+
     # Automation / scheduling first (so "turn on lights at 7am" -> automation).
     if any(k in text for k in ["movie mode", "bedtime routine", "morning routine",
                                "leaving routine", "away routine", "security routine",
@@ -228,6 +231,9 @@ def pre_route(message: str) -> Optional["ToolCall"]:
     text = message.lower().strip()
     src = "pre-router"
 
+    if _looks_like_explain_request(text):
+        return ToolCall("explain_last_action", {"include_failed": True}, source=src)
+
     # Scheduling / automation phrasing must reach the AI (create_simple_automation),
     # so don't deterministically execute it as a direct command.
     if any(k in text for k in ["movie mode", "bedtime routine", "morning routine",
@@ -301,6 +307,21 @@ _SCHEDULE_RE = re.compile(
 
 def _looks_scheduled(text: str) -> bool:
     return bool(_SCHEDULE_RE.search(text))
+
+
+def _looks_like_explain_request(text: str) -> bool:
+    patterns = (
+        "why did you",
+        "what did you just",
+        "what did you do",
+        "explain that",
+        "explain the last",
+        "why did that happen",
+        "what happened",
+        "show your work",
+        "what was the last action",
+    )
+    return any(p in text for p in patterns)
 
 
 def _light_target(message: str) -> str:
