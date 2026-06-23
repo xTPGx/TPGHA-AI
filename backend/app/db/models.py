@@ -32,6 +32,25 @@ class CommandLog(Base):
     response_message: Mapped[str] = mapped_column(Text, default="")
 
 
+class ConversationState(Base):
+    """Short-term conversational context for pronouns and corrections."""
+
+    __tablename__ = "conversation_state"
+
+    key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    assistant: Mapped[str] = mapped_column(String(64), default="")
+    user: Mapped[str] = mapped_column(String(64), default="")
+    conversation_id: Mapped[str] = mapped_column(String(128), default="")
+    last_message: Mapped[str] = mapped_column(Text, default="")
+    last_intent: Mapped[str] = mapped_column(String(64), default="")
+    last_action: Mapped[str] = mapped_column(String(64), default="")
+    last_target: Mapped[str] = mapped_column(String(255), default="")
+    last_label: Mapped[str] = mapped_column(String(255), default="")
+    last_entity_id: Mapped[str] = mapped_column(String(255), default="")
+    last_domain: Mapped[str] = mapped_column(String(64), default="")
+
+
 class DiscoveredEntity(Base):
     """Persisted discovery state for a Home Assistant entity (PART 2)."""
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.17
+
+- Added persisted short-term conversation context for follow-up commands.
+- Added pronoun handling for phrases like "turn it off" and "dim it to 40".
+- Added correction handling for phrases like "actually the fan".
+
+## 0.1.16
+
+- Added browser microphone dictation and spoken replies to the Chat page.
+- Added command direction guardrails so explicit on/off wording cannot invert.
+- Added acceptance checks for light on/off direction correction.
+
 ## 0.1.15
 
 - Added support for Home Assistant's `/api/hassio_ingress/<token>` URL shape.

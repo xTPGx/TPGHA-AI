@@ -10,6 +10,7 @@ This is the orchestration core. It:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Optional
 
 from ..actions import ActionContext
@@ -38,6 +39,7 @@ from ..homeassistant.rest import get_ha_client
 from ..homeassistant.services import safe_get_states
 from ..models.results import ActionResult, CommandResponse
 from .permissions import PermissionEngine, get_confirmation_store
+from .conversation_context import context_tool_call, load_context, save_context
 from .resolver import Resolver
 
 logger = logging.getLogger("tpg.router")
@@ -107,7 +109,12 @@ def _log_command(assistant: str, user: str, message: str, result: ActionResult) 
         logger.debug("Failed to persist command log", exc_info=True)
 
 
-async def handle_command(assistant_name: str, user_name: Optional[str], message: str) -> CommandResponse:
+async def handle_command(
+    assistant_name: str,
+    user_name: Optional[str],
+    message: str,
+    conversation_id: Optional[str] = None,
+) -> CommandResponse:
     ctx = await build_context(assistant_name, user_name)
 
     if ctx.assistant is None:
@@ -117,12 +124,19 @@ async def handle_command(assistant_name: str, user_name: Optional[str], message:
             error="unknown_assistant",
         )
 
-    # Deterministic pre-router first (e.g. fan commands), then the AI.
-    tool_call: Optional[ToolCall] = pre_route(message)
+    conv = load_context(ctx.assistant.id, ctx.user.id if ctx.user else user_name,
+                        conversation_id)
+
+    # Conversation context first for pronouns/corrections ("turn it off",
+    # "actually the fan"), then deterministic pre-router, then the AI.
+    tool_call: Optional[ToolCall] = context_tool_call(message, conv)
+    if tool_call is None:
+        tool_call = pre_route(message)
     if tool_call is None:
         ai = get_ai_client()
         tool_call = ai.select_tool(message, ctx.config, ctx.assistant, ctx.user)
 
+    tool_call = _repair_direction_conflict(message, tool_call)
     tool_dict = tool_call.to_dict() if tool_call else None
 
     if tool_call is None or not tool_call.name:
@@ -147,8 +161,17 @@ async def handle_command(assistant_name: str, user_name: Optional[str], message:
 
     _log_command(ctx.assistant.id, ctx.user.id if ctx.user else "", message, result)
     _emit_command_events(ctx, message, result)
+    save_context(
+        assistant=ctx.assistant.id,
+        user=ctx.user.id if ctx.user else user_name,
+        conversation_id=conversation_id,
+        message=message,
+        result=result,
+    )
 
-    return _to_response(ctx, result, tool_dict)
+    resp = _to_response(ctx, result, tool_dict)
+    resp.conversation_id = conversation_id
+    return resp
 
 
 def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult) -> None:
@@ -177,6 +200,71 @@ def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult)
     elif not result.success:
         bus.emit(EVT_ACTION_FAILED, {"intent": result.intent, "message": result.message,
                                      "error": result.error})
+
+
+_ON_RE = re.compile(r"\b(turn|switch|power)\s+on\b|\benable\b", re.I)
+_OFF_RE = re.compile(r"\b(turn|switch|power|shut)\s+off\b|\bdisable\b", re.I)
+
+
+def _repair_direction_conflict(message: str, tool_call: Optional[ToolCall]) -> Optional[ToolCall]:
+    """Never let model/tool ambiguity invert obvious on/off/lock commands.
+
+    The deterministic pre-router should catch common commands first, but this
+    belt-and-suspenders guard protects OpenAI tool calls, generic control calls,
+    and future voice transcripts where a wrong polarity would be unacceptable.
+    """
+    if tool_call is None or not tool_call.name:
+        return tool_call
+
+    text = message.lower()
+    wants_on = bool(_ON_RE.search(text))
+    wants_off = bool(_OFF_RE.search(text))
+    if wants_on == wants_off:
+        # Either no explicit direction, or contradictory wording. Leave it for
+        # normal routing/clarification instead of guessing.
+        return tool_call
+
+    args = dict(tool_call.arguments or {})
+    corrected = tool_call.name
+
+    if wants_on:
+        if tool_call.name == "turn_off_light":
+            corrected = "turn_on_light"
+        elif tool_call.name == "turn_off_fan":
+            corrected = "turn_on_fan"
+        elif tool_call.name == "control_device" and _action_is_off(args.get("action")):
+            args["action"] = "turn_on"
+    else:
+        if tool_call.name == "turn_on_light":
+            corrected = "turn_off_light"
+        elif tool_call.name == "turn_on_fan":
+            corrected = "turn_off_fan"
+        elif tool_call.name == "control_device" and _action_is_on(args.get("action")):
+            args["action"] = "turn_off"
+
+    if "unlock" in text and tool_call.name == "lock_door":
+        corrected = "unlock_door"
+    elif "lock" in text and "unlock" not in text and tool_call.name == "unlock_door":
+        corrected = "lock_door"
+
+    if corrected != tool_call.name or args != tool_call.arguments:
+        logger.warning(
+            "Corrected conflicting tool direction: message=%r tool=%s corrected=%s",
+            message,
+            tool_call.name,
+            corrected,
+        )
+        return ToolCall(corrected, args, source=f"{tool_call.source}:direction_guard",
+                        assistant_text=tool_call.assistant_text)
+    return tool_call
+
+
+def _action_is_on(action: Any) -> bool:
+    return str(action or "").lower() in {"on", "turn_on", "switch_on", "enable", "power_on"}
+
+
+def _action_is_off(action: Any) -> bool:
+    return str(action or "").lower() in {"off", "turn_off", "switch_off", "disable", "power_off"}
 
 
 async def handle_confirmation(token: str) -> CommandResponse:

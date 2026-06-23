@@ -17,7 +17,9 @@ os.environ.pop("OPENAI_API_KEY", None)
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.db.database import init_db  # noqa: E402
+from app.ai.client import ToolCall  # noqa: E402
 from app.homeassistant import rest  # noqa: E402
+from app.models.schemas import HAEntity  # noqa: E402
 from app.router import intent_router  # noqa: E402
 
 PASS, FAIL = "PASS", "FAIL"
@@ -37,8 +39,33 @@ async def noop(*args, **kwargs):
 SERVICE_CALLS: list[tuple[str, str, dict]] = []
 
 
+async def fake_safe_get_states():
+    return {
+        "light.office": HAEntity(entity_id="light.office", state="off",
+                                 friendly_name="Office Light", domain="light",
+                                 available=True),
+        "fan.office": HAEntity(entity_id="fan.office", state="on",
+                               friendly_name="Office Fan", domain="fan",
+                               available=True),
+        "fan.living_room": HAEntity(entity_id="fan.living_room", state="off",
+                                    friendly_name="Living Room Fan", domain="fan",
+                                    available=True),
+        "fan.bedroom_fan": HAEntity(entity_id="fan.bedroom_fan", state="off",
+                                    friendly_name="Bedroom Fan", domain="fan",
+                                    available=True),
+        "climate.living_room_living_room": HAEntity(
+            entity_id="climate.living_room_living_room", state="cool",
+            friendly_name="Living Room Thermostat", domain="climate", available=True,
+        ),
+        "lock.front_door": HAEntity(entity_id="lock.front_door", state="locked",
+                                    friendly_name="Front Door", domain="lock",
+                                    available=True),
+    }
+
+
 async def main():
     init_db()
+    intent_router.safe_get_states = fake_safe_get_states
 
     # Record every service call so we can assert exact domain/service/data.
     # turn_on/turn_off/lock/unlock/set_volume/etc. all funnel through
@@ -159,6 +186,58 @@ async def main():
           r.data.get("proposed_yaml", ""))
 
     # 11. Fan control --------------------------------------------------------
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "Turn on office light.",
+                                           conversation_id="ctx-light")
+    check("L1 turn on office light -> turn_on_light", r.intent == "turn_on_light", r.intent)
+    check("L1 calls light.turn_on light.office", called("light", "turn_on", "light.office"),
+          str(SERVICE_CALLS))
+    check("L1 does not call light.turn_off", not called("light", "turn_off", "light.office"),
+          str(SERVICE_CALLS))
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "turn it off",
+                                           conversation_id="ctx-light")
+    check("L1b pronoun follow-up -> turn_off_light", r.intent == "turn_off_light", r.intent)
+    check("L1b pronoun calls light.turn_off light.office",
+          called("light", "turn_off", "light.office"), str(SERVICE_CALLS))
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "Turn off office light.",
+                                           conversation_id="ctx-correct")
+    check("L1c seed correction context", r.intent == "turn_off_light", r.intent)
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "actually the fan",
+                                           conversation_id="ctx-correct")
+    check("L1d correction reuses action -> turn_off_fan", r.intent == "turn_off_fan", r.intent)
+    check("L1d correction targets office fan", called("fan", "turn_off", "fan.office"),
+          str(SERVICE_CALLS))
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "Turn on office light.",
+                                           conversation_id="ctx-dim")
+    check("L1e seed dim context", r.intent == "turn_on_light", r.intent)
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "dim it to 40",
+                                           conversation_id="ctx-dim")
+    check("L1f pronoun dim uses generic control", r.intent == "control_device", r.intent)
+    check("L1f pronoun dim calls light.turn_on with brightness",
+          any(d == "light" and s == "turn_on" and data.get("brightness_pct") == 40
+              for d, s, data in SERVICE_CALLS),
+          str(SERVICE_CALLS))
+
+    bad_tool = ToolCall("turn_off_light", {"target": "office light"}, source="test")
+    fixed_tool = intent_router._repair_direction_conflict("Turn on office light.", bad_tool)
+    check("L2 direction guard fixes bad off tool",
+          fixed_tool.name == "turn_on_light" and fixed_tool.arguments.get("target") == "office light",
+          fixed_tool.to_dict())
+
+    bad_generic = ToolCall("control_device", {"target": "office light", "action": "turn_off"}, source="test")
+    fixed_generic = intent_router._repair_direction_conflict("Switch on office light.", bad_generic)
+    check("L3 direction guard fixes generic off action",
+          fixed_generic.name == "control_device" and fixed_generic.arguments.get("action") == "turn_on",
+          fixed_generic.to_dict())
+
     SERVICE_CALLS.clear()
     r = await intent_router.handle_command("atlas", "shawn", "turn off office fan")
     check("F1 turn off office fan -> turn_off_fan", r.intent == "turn_off_fan", r.intent)

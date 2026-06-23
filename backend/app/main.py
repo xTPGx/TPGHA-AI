@@ -50,7 +50,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.15"
+APP_VERSION = "0.1.17"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -244,7 +244,9 @@ async def ha_entity(entity_id: str):
 # -------------------------------------------------------------------- commands
 @app.post("/command", response_model=CommandResponse)
 async def command(req: CommandRequest):
-    resp = await intent_router.handle_command(req.assistant, req.user, req.message)
+    resp = await intent_router.handle_command(
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+    )
     resp.conversation_id = req.conversation_id
     return resp
 
@@ -256,7 +258,9 @@ async def chat(req: ChatRequest):
     This wraps the same guarded command path, but classifies no-tool OpenAI
     replies as normal conversation instead of a failed device command.
     """
-    resp = await intent_router.handle_command(req.assistant, req.user, req.message)
+    resp = await intent_router.handle_command(
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+    )
     resp.conversation_id = req.conversation_id
     mode = "conversation"
     if resp.requires_confirmation:
