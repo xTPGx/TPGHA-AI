@@ -111,6 +111,9 @@ def main() -> int:
     r = client.get(f"{ingress}/api/health")
     check("ingress /api/health is JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.get(f"{ingress}/health")
+    check("ingress /health is JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
 
     r = client.post("/api/config/reload", json={})
     check("/api/config/reload legacy prefix works", r.status_code == 200 and is_json(r),
@@ -204,7 +207,16 @@ def main() -> int:
     r = client.get("/dashboard")
     check("GET /dashboard is HTML", is_html(r))
     r = client.get(f"{ingress}/discovery")
-    check("GET ingress frontend route is HTML", is_html(r),
+    check("GET ingress discovery route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/chat")
+    check("GET ingress chat route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/suggestions")
+    check("GET ingress suggestions route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/ha")
+    check("GET ingress HA route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/assets/app.js")
     check("GET ingress asset is JS", r.status_code == 200 and is_js(r) and not is_html(r),

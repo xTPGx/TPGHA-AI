@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.14
+
+- Added frontend API base fallback for HA Supervisor ingress variations.
+- Added backend normalization for direct ingress-prefixed API paths.
+- Added regression checks for both `/slug/api/health` and `/slug/health`.
+
 ## 0.1.13
 
 - Fixed Home Assistant add-on ingress frontend loading.

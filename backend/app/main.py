@@ -50,7 +50,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.13"
+APP_VERSION = "0.1.14"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -58,6 +58,16 @@ _API_PREFIXES = (
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "knowledge", "memory", "test", "tools", "docs", "redoc",
     "openapi.json",
+)
+
+# HA ingress normally forwards backend calls as /<addon_slug>/api/...
+# Some HA/proxy paths may arrive as /<addon_slug>/health, so keep a small
+# allowlist for direct ingress API compatibility. Do not include frontend route
+# names such as discovery/chat/suggestions/ha; those must serve index.html.
+_INGRESS_DIRECT_API_PREFIXES = (
+    "health", "state", "events", "config", "command", "confirm",
+    "confirmations", "automation", "dashboards", "knowledge", "memory",
+    "test", "tools", "docs", "redoc", "openapi.json",
 )
 
 
@@ -113,6 +123,13 @@ async def api_prefix_compatibility(request: Request, call_next):
         # HA ingress path: /3e5a55d6_tpg_homeai/api/health -> /api/health.
         path = "/" + "/".join(parts[1:])
         request.scope["path"] = path
+    elif len(parts) >= 2 and parts[0].lower() not in _API_PREFIXES:
+        # HA ingress path forwarded without /api:
+        # /3e5a55d6_tpg_homeai/health -> /health.
+        rest_head = parts[1].split("/", 1)[0].lower()
+        if rest_head in _INGRESS_DIRECT_API_PREFIXES:
+            path = "/" + "/".join(parts[1:])
+            request.scope["path"] = path
     if path == "/api":
         request.scope["path"] = "/"
     elif path.startswith("/api/"):

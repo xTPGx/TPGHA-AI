@@ -8,23 +8,45 @@ import { ingressBasePath } from "./ingress";
 //     same-origin relative URLs so /health hits the backend directly.
 const env = (import.meta as any).env ?? {};
 const ingressBase = ingressBasePath();
-const BASE: string = env.VITE_API_BASE ?? (
-  env.DEV ? "/api" : (ingressBase ? `${ingressBase}/api` : "")
-);
+const BASES: string[] = env.VITE_API_BASE
+  ? [env.VITE_API_BASE]
+  : env.DEV
+    ? ["/api"]
+    : [
+        ...(ingressBase ? [`${ingressBase}/api`] : []),
+        "/api",
+        ingressBase,
+        "",
+      ];
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  let lastError: Error | null = null;
+  for (const base of BASES) {
+    try {
+      return await requestOnce<T>(base, path, init);
+    } catch (err: any) {
+      lastError = err;
+      if (!err?.retryWithNextBase) {
+        throw err;
+      }
+    }
+  }
+  throw lastError || new Error("Could not reach backend.");
+}
+
+async function requestOnce<T>(base: string, path: string, init?: RequestInit): Promise<T> {
+  const url = `${base}${path}`;
+  const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
-
   // The backend always returns JSON for API routes. If we got HTML, the SPA
   // fallback intercepted the call — i.e. API routing is misconfigured.
   const ctype = res.headers.get("content-type") || "";
   if (ctype.includes("text/html")) {
-    throw new Error(
-      "API endpoint returned HTML. Add-on API routing is misconfigured."
-    );
+    const error: any = new Error(`API endpoint returned HTML at ${url}.`);
+    error.retryWithNextBase = true;
+    throw error;
   }
 
   if (!res.ok) {
@@ -35,7 +57,9 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* ignore */
     }
-    throw new Error(`${res.status}: ${detail}`);
+    const error: any = new Error(`${res.status}: ${detail} (${url})`);
+    error.retryWithNextBase = res.status === 404;
+    throw error;
   }
   return res.json() as Promise<T>;
 }
