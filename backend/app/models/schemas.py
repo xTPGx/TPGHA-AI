@@ -70,6 +70,17 @@ class User(_CfgBase):
     permissions: UserPermissions = Field(default_factory=UserPermissions)
 
 
+class VoiceProfile(_CfgBase):
+    provider: Literal["browser", "openai", "ha_tts"] = "browser"
+    model: str = "gpt-4o-mini-tts"
+    voice: str = "alloy"
+    instructions: str = ""
+    response_format: Literal["mp3", "opus", "aac", "flac", "wav", "pcm"] = "mp3"
+    output: Literal["browser", "media_player"] = "browser"
+    target_entity_id: Optional[str] = None
+    fallback_provider: Literal["browser", "none"] = "browser"
+
+
 class Assistant(_CfgBase):
     id: str
     name: str
@@ -77,7 +88,7 @@ class Assistant(_CfgBase):
     aliases: list[str] = Field(default_factory=list)
     personality: str = ""
     tone: str = "neutral"
-    voice: str = "neutral"
+    voice: str | VoiceProfile = "neutral"
 
 
 class AssistantsConfig(_CfgBase):
@@ -275,6 +286,19 @@ class CommandRequest(BaseModel):
 
 class ChatRequest(CommandRequest):
     pass
+
+
+class VoicePreviewRequest(BaseModel):
+    assistant: str = "atlas"
+    text: str = "System voice check. I am online."
+    target_entity_id: Optional[str] = None
+
+
+class VoiceSpeakRequest(BaseModel):
+    assistant: str = "atlas"
+    text: str
+    target_entity_id: Optional[str] = None
+    force_browser: bool = False
 
 
 class ConfirmRequest(BaseModel):

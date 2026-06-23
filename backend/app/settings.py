@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # --- AI ---
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_tts_model: str = Field(default="gpt-4o-mini-tts", alias="OPENAI_TTS_MODEL")
+    openai_tts_format: str = Field(default="mp3", alias="OPENAI_TTS_FORMAT")
     ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="", alias="OLLAMA_MODEL")
 
@@ -55,6 +57,7 @@ class Settings(BaseSettings):
     initial_scan_timeout_seconds: float = Field(
         default=30.0, alias="INITIAL_SCAN_TIMEOUT_SECONDS"
     )
+    voice_public_base_url: str = Field(default="", alias="VOICE_PUBLIC_BASE_URL")
 
     # --- Server / CORS ---
     cors_origins: str = Field(default="*", alias="CORS_ORIGINS")
@@ -107,9 +110,12 @@ class Settings(BaseSettings):
         return {
             "openai_configured": self.openai_configured,
             "openai_model": self.openai_model,
+            "openai_tts_model": self.openai_tts_model,
+            "openai_tts_format": self.openai_tts_format,
             "ollama_configured": bool(self.ollama_base_url and self.ollama_model),
             "ollama_base_url": self.ollama_base_url,
             "ollama_model": self.ollama_model,
+            "voice_public_base_url_configured": bool(self.voice_public_base_url),
             "security_pin_configured": bool(self.security_pin),
             "home_assistant_url": self.home_assistant_url,
             "ha_configured": self.ha_configured,

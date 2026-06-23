@@ -103,14 +103,16 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "voice_layer",
             "title": "Voice Layer",
-            "status": "partial",
-            "score": 65,
+            "status": "ready" if settings.openai_configured else "partial",
+            "score": 88 if settings.openai_configured else 74,
             "evidence": [
-                "Browser mic input and speech replies are available in Chat.",
+                "Browser mic input is available in Chat.",
+                "Configured assistant voice profiles can use OpenAI TTS with browser fallback.",
+                "Voice Settings exposes profile readiness, catalog, preview, and test playback.",
                 "Home Assistant Assist can forward conversation to TPG HomeAI.",
-                "Wake-word satellites and room-aware microphones are not managed here yet.",
+                f"OpenAI TTS configured: {settings.openai_configured}.",
             ],
-            "next": "Add wake-word/satellite setup docs plus room-aware voice context from HA Assist devices.",
+            "next": "Add wake-word/satellite setup docs plus trusted speaker-routing profiles.",
         },
         {
             "id": "proactive_suggestions",

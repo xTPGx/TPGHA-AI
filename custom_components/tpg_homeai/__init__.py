@@ -54,6 +54,8 @@ from .const import (
     SERVICE_GET_AI_PROVIDERS,
     SERVICE_GET_BRAIN_LAYERS,
     SERVICE_GET_DEVICE_PROFILES,
+    SERVICE_GET_VOICE_PROFILES,
+    SERVICE_GET_VOICES,
     SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
     SERVICE_GET_PHYSICAL_DEVICES,
@@ -68,6 +70,7 @@ from .const import (
     SERVICE_RELOAD_CONFIG,
     SERVICE_SCAN_DEVICES,
     SERVICE_TEST_COMMAND,
+    SERVICE_SPEAK,
 )
 from .coordinator import TPGHomeAICoordinator
 
@@ -162,6 +165,22 @@ class TPGHomeAIClient:
 
     async def async_ai_providers(self) -> dict[str, Any]:
         return await self._request("GET", "/ai/providers")
+
+    async def async_voice_profiles(self) -> dict[str, Any]:
+        return await self._request("GET", "/voice/profiles")
+
+    async def async_voices(self) -> dict[str, Any]:
+        return await self._request("GET", "/voice/voices")
+
+    async def async_speak(self, assistant_id: str, text: str,
+                          target_entity_id: str | None = None,
+                          force_browser: bool = False) -> dict[str, Any]:
+        return await self._request("POST", "/voice/speak", json={
+            "assistant": assistant_id,
+            "text": text,
+            "target_entity_id": target_entity_id,
+            "force_browser": force_browser,
+        })
 
     async def async_last_command(self) -> dict[str, Any]:
         return await self._request("GET", "/debug/last-command")
@@ -384,6 +403,12 @@ OPEN_PANEL_SCHEMA = vol.Schema({
 KNOWLEDGE_GRAPH_SCHEMA = vol.Schema({
     vol.Optional("include_registries", default=True): cv.boolean,
 })
+SPEAK_SCHEMA = vol.Schema({
+    vol.Required("text"): cv.string,
+    vol.Optional("assistant_id"): cv.string,
+    vol.Optional("target_entity_id"): cv.string,
+    vol.Optional("force_browser", default=False): cv.boolean,
+})
 MEMORY_DRAFT_SCHEMA = vol.Schema({
     vol.Optional("scope", default="house"): vol.In(["house", "user", "room", "device"]),
     vol.Optional("owner"): cv.string,
@@ -538,6 +563,24 @@ def _register_services(hass: HomeAssistant) -> None:
     async def _get_ai_providers(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_ai_providers()
 
+    async def _get_voice_profiles(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_voice_profiles()
+
+    async def _get_voices(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_voices()
+
+    async def _speak(call: ServiceCall) -> ServiceResponse:
+        entry = _first_entry(hass)
+        options = entry.options if entry else {}
+        assistant_id = call.data.get("assistant_id") or options.get(
+            CONF_ASSISTANT_ID, DEFAULT_ASSISTANT_ID)
+        return await _first_client(hass).async_speak(
+            assistant_id=assistant_id,
+            text=call.data["text"],
+            target_entity_id=call.data.get("target_entity_id"),
+            force_browser=call.data.get("force_browser", False),
+        )
+
     async def _get_last_command(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_last_command()
 
@@ -628,6 +671,12 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_AI_PROVIDERS, _get_ai_providers,
         supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_VOICE_PROFILES, _get_voice_profiles,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_VOICES, _get_voices,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_SPEAK, _speak, schema=SPEAK_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_LAST_COMMAND, _get_last_command,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_COMMANDS, _get_commands, schema=COMMANDS_SCHEMA,
@@ -658,6 +707,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_BRAIN_LAYERS,
                     SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_DEVICE_PROFILES,
                     SERVICE_GET_AI_PROVIDERS,
+                    SERVICE_GET_VOICE_PROFILES, SERVICE_GET_VOICES, SERVICE_SPEAK,
                     SERVICE_GET_LAST_COMMAND,
                     SERVICE_GET_COMMANDS, SERVICE_GENERATE_SUGGESTIONS,
                     SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,

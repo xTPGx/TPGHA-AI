@@ -156,6 +156,12 @@ export const api = {
   deviceProfiles: () => http<any>("/knowledge/device-profiles"),
   deviceAdapters: () => http<any>("/knowledge/device-adapters"),
   voiceSources: () => http<any>("/knowledge/voice-sources"),
+  voiceProfiles: () => http<any>("/voice/profiles"),
+  voiceVoices: () => http<any>("/voice/voices"),
+  voicePreview: (body: Record<string, any>) =>
+    http<any>("/voice/preview", { method: "POST", body: JSON.stringify(body) }),
+  voiceSpeak: (body: Record<string, any>) =>
+    http<any>("/voice/speak", { method: "POST", body: JSON.stringify(body) }),
   aiProviders: () => http<any>("/ai/providers"),
   memories: (status?: string) =>
     http<any>(`/memory${status ? `?status=${encodeURIComponent(status)}` : ""}`),

@@ -193,6 +193,41 @@ def main() -> int:
           r.json().get("providers", {}).get("fallback_parser", {}).get("available") is True,
           str(r.json()))
 
+    r = client.get("/voice/profiles")
+    check("/voice/profiles returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    voice_profiles = r.json()
+    check("/voice/profiles has assistants",
+          len(voice_profiles.get("profiles", [])) >= 2,
+          str(voice_profiles))
+
+    r = client.get("/voice/voices")
+    check("/voice/voices returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/voice/voices includes catalog",
+          any(v.get("id") == "coral" for v in r.json().get("voices", [])),
+          str(r.json()))
+
+    r = client.post("/voice/preview", json={
+        "assistant": "chatty",
+        "text": "Voice check.",
+    })
+    check("/voice/preview returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/voice/preview reports fallback when OpenAI absent",
+          r.json().get("will_fallback_to_browser") is True,
+          str(r.json()))
+
+    r = client.post("/voice/speak", json={
+        "assistant": "atlas",
+        "text": "Voice check.",
+    })
+    check("/voice/speak returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/voice/speak falls back to browser without key",
+          r.json().get("mode") == "browser" and r.json().get("provider") == "browser",
+          str(r.json()))
+
     r = client.post("/memory/draft", json={
         "scope": "user",
         "owner": "shawn",
@@ -346,6 +381,9 @@ def main() -> int:
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/dashboard-builder")
     check("GET ingress dashboard builder route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/voice-settings")
+    check("GET ingress voice settings route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/voice-sources")
     check("GET ingress voice sources route is HTML", is_html(r),

@@ -40,6 +40,8 @@ from .models.schemas import (
     ResolveRequest,
     ScanRequest,
     TestActionRequest,
+    VoicePreviewRequest,
+    VoiceSpeakRequest,
 )
 from .router import intent_router
 from .router.permissions import get_confirmation_store
@@ -53,18 +55,25 @@ from . import memory as memory_store
 from . import proactive as proactive_store
 from .router.resolver import Resolver
 from .settings import get_settings
+from .voice import (
+    list_voice_profiles,
+    list_voices,
+    preview_voice,
+    speak_text,
+    voice_audio_path,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.28"
+APP_VERSION = "0.1.29"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "debug", "knowledge", "memory", "brain", "ai", "test", "tools", "docs", "redoc",
+    "dashboards", "debug", "knowledge", "memory", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
 
@@ -75,7 +84,7 @@ _API_PREFIXES = (
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "config", "command", "confirm",
     "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "brain",
-    "ai", "test", "tools", "docs", "redoc", "openapi.json",
+    "ai", "voice", "test", "tools", "docs", "redoc", "openapi.json",
 )
 
 
@@ -591,6 +600,50 @@ async def brain_layers(include_registries: bool = True):
 @app.get("/ai/providers")
 async def ai_providers():
     return get_ai_client().provider_status()
+
+
+# ------------------------------------------------------------------- voice
+@app.get("/voice/profiles")
+async def voice_profiles():
+    return list_voice_profiles(get_config())
+
+
+@app.get("/voice/voices")
+async def voice_voices():
+    return list_voices()
+
+
+@app.post("/voice/preview")
+async def voice_preview(req: VoicePreviewRequest):
+    return await preview_voice(req.assistant, req.text, req.target_entity_id)
+
+
+@app.post("/voice/speak")
+async def voice_speak(req: VoiceSpeakRequest):
+    return await speak_text(
+        req.assistant,
+        req.text,
+        target_entity_id=req.target_entity_id,
+        force_browser=req.force_browser,
+    )
+
+
+@app.get("/voice/audio/{audio_id}")
+async def voice_audio(audio_id: str):
+    try:
+        path = voice_audio_path(audio_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Voice audio not found")
+    suffix = path.suffix.lower().lstrip(".") or "mp3"
+    media_type = {
+        "mp3": "audio/mpeg",
+        "opus": "audio/ogg",
+        "aac": "audio/aac",
+        "flac": "audio/flac",
+        "wav": "audio/wav",
+        "pcm": "audio/pcm",
+    }.get(suffix, "application/octet-stream")
+    return FileResponse(path, media_type=media_type)
 
 
 # ------------------------------------------------------------------ memory

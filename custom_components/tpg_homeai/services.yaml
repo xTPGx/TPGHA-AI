@@ -383,6 +383,50 @@ ignore_memory:
           min: 1
           mode: box
 
+get_voice_profiles:
+  name: Get voice profiles
+  description: Return configured assistant voice profiles and TTS readiness.
+
+get_voices:
+  name: Get voices
+  description: Return the voice catalog exposed by the TPG HomeAI backend.
+
+speak:
+  name: Speak
+  description: >
+    Ask a TPG HomeAI assistant to speak text using its configured voice profile.
+    OpenAI TTS is used when configured; browser fallback is returned otherwise.
+  fields:
+    text:
+      name: Text
+      description: Text the assistant should speak.
+      required: true
+      example: "The garage door is closed."
+      selector:
+        text:
+    assistant_id:
+      name: Assistant
+      description: Assistant id to use. Defaults to the integration option.
+      required: false
+      example: atlas
+      selector:
+        text:
+    target_entity_id:
+      name: Target media player
+      description: Optional media_player entity for speaker routing.
+      required: false
+      example: media_player.office_speaker
+      selector:
+        entity:
+          domain: media_player
+    force_browser:
+      name: Force browser fallback
+      description: Return browser speech fallback instead of generating audio.
+      required: false
+      default: false
+      selector:
+        boolean:
+
 test_command:
   name: Test command
   description: >

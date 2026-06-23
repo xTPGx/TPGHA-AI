@@ -17,6 +17,7 @@ import DeviceProfiles from "./pages/DeviceProfiles";
 import MemoryCenter from "./pages/MemoryCenter";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import VoiceSources from "./pages/VoiceSources";
+import VoiceSettings from "./pages/VoiceSettings";
 
 const nav = [
   { to: "/", label: "Dashboard", end: true },
@@ -25,6 +26,7 @@ const nav = [
   { to: "/profiles", label: "Device Profiles" },
   { to: "/memory-center", label: "Memory" },
   { to: "/dashboard-builder", label: "Dashboard Builder" },
+  { to: "/voice-settings", label: "Voice Settings" },
   { to: "/voice-sources", label: "Voice Sources" },
   { to: "/suggestions", label: "Suggestions" },
   { to: "/ha", label: "HA Integration" },
@@ -78,6 +80,7 @@ export default function App() {
           <Route path="/profiles" element={<DeviceProfiles />} />
           <Route path="/memory-center" element={<MemoryCenter />} />
           <Route path="/dashboard-builder" element={<DashboardBuilder />} />
+          <Route path="/voice-settings" element={<VoiceSettings />} />
           <Route path="/voice-sources" element={<VoiceSources />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/ha" element={<HAStatus />} />

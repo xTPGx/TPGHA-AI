@@ -6,6 +6,7 @@ const APP_ROUTES = new Set([
   "profiles",
   "memory-center",
   "dashboard-builder",
+  "voice-settings",
   "voice-sources",
   "ha",
   "discovery",

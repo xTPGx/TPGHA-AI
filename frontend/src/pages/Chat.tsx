@@ -169,22 +169,44 @@ export default function Chat() {
   const [safePreview, setSafePreview] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechSupported = Boolean(getSpeechRecognition());
 
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop();
+      audioRef.current?.pause();
       window.speechSynthesis?.cancel();
     };
   }, []);
 
-  const speak = (message: string) => {
+  const browserSpeak = (message: string) => {
     if (!speakResponses || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.rate = 1;
     utterance.pitch = assistant === "chatty" ? 1.08 : 0.95;
     window.speechSynthesis.speak(utterance);
+  };
+
+  const speak = async (message: string) => {
+    if (!speakResponses) return;
+    setVoiceError(null);
+    audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
+    try {
+      const response = await api.voiceSpeak({ assistant, text: message });
+      if (response.audio_base64 && response.content_type) {
+        const audio = new Audio(`data:${response.content_type};base64,${response.audio_base64}`);
+        audioRef.current = audio;
+        await audio.play();
+        return;
+      }
+      browserSpeak(response.speak_text || message);
+    } catch (e: any) {
+      setVoiceError(`Voice playback fell back to browser: ${e.message}`);
+      browserSpeak(message);
+    }
   };
 
   const appendAssistant = (msg: Omit<Msg, "id" | "role">) => {
@@ -205,7 +227,7 @@ export default function Chat() {
       command,
       originalText: message,
     });
-    speak(response);
+    void speak(response);
   };
 
   const send = async (override?: string) => {
@@ -228,7 +250,7 @@ export default function Chat() {
             command,
             originalText: message,
           });
-          speak(response);
+          void speak(response);
           return;
         }
       }
@@ -266,7 +288,7 @@ export default function Chat() {
         kind: "normal",
         command: r,
       });
-      speak(r.message || "Confirmed.");
+      void speak(r.message || "Confirmed.");
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -285,7 +307,7 @@ export default function Chat() {
         kind: "normal",
         command: r,
       });
-      speak(r.message || "Cancelled.");
+      void speak(r.message || "Cancelled.");
     } catch (e: any) {
       setError(e.message);
     } finally {

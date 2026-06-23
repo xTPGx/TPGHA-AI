@@ -79,6 +79,18 @@
       "name": "Cancel confirmation",
       "description": "Cancel a pending sensitive action without executing it."
     },
+    "get_voice_profiles": {
+      "name": "Get voice profiles",
+      "description": "Return assistant voice profiles and TTS readiness."
+    },
+    "get_voices": {
+      "name": "Get voices",
+      "description": "Return the voice catalog exposed by TPG HomeAI."
+    },
+    "speak": {
+      "name": "Speak",
+      "description": "Ask a TPG HomeAI assistant to speak using its configured voice."
+    },
     "test_command": {
       "name": "Test command",
       "description": "Send a natural-language command to the TPG HomeAI server and return the result.",

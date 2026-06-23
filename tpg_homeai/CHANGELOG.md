@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.29
+
+- Added assistant voice profiles with provider, model, voice, instructions, output, and fallback settings.
+- Added OpenAI TTS speech generation with browser speech fallback for Atlas, Chatty, and future assistants.
+- Added `/voice/profiles`, `/voice/voices`, `/voice/preview`, `/voice/speak`, and `/voice/audio/{id}` endpoints.
+- Added a Voice Settings UI for testing configured assistant voices and provider readiness.
+- Updated Chat to play configured assistant speech instead of hardcoded browser-only voices.
+- Added add-on options for OpenAI TTS model/format and optional HA speaker routing base URL.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.28
 
 - Added a device adapter map at `/knowledge/device-adapters` for fan presets, media players, lights, locks, and personal devices.

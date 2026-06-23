@@ -33,7 +33,16 @@ assistants:
       dry wit. Speaks like a capable chief-of-staff: concise confirmations, no
       filler, always states exactly what was done or why it could not be done.
     tone: confident
-    voice: neutral
+    voice:
+      provider: openai
+      model: gpt-4o-mini-tts
+      voice: cedar
+      response_format: mp3
+      output: browser
+      fallback_provider: browser
+      instructions: >
+        Speak like a calm, confident house intelligence. Natural, concise,
+        capable, and warm. Avoid robotic cadence.
 
   - id: chatty
     name: Chatty
@@ -44,4 +53,13 @@ assistants:
       and encouraging while still being clear about what happened. Adds a little
       personality but never hides the result of an action.
     tone: friendly
-    voice: bright
+    voice:
+      provider: openai
+      model: gpt-4o-mini-tts
+      voice: coral
+      response_format: mp3
+      output: browser
+      fallback_provider: browser
+      instructions: >
+        Speak as an intelligent female assistant: conversational, warm, quick,
+        and composed. Keep smart-home replies brief.
