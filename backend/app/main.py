@@ -26,8 +26,10 @@ from .homeassistant.services import get_states_cache, normalize_entity
 from .models.results import CommandResponse
 from .models.schemas import (
     ApproveRequest,
+    ChatRequest,
     CommandRequest,
     ConfirmRequest,
+    DraftUpdateRequest,
     IgnoreRequest,
     MapRequest,
     ResolveRequest,
@@ -43,12 +45,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.7"
+APP_VERSION = "0.1.10"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
-    "api", "health", "state", "events", "config", "discovery", "command", "confirm",
-    "confirmations", "ha", "test", "tools", "docs", "redoc", "openapi.json",
+    "api", "health", "state", "events", "config", "discovery", "command",
+    "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
+    "test", "tools", "docs", "redoc", "openapi.json",
 )
 
 
@@ -213,6 +216,33 @@ async def command(req: CommandRequest):
     return resp
 
 
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    """Conversational entrypoint.
+
+    This wraps the same guarded command path, but classifies no-tool OpenAI
+    replies as normal conversation instead of a failed device command.
+    """
+    resp = await intent_router.handle_command(req.assistant, req.user, req.message)
+    resp.conversation_id = req.conversation_id
+    mode = "conversation"
+    if resp.requires_confirmation:
+        mode = "confirmation_required"
+    elif resp.intent == "create_simple_automation":
+        mode = "proposal"
+    elif resp.executed:
+        mode = "action"
+    elif resp.intent:
+        mode = "action_result"
+    success = True if resp.error == "no_tool_selected" else resp.success
+    return {
+        "success": success,
+        "mode": mode,
+        "response": resp.message,
+        "command": resp.model_dump(),
+    }
+
+
 @app.post("/confirm", response_model=CommandResponse)
 async def confirm(req: ConfirmRequest):
     return await intent_router.handle_confirmation(req.confirmation_token)
@@ -278,7 +308,8 @@ async def discovery_ignore(req: IgnoreRequest):
 _MAP_TO_SECTION = {
     "speaker": "speakers", "display": "displays", "camera": "cameras",
     "security_sensor": "security_sensors", "lock": "locks",
-    "climate": "climate", "device": "device_aliases",
+    "climate": "climate", "personal_device": "personal_devices",
+    "device": "device_aliases",
 }
 
 
@@ -390,6 +421,100 @@ async def test_action(req: TestActionRequest):
 @app.get("/tools")
 async def list_tools():
     return {"tools": TOOL_NAMES}
+
+
+# -------------------------------------------------------------- draft inbox
+def _draft_dict(draft) -> dict:
+    return {
+        "id": draft.id,
+        "created_at": draft.created_at.isoformat() if draft.created_at else None,
+        "trigger_description": draft.trigger_description,
+        "action_description": draft.action_description,
+        "proposed_yaml": draft.proposed_yaml,
+        "status": draft.status,
+    }
+
+
+@app.get("/automation/drafts")
+async def automation_drafts(status: str | None = None):
+    from .db.database import get_session
+    from .db.models import AutomationDraft
+
+    with get_session() as session:
+        q = session.query(AutomationDraft).order_by(AutomationDraft.created_at.desc())
+        if status:
+            q = q.filter(AutomationDraft.status == status)
+        return {"drafts": [_draft_dict(d) for d in q.all()]}
+
+
+@app.get("/suggestions")
+async def suggestions():
+    from .db.database import get_session
+    from .db.models import AutomationDraft
+
+    with get_session() as session:
+        rows = session.query(AutomationDraft).filter(
+            AutomationDraft.status.in_(["draft", "suggested", "edited"])
+        ).order_by(AutomationDraft.created_at.desc()).all()
+        return {"suggestions": [_draft_dict(d) for d in rows]}
+
+
+@app.post("/automation/drafts/{draft_id}/edit")
+async def automation_draft_edit(draft_id: int, req: DraftUpdateRequest):
+    from .db.database import get_session
+    from .db.models import AutomationDraft
+
+    with get_session() as session:
+        draft = session.get(AutomationDraft, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Draft not found")
+        if req.trigger_description is not None:
+            draft.trigger_description = req.trigger_description
+        if req.action_description is not None:
+            draft.action_description = req.action_description
+        if req.proposed_yaml is not None:
+            draft.proposed_yaml = req.proposed_yaml
+        draft.status = req.status or "edited"
+        session.commit()
+        return {"draft": _draft_dict(draft)}
+
+
+@app.post("/automation/drafts/{draft_id}/approve")
+async def automation_draft_approve(draft_id: int):
+    """Mark a proposal approved.
+
+    This is intentionally not yet a live HA automation install. It creates the
+    explicit approval/edit boundary needed before we add write-to-HA behavior.
+    """
+    from .db.database import get_session
+    from .db.models import AutomationDraft
+
+    with get_session() as session:
+        draft = session.get(AutomationDraft, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Draft not found")
+        draft.status = "approved"
+        session.commit()
+        return {
+            "approved": True,
+            "installed": False,
+            "message": "Approved for install. Live HA automation install is not enabled yet.",
+            "draft": _draft_dict(draft),
+        }
+
+
+@app.post("/automation/drafts/{draft_id}/ignore")
+async def automation_draft_ignore(draft_id: int):
+    from .db.database import get_session
+    from .db.models import AutomationDraft
+
+    with get_session() as session:
+        draft = session.get(AutomationDraft, draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Draft not found")
+        draft.status = "ignored"
+        session.commit()
+        return {"ignored": True, "draft": _draft_dict(draft)}
 
 
 @app.get("/")

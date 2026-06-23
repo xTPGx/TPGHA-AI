@@ -10,9 +10,13 @@ import CommandTester from "./pages/CommandTester";
 import Discovery from "./pages/Discovery";
 import HAStatus from "./pages/HAStatus";
 import CapabilityMap from "./pages/CapabilityMap";
+import Chat from "./pages/Chat";
+import Suggestions from "./pages/Suggestions";
 
 const nav = [
   { to: "/", label: "Dashboard", end: true },
+  { to: "/chat", label: "Chat" },
+  { to: "/suggestions", label: "Suggestions" },
   { to: "/ha", label: "HA Integration" },
   { to: "/discovery", label: "Discovery" },
   { to: "/tester", label: "Command Tester" },
@@ -59,6 +63,8 @@ export default function App() {
       <main className="flex-1 overflow-auto p-6">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/ha" element={<HAStatus />} />
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/tester" element={<CommandTester />} />

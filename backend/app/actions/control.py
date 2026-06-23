@@ -14,6 +14,8 @@ from ..homeassistant.rest import HAError
 from ..models.results import ActionResult
 from . import ActionContext
 
+FAN_SET_SPEED = 1
+
 # Map a domain to the permission capability that guards it.
 _PERM_BY_DOMAIN = {
     "light": "can_control_lights",
@@ -68,6 +70,10 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
     service = plan["service"]
     data = plan.get("data", {})
     try:
+        if domain == "fan" and service == "set_percentage":
+            guarded = await _fan_percentage_guard(ctx, data, friendly, intent)
+            if guarded is not None:
+                return guarded
         await ctx.ha.call_service(domain, service, data)
     except HAError as exc:
         # Be honest: the service call failed, so do NOT claim execution.
@@ -80,6 +86,50 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
         message=plan.get("success_message", f"Done ({domain}.{service})."),
         data={"service_call": {"domain": domain, "service": service, "data": data},
               "verification": verification},
+    )
+
+
+async def _fan_percentage_guard(ctx: ActionContext, data: dict[str, Any],
+                                friendly: str, intent: str) -> Optional[ActionResult]:
+    entity_id = data.get("entity_id")
+    percentage = int(data.get("percentage") or 0)
+    try:
+        entity = await ctx.ha.get_entity(entity_id)
+    except HAError as exc:
+        return ActionResult.fail(intent, f"{friendly}: {exc.message}",
+                                 data={"service_call": {"domain": "fan",
+                                                        "service": "set_percentage",
+                                                        "data": data}})
+    attrs = (entity or {}).get("attributes", {}) or {}
+    supported_features = int(attrs.get("supported_features") or 0)
+    supports_percentage = bool(supported_features & FAN_SET_SPEED) or "percentage" in attrs
+    if supports_percentage:
+        return None
+    if percentage <= 0:
+        await ctx.ha.call_service("fan", "turn_off", {"entity_id": entity_id})
+        return ActionResult(success=True, intent=intent, executed=True,
+                            message=f"Turned off {friendly}.",
+                            data={"service_call": {"domain": "fan",
+                                                   "service": "turn_off",
+                                                   "data": {"entity_id": entity_id}}})
+    if percentage >= 100:
+        await ctx.ha.call_service("fan", "turn_on", {"entity_id": entity_id})
+        return ActionResult(success=True, intent=intent, executed=True,
+                            message=(
+                                f"Turned on {friendly}. This fan does not expose "
+                                "percentage speed control in Home Assistant."
+                            ),
+                            data={"service_call": {"domain": "fan",
+                                                   "service": "turn_on",
+                                                   "data": {"entity_id": entity_id}}})
+    return ActionResult.fail(
+        intent,
+        f"{friendly} does not support percentage speed control in Home Assistant.",
+        data={
+            "supported_features": supported_features,
+            "preset_modes": attrs.get("preset_modes") or [],
+            "service_call": {"domain": "fan", "service": "set_percentage", "data": data},
+        },
     )
 
 

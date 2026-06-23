@@ -141,6 +141,23 @@ async def main():
     check("Q10 automation draft", r.intent == "create_simple_automation", r.intent)
     check("Q10 not executed", r.executed is False)
 
+    r = await intent_router.handle_command("atlas", "shawn", "Set a sleep timer on the office TV in 30 minutes.")
+    check("Q11 sleep timer draft", r.intent == "create_simple_automation", r.intent)
+    check("Q11 sleep timer not executed", r.executed is False)
+    check("Q11 sleep timer has delay", "00:30:00" in r.data.get("proposed_yaml", ""),
+          r.data.get("proposed_yaml", ""))
+    check("Q11 sleep timer resolves office TV",
+          "media_player.office_office_monitor_1_2" in r.data.get("proposed_yaml", ""),
+          r.data.get("proposed_yaml", ""))
+
+    r = await intent_router.handle_command("atlas", "shawn", "Dim the living room brightness to 20 at 10 PM.")
+    check("Q12 dim schedule draft", r.intent == "create_simple_automation", r.intent)
+    check("Q12 dim schedule not executed", r.executed is False)
+    check("Q12 dim includes brightness", "brightness_pct" in r.data.get("proposed_yaml", ""),
+          r.data.get("proposed_yaml", ""))
+    check("Q12 dim parses 10 PM", "at: '22:00:00'" in r.data.get("proposed_yaml", ""),
+          r.data.get("proposed_yaml", ""))
+
     # 11. Fan control --------------------------------------------------------
     SERVICE_CALLS.clear()
     r = await intent_router.handle_command("atlas", "shawn", "turn off office fan")
@@ -174,6 +191,18 @@ async def main():
     check("F4 percentage value in call",
           any(d == "fan" and s == "set_percentage" and data.get("percentage") == 50
               for d, s, data in SERVICE_CALLS))
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "set office fan speed to high")
+    check("F5 fan speed high -> set_fan_percentage",
+          r.intent == "set_fan_percentage", r.intent)
+    check("F5 percentage 75", r.resolved.get("percentage") == 75, r.resolved.get("percentage"))
+    check("F5 calls fan.set_percentage fan.office", called("fan", "set_percentage", "fan.office"))
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "set office fan level to 3")
+    check("F6 fan level 3 -> 60%", r.resolved.get("percentage") == 60,
+          r.resolved.get("percentage"))
 
     print("\n--- SUMMARY ---")
     failed = [r for r in results if r[0] == FAIL]

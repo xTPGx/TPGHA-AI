@@ -51,7 +51,8 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 _OVERLAY_LIST_KEYS = ["device_aliases", "cameras", "locks", "speakers",
-                      "displays", "climate", "security_sensors", "avoid"]
+                      "displays", "climate", "security_sensors",
+                      "personal_devices", "avoid"]
 
 
 def _merge_overlay(devices: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:

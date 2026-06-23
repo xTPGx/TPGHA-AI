@@ -190,6 +190,17 @@ class SecuritySensor(_CfgBase):
     aliases: list[str] = Field(default_factory=list)
 
 
+class PersonalDevice(_CfgBase):
+    id: str
+    name: str
+    entity_id: str
+    owner: Optional[str] = None
+    platform: Optional[str] = None
+    device_type: Optional[str] = None
+    room: Optional[str] = None
+    aliases: list[str] = Field(default_factory=list)
+
+
 class DevicesConfig(_CfgBase):
     music_accounts: dict[str, MusicAccount] = Field(default_factory=dict)
     rooms: list[Room] = Field(default_factory=list)
@@ -200,6 +211,7 @@ class DevicesConfig(_CfgBase):
     climate: list[ClimateDevice] = Field(default_factory=list)
     device_aliases: list[DeviceAlias] = Field(default_factory=list)
     security_sensors: list[SecuritySensor] = Field(default_factory=list)
+    personal_devices: list[PersonalDevice] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
     # Entities the user explicitly ignored via discovery (subset of avoid with
     # reasons), kept for UI display.
@@ -239,6 +251,10 @@ class CommandRequest(BaseModel):
     conversation_id: Optional[str] = None
 
 
+class ChatRequest(CommandRequest):
+    pass
+
+
 class ConfirmRequest(BaseModel):
     confirmation_token: str
 
@@ -250,7 +266,7 @@ class ScanRequest(BaseModel):
 
 class ApproveRequest(BaseModel):
     entity_id: str
-    mapping: Optional[str] = None  # device_aliases|cameras|locks|speakers|displays|climate|security_sensors
+    mapping: Optional[str] = None  # device_aliases|cameras|locks|speakers|displays|climate|security_sensors|personal_devices
     room: Optional[str] = None
     friendly_name: Optional[str] = None
     aliases: Optional[list[str]] = None
@@ -263,7 +279,7 @@ class IgnoreRequest(BaseModel):
 
 class MapRequest(BaseModel):
     entity_id: str
-    target: str  # speaker|display|camera|security_sensor|lock|climate|device
+    target: str  # speaker|display|camera|security_sensor|lock|climate|personal_device|device
     room: Optional[str] = None
     friendly_name: Optional[str] = None
     aliases: Optional[list[str]] = None
@@ -280,6 +296,13 @@ class TestActionRequest(BaseModel):
     assistant: Optional[str] = None
     user: Optional[str] = None
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+class DraftUpdateRequest(BaseModel):
+    trigger_description: Optional[str] = None
+    action_description: Optional[str] = None
+    proposed_yaml: Optional[str] = None
+    status: Optional[str] = None
 
 
 class HAEntity(BaseModel):

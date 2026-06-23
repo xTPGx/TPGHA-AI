@@ -24,7 +24,8 @@ logger = logging.getLogger("tpg.discovery.registry")
 
 DISCOVERED_FILE = "discovered.yaml"
 _LIST_SECTIONS = ["device_aliases", "cameras", "locks", "speakers", "displays",
-                  "climate", "security_sensors", "avoid", "ignored"]
+                  "climate", "security_sensors", "personal_devices", "avoid",
+                  "ignored"]
 
 
 def _overlay_path() -> Path:
@@ -136,6 +137,14 @@ def approve(entity_id: str, mapping: str = "device_aliases",
                  "room": room, "aliases": aliases}
     elif mapping == "security_sensors":
         entry = {"entity_id": entity_id, "name": name, "aliases": aliases}
+    elif mapping == "personal_devices":
+        platform = "ios" if any(k in entity_id.lower() for k in ("iphone", "ipad")) else None
+        device_type = "phone" if "iphone" in entity_id.lower() else (
+            "tablet" if "ipad" in entity_id.lower() else "personal_device"
+        )
+        entry = {"id": _slug(entity_id), "name": name, "entity_id": entity_id,
+                 "owner": None, "platform": platform, "device_type": device_type,
+                 "room": room, "aliases": aliases}
     else:
         mapping = "device_aliases"
         entry = {"id": _slug(entity_id), "name": name, "entity_id": entity_id,

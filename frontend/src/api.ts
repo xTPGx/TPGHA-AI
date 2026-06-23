@@ -72,6 +72,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ assistant, user, message }),
     }),
+  chat: (assistant: string, user: string, message: string, conversation_id?: string) =>
+    http<any>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ assistant, user, message, conversation_id }),
+    }),
   confirm: (confirmation_token: string) =>
     http<CommandResponse>("/confirm", {
       method: "POST",
@@ -102,5 +107,16 @@ export const api = {
     http<CommandResponse>("/test/action", {
       method: "POST",
       body: JSON.stringify({ action, assistant, user, params }),
+    }),
+  drafts: () => http<any>("/automation/drafts"),
+  suggestions: () => http<any>("/suggestions"),
+  approveDraft: (id: number) =>
+    http<any>(`/automation/drafts/${id}/approve`, { method: "POST" }),
+  ignoreDraft: (id: number) =>
+    http<any>(`/automation/drafts/${id}/ignore`, { method: "POST" }),
+  editDraft: (id: number, body: Record<string, any>) =>
+    http<any>(`/automation/drafts/${id}/edit`, {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 };

@@ -33,6 +33,13 @@ _CATEGORY_BY_DOMAIN = {
     "valve": "valve", "button": "button",
 }
 
+_MOBILE_HINTS = (
+    "iphone", "ipad", "ios", "android", "mobile", "phone", "watch",
+    "app_version", "location_permission", "audio_output", "activity",
+    "battery_state", "battery_level", "storage", "ssid", "bssid",
+    "geocoded_location", "sim_1", "sim_2",
+)
+
 
 @dataclass
 class EntityClassification:
@@ -91,6 +98,33 @@ def _suggest_aliases(friendly: str, room_id: Optional[str], domain: str) -> list
     return list(dict.fromkeys([a for a in out if a]))
 
 
+def _is_personal_device_entity(entity: HAEntity, friendly: str) -> bool:
+    attrs = entity.attributes or {}
+    text = " ".join([
+        entity.entity_id,
+        friendly,
+        str(attrs.get("device_class") or ""),
+        str(attrs.get("icon") or ""),
+        str(attrs.get("source_type") or ""),
+    ]).lower()
+    if entity.domain == "device_tracker":
+        return True
+    return any(hint in text for hint in _MOBILE_HINTS)
+
+
+def _personal_device_type(entity: HAEntity, friendly: str) -> tuple[str, str]:
+    text = f"{entity.entity_id} {friendly}".lower()
+    if "iphone" in text:
+        return "ios", "phone"
+    if "ipad" in text:
+        return "ios", "tablet"
+    if "watch" in text:
+        return "watchos", "watch"
+    if "android" in text:
+        return "android", "phone"
+    return "mobile", "personal_device"
+
+
 def _configured_entity_ids(config: AppConfig) -> set[str]:
     d = config.devices
     ids: set[str] = set()
@@ -137,6 +171,14 @@ def classify(entity: HAEntity, config: AppConfig,
     risk = caps.risk_for_domain(domain)
     mapping = _MAPPING_BY_DOMAIN.get(domain, "device_aliases")
     aliases = _suggest_aliases(friendly, room, domain)
+    likely_type = domain
+
+    if _is_personal_device_entity(entity, friendly):
+        platform, device_type = _personal_device_type(entity, friendly)
+        category = "personal_device"
+        mapping = "personal_devices"
+        likely_type = device_type
+        aliases = list(dict.fromkeys([*aliases, platform, device_type]))
 
     avoid = set(config.devices.avoid)
     is_known = entity.entity_id in configured_ids
@@ -154,6 +196,8 @@ def classify(entity: HAEntity, config: AppConfig,
 
     status = "known" if is_known else ("ignored" if is_ignored else "new")
     reason_bits = [f"domain={domain}", f"risk={risk}"]
+    if category == "personal_device":
+        reason_bits.append("personal/mobile device signal")
     if is_known:
         reason_bits.append("already mapped in config")
     if not is_available:
@@ -169,7 +213,7 @@ def classify(entity: HAEntity, config: AppConfig,
         friendly_name=friendly,
         state=entity.state,
         likely_room=room,
-        likely_device_type=domain,
+        likely_device_type=likely_type,
         capabilities=capability,
         risk_level=risk,
         suggested_aliases=aliases,

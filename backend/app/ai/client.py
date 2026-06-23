@@ -103,7 +103,11 @@ class AIClient:
 # ---------------------------------------------------------------------------
 # Deterministic fallback parser (used when OpenAI is unavailable)
 # ---------------------------------------------------------------------------
-_TIME_RE = re.compile(r"\b(at\s+\d{1,2}(:\d{2})?\s*(am|pm)?|every|each\b|when\b|schedule)\b", re.I)
+_TIME_RE = re.compile(
+    r"\b(at\s+\d{1,2}(:\d{2})?\s*(am|pm)?|in\s+\d+\s*(minutes?|mins?|hours?|hrs?)|"
+    r"sleep timer|timer|every|each\b|when\b|schedule|suggest|recommend)\b",
+    re.I,
+)
 
 
 def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
@@ -111,7 +115,10 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
     uid = user.id if user else None
 
     # Automation / scheduling first (so "turn on lights at 7am" -> automation).
-    if _TIME_RE.search(text) and any(k in text for k in ["turn", "lock", "play", "set", "light", "on", "off"]):
+    if _TIME_RE.search(text) and any(k in text for k in [
+        "turn", "lock", "play", "set", "light", "on", "off", "tv", "display",
+        "screen", "brightness", "dim", "sleep", "suggest", "recommend",
+    ]):
         return ToolCall("create_simple_automation", {
             "trigger_description": message,
             "action_description": message,
@@ -185,6 +192,12 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
 # way every time, regardless of whether OpenAI is configured.
 # ---------------------------------------------------------------------------
 _FAN_PCT_RE = re.compile(r"(\d{1,3})")
+_FAN_LEVEL_WORDS = {
+    "minimum": 10, "min": 10, "lowest": 10, "low": 25,
+    "medium": 50, "mid": 50, "normal": 50,
+    "high": 75, "max": 100, "maximum": 100, "full": 100,
+    "turbo": 100, "boost": 100,
+}
 
 
 _CAM_WORDS = ["camera", "driveway", "front door", "yard", "backyard", "back yard",
@@ -259,8 +272,10 @@ def pre_route(message: str) -> Optional["ToolCall"]:
 
 
 _SCHEDULE_RE = re.compile(
-    r"\b(\d{1,2}\s*(am|pm)|at \d|sunset|sunrise|every|each|when |whenever|"
-    r"schedule|automation|automate|remind|if .* then|create an? rule)\b")
+    r"\b(\d{1,2}\s*(am|pm)|at \d|in\s+\d+\s*(minutes?|mins?|hours?|hrs?)|"
+    r"sleep timer|timer|sunset|sunrise|every|each|when |whenever|"
+    r"schedule|automation|automate|remind|suggest|recommend|if .* then|"
+    r"create an? rule)\b")
 
 
 def _looks_scheduled(text: str) -> bool:
@@ -280,9 +295,8 @@ def _fan_tool_call(message: str, source: str) -> Optional["ToolCall"]:
     text = message.lower()
     if "fan" not in text:
         return None
-    pct = _FAN_PCT_RE.search(text)
-    if "set" in text and pct:
-        percentage = max(0, min(100, int(pct.group(1))))
+    percentage = _fan_level_value(text)
+    if any(k in text for k in ("set", "speed", "level", "power")) and percentage is not None:
         return ToolCall("set_fan_percentage",
                         {"target": _fan_target(message), "percentage": percentage},
                         source=source)
@@ -302,12 +316,26 @@ def _fan_target(message: str) -> str:
     t = re.sub(r"\bset\b", " ", t)
     t = re.sub(r"\bto\b", " ", t)
     t = re.sub(r"\bthe\b", " ", t)
-    t = re.sub(r"\bspeed\b", " ", t)
+    t = re.sub(r"\b(speed|level|power)\b", " ", t)
+    t = re.sub(r"\b(minimum|min|lowest|low|medium|mid|normal|high|max|maximum|full|turbo|boost)\b", " ", t)
     t = re.sub(r"\bpercent(age)?\b", " ", t)
     t = re.sub(r"\d+\s*%?", " ", t)
     t = re.sub(r"[?.!,]", " ", t)
     t = " ".join(t.split()).strip()
     return t or "fan"
+
+
+def _fan_level_value(text: str) -> Optional[int]:
+    pct = _FAN_PCT_RE.search(text)
+    if pct:
+        value = int(pct.group(1))
+        if re.search(r"\b(speed|level|power)\s+(to\s+)?[1-5]\b", text):
+            value = int(round(value / 5 * 100))
+        return max(0, min(100, value))
+    for word, value in _FAN_LEVEL_WORDS.items():
+        if re.search(rf"\b{re.escape(word)}\b", text):
+            return value
+    return None
 
 
 def _extract_after(text: str, markers: list[str]) -> Optional[str]:

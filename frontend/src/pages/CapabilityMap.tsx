@@ -16,11 +16,15 @@ const DOMAIN_CAPS: Record<string, string[]> = {
   scene: ["activate"],
   script: ["run"],
   automation: ["enable", "disable", "get_status"],
+  person: ["get_status"],
+  device_tracker: ["get_status"],
+  sensor: ["get_status"],
+  binary_sensor: ["get_status"],
   valve: ["open_sensitive", "close"],
 };
 
 const RISK: Record<string, string[]> = {
-  low: ["lights", "fans", "music", "scenes", "basic switches"],
+  low: ["lights", "fans", "music", "scenes", "basic switches", "personal device status"],
   medium: ["climate", "appliances", "vacuums", "water heaters", "irrigation close/stop"],
   high: ["cameras", "garage covers", "lock status", "sirens", "alarm arm"],
   critical: ["unlock", "garage open", "alarm disarm", "disable security", "disable camera", "change access code"],

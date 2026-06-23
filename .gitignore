@@ -30,6 +30,7 @@ build/
 frontend/node_modules/
 frontend/dist/
 frontend/build/
+frontend/tsconfig.tsbuildinfo
 
 # Databases / runtime data
 *.db

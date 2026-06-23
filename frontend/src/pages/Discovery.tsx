@@ -22,7 +22,16 @@ const RISK_COLORS: Record<string, string> = {
   critical: "bg-rose-500/20 text-rose-300",
 };
 
-const MAP_TARGETS = ["device", "speaker", "display", "camera", "security_sensor", "lock", "climate"];
+const MAP_TARGETS = [
+  "device",
+  "personal_device",
+  "speaker",
+  "display",
+  "camera",
+  "security_sensor",
+  "lock",
+  "climate",
+];
 
 export default function Discovery() {
   const [pending, setPending] = useState<Discovered[]>([]);

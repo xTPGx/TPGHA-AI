@@ -56,10 +56,14 @@ FAKE_STATES = {
     "climate.living_room_living_room": "cool",
     "camera.front_yard_front_yard": "streaming",
     "media_player.office_speaker": "idle",
+    "sensor.tpg_iphone17_app_version": "2026.1",
+    "device_tracker.ipad1": "home",
 }
 FAKE_FRIENDLY = {
     "light.new_lamp": "Office Lamp",
     "fan.den_fan": "Den Fan",
+    "sensor.tpg_iphone17_app_version": "TPG iPhone17 App Version",
+    "device_tracker.ipad1": "iPad1",
 }
 
 
@@ -184,6 +188,17 @@ async def main():
     lock_c = next((e for e in res["entities"] if e["entity_id"] == "lock.front_door"), None)
     check("P2 lock unlock is critical-risk",
           lock_c and lock_c["risk_level"] == "high")
+    phone_c = next((e for e in res["entities"]
+                    if e["entity_id"] == "sensor.tpg_iphone17_app_version"), None)
+    check("P2 iPhone sensor classified personal_device",
+          phone_c and phone_c["suggested_category"] == "personal_device",
+          str(phone_c))
+    check("P2 iPhone maps to personal_devices",
+          phone_c and phone_c["suggested_mapping"] == "personal_devices",
+          str(phone_c))
+    ipad_c = next((e for e in res["entities"] if e["entity_id"] == "device_tracker.ipad1"), None)
+    check("P2 iPad tracker classified personal_device",
+          ipad_c and ipad_c["likely_device_type"] == "tablet", str(ipad_c))
 
     # approve writes overlay + reload exposes it
     from app.discovery import registry

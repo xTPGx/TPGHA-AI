@@ -40,8 +40,9 @@ Guidelines:
 - "everywhere" / "whole house" maps to room "everywhere".
 - Unlocking doors, opening the garage, and disarming alarms are sensitive;
   still call the tool (the backend will require confirmation).
-- For scheduling/automation requests (e.g. "at 7 AM turn on the kitchen
-  lights"), use create_simple_automation.
+- For scheduling, timer, sleep timer, routine, or proactive suggestion requests
+  (e.g. "at 7 AM turn on the kitchen lights", "turn off the TV in 30 minutes",
+  "suggest a bedtime routine"), use create_simple_automation.
 - If a request is purely conversational and maps to no tool, do not force a
   tool call; reply briefly.
 

@@ -93,6 +93,28 @@ def main() -> int:
     r = client.get("/config")
     check("/config is JSON", is_json(r))
 
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "Set a sleep timer on the office TV in 30 minutes.",
+    })
+    check("/chat returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    body = r.json()
+    check("/chat creates proposal mode", body.get("mode") == "proposal", str(body))
+
+    r = client.get("/suggestions")
+    check("/suggestions is JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code}")
+    suggestions = r.json().get("suggestions", [])
+    check("/suggestions includes draft", len(suggestions) >= 1, str(suggestions))
+    if suggestions:
+        draft_id = suggestions[0]["id"]
+        r = client.post(f"/automation/drafts/{draft_id}/approve")
+        check("/automation/drafts/{id}/approve works",
+              r.status_code == 200 and r.json().get("approved") is True,
+              r.text)
+
     # Unknown API route under a known prefix => JSON 404, not HTML.
     r = client.get("/discovery/does-not-exist")
     check("unknown API route is JSON 404", r.status_code == 404 and is_json(r) and not is_html(r),

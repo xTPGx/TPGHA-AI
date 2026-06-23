@@ -119,10 +119,12 @@ TOOLS = [
     ),
     _fn(
         "set_fan_percentage",
-        "Set a fan's speed as a percentage (0-100).",
+        "Set a fan's speed/level/power. Accept natural requests like "
+        "'fan speed 50', 'fan level high', or 'fan power max'. The numeric "
+        "argument is normalized to 0-100.",
         {
             "target": {"type": "string", "description": "Fan or room name, e.g. 'office fan'."},
-            "percentage": {"type": "number", "description": "Fan speed 0-100."},
+            "percentage": {"type": "number", "description": "Normalized fan speed/level 0-100."},
         },
         ["target", "percentage"],
     ),
@@ -154,8 +156,11 @@ TOOLS = [
     ),
     _fn(
         "create_simple_automation",
-        "Draft a simple automation from natural language. Never created live; "
-        "returned for human approval.",
+        "Draft a scheduled action, sleep timer, routine, or smart suggestion "
+        "from natural language. Never created live; returned for human approval "
+        "or editing. Use for requests like 'turn the TV off in 30 minutes', "
+        "'set a sleep timer', 'dim the kitchen display at 10', and proactive "
+        "suggestions.",
         {
             "trigger_description": {"type": "string"},
             "action_description": {"type": "string"},
@@ -166,14 +171,15 @@ TOOLS = [
         "control_device",
         "Generic device control for any supported device by friendly name, "
         "room, or entity id. Use when no specific tool fits. action is a verb "
-        "like 'turn_on', 'turn_off', 'set_percentage', 'open', 'close', "
+        "like 'turn_on', 'turn_off', 'set_percentage', 'speed', 'level', "
+        "'open', 'close', "
         "'set_temperature', 'set_volume'. Sensitive actions (unlock, open "
         "garage, disarm) are confirmation-gated by the backend.",
         {
             "target": {"type": "string", "description": "Device/room/entity, e.g. 'office fan'."},
             "action": {"type": "string", "description": "Verb to perform."},
             "value": {"type": "string",
-                      "description": "Optional value as text (percentage, temperature, source, etc.)."},
+                      "description": "Optional value as text (speed/level percentage, temperature, source, etc.)."},
         },
         ["target", "action"],
     ),
