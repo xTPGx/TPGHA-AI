@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from .db.database import get_session
-from .db.models import Suggestion
+from .db.models import CommandLog, Suggestion
 from .homeassistant.services import safe_get_states
 
 
@@ -116,6 +116,21 @@ async def scan_proactive() -> dict[str, Any]:
                     payload={"entity_id": eid, "state": state},
                 ):
                     created += 1
+            elif entity.domain == "climate" and nobody_home and state not in {"off", "unavailable", "unknown"}:
+                if _add(
+                    session,
+                    title=f"Review away-mode climate for {name}",
+                    message=f"{name} is {state} while tracked people appear away. Suggest an away-mode temperature rule?",
+                    category="energy",
+                    priority="normal",
+                    action_type="automation_draft",
+                    payload={"entity_id": eid, "state": state, "kind": "away_climate"},
+                ):
+                    created += 1
+                findings.append({"type": "climate_away", "entity_id": eid, "name": name})
+        mined = _mine_command_patterns(session)
+        created += mined["created"]
+        findings.extend(mined["findings"])
         session.commit()
     return {"created": created, "findings": findings}
 
@@ -127,3 +142,46 @@ def _low_battery_state(state: str) -> bool:
         return float(state) <= 20
     except (TypeError, ValueError):
         return False
+
+
+def _mine_command_patterns(session) -> dict[str, Any]:
+    rows = session.query(CommandLog).order_by(CommandLog.created_at.desc()).limit(80).all()
+    buckets: dict[tuple[str, str], list[CommandLog]] = {}
+    for row in rows:
+        if not row.success or not row.intent:
+            continue
+        target = ""
+        try:
+            resolved = json.loads(row.resolved or "{}")
+            target = resolved.get("label") or resolved.get("entity_id") or resolved.get("target") or ""
+        except (TypeError, ValueError):
+            target = ""
+        key = (row.intent, str(target))
+        buckets.setdefault(key, []).append(row)
+
+    created = 0
+    findings: list[dict[str, Any]] = []
+    for (intent, target), matches in buckets.items():
+        if len(matches) < 3 or not target:
+            continue
+        title = f"Learn routine for {target}"
+        if _add(
+            session,
+            title=title,
+            message=(
+                f"You have asked for '{intent}' on {target} {len(matches)} times recently. "
+                "Draft a suggested routine or preference?"
+            ),
+            category="learning",
+            priority="normal",
+            action_type="memory_or_automation_draft",
+            payload={
+                "intent": intent,
+                "target": target,
+                "recent_count": len(matches),
+                "examples": [row.message for row in matches[:3]],
+            },
+        ):
+            created += 1
+        findings.append({"type": "repeated_command", "intent": intent, "target": target, "count": len(matches)})
+    return {"created": created, "findings": findings}

@@ -146,6 +146,17 @@ def main() -> int:
     check("/dashboards/draft includes yaml", bool(body.get("yaml")) and "views:" in body["yaml"],
           str(body))
 
+    r = client.post("/dashboards/draft", json={
+        "title": "TPG Home",
+        "style": "native",
+        "tablet_mode": True,
+        "voice_panel": True,
+    })
+    check("/dashboards/draft supports tablet and voice views",
+          r.status_code == 200 and "tpg-tablets" in r.json().get("yaml", "")
+          and "tpg-voice" in r.json().get("yaml", ""),
+          str(r.json()))
+
     r = client.post("/dashboards/install", json={"title": "TPG Home", "style": "native"})
     check("/dashboards/install returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -164,6 +175,19 @@ def main() -> int:
     brain = r.json()
     check("/brain/layers has Jarvis layers", len(brain.get("layers", [])) >= 7,
           str(brain))
+
+    r = client.get("/brain/house-state?include_registries=false")
+    check("/brain/house-state returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/house-state has modes", isinstance(r.json().get("modes"), list),
+          str(r.json()))
+
+    r = client.get("/brain/assistants")
+    check("/brain/assistants returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/assistants includes assistant intelligence",
+          len(r.json().get("assistants", [])) >= 2,
+          str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")
     check("/knowledge/physical-devices returns JSON", r.status_code == 200 and is_json(r),
@@ -185,6 +209,14 @@ def main() -> int:
     check("/knowledge/voice-sources returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/knowledge/voice-sources has list", "voice_sources" in r.json(), str(r.json()))
+    check("/knowledge/voice-sources includes route readiness",
+          "counts" in r.json() and r.json()["counts"].get("total", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/dashboards/tablet-profiles")
+    check("/dashboards/tablet-profiles returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/dashboards/tablet-profiles has counts", "counts" in r.json(), str(r.json()))
 
     r = client.get("/ai/providers")
     check("/ai/providers returns JSON", r.status_code == 200 and is_json(r),
@@ -211,11 +243,16 @@ def main() -> int:
     r = client.post("/voice/preview", json={
         "assistant": "chatty",
         "text": "Voice check.",
+        "room": "office",
+        "reply_mode": "room_speaker",
     })
     check("/voice/preview returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/voice/preview reports fallback when OpenAI absent",
           r.json().get("will_fallback_to_browser") is True,
+          str(r.json()))
+    check("/voice/preview resolves speaker route",
+          r.json().get("profile", {}).get("route", {}).get("target_entity_id") == "media_player.office_speaker",
           str(r.json()))
 
     r = client.post("/voice/speak", json={
@@ -384,6 +421,9 @@ def main() -> int:
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/voice-settings")
     check("GET ingress voice settings route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/house-brain")
+    check("GET ingress house brain route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/voice-sources")
     check("GET ingress voice sources route is HTML", is_html(r),

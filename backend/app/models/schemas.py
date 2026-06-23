@@ -225,6 +225,10 @@ class VoiceSource(_CfgBase):
     room: str
     source_device_id: Optional[str] = None
     source_entity_id: Optional[str] = None
+    user: Optional[str] = None
+    trust_level: Literal["trusted", "household", "guest", "outside"] = "household"
+    default_reply: Literal["browser", "room_speaker", "quiet", "none"] = "browser"
+    speaker: Optional[str] = None
     aliases: list[str] = Field(default_factory=list)
 
 
@@ -292,6 +296,10 @@ class VoicePreviewRequest(BaseModel):
     assistant: str = "atlas"
     text: str = "System voice check. I am online."
     target_entity_id: Optional[str] = None
+    room: Optional[str] = None
+    source_device_id: Optional[str] = None
+    source_entity_id: Optional[str] = None
+    reply_mode: Literal["auto", "browser", "room_speaker", "media_player", "quiet", "none"] = "auto"
 
 
 class VoiceSpeakRequest(BaseModel):
@@ -299,6 +307,10 @@ class VoiceSpeakRequest(BaseModel):
     text: str
     target_entity_id: Optional[str] = None
     force_browser: bool = False
+    room: Optional[str] = None
+    source_device_id: Optional[str] = None
+    source_entity_id: Optional[str] = None
+    reply_mode: Literal["auto", "browser", "room_speaker", "media_player", "quiet", "none"] = "auto"
 
 
 class ConfirmRequest(BaseModel):
@@ -358,6 +370,8 @@ class DashboardDraftRequest(BaseModel):
     room: Optional[str] = None
     include_browser_mod: bool = True
     include_unavailable: bool = False
+    tablet_mode: bool = False
+    voice_panel: bool = False
 
 
 class MemoryDraftRequest(BaseModel):

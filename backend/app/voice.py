@@ -103,6 +103,10 @@ def resolve_voice_profile(
     config: AppConfig,
     assistant_id: str,
     target_entity_id: Optional[str] = None,
+    room: Optional[str] = None,
+    source_device_id: Optional[str] = None,
+    source_entity_id: Optional[str] = None,
+    reply_mode: str = "auto",
 ) -> dict[str, Any]:
     settings = get_settings()
     assistant = assistant_by_id(config, assistant_id)
@@ -110,9 +114,18 @@ def resolve_voice_profile(
     data = profile.model_dump()
     data["model"] = data.get("model") or settings.openai_tts_model
     data["response_format"] = data.get("response_format") or settings.openai_tts_format
-    if target_entity_id:
-        data["target_entity_id"] = target_entity_id
-        data["output"] = "media_player"
+    route = resolve_reply_route(
+        config,
+        target_entity_id=target_entity_id,
+        room=room,
+        source_device_id=source_device_id,
+        source_entity_id=source_entity_id,
+        reply_mode=reply_mode,
+    )
+    if route.get("target_entity_id"):
+        data["target_entity_id"] = route["target_entity_id"]
+    data["output"] = route.get("output", data.get("output", "browser"))
+    data["route"] = route
     data["assistant"] = {
         "id": assistant.id if assistant else assistant_id,
         "name": assistant.name if assistant else assistant_id.title(),
@@ -142,13 +155,48 @@ def list_voice_profiles(config: Optional[AppConfig] = None) -> dict[str, Any]:
     }
 
 
+def list_voice_source_readiness(config: Optional[AppConfig] = None) -> dict[str, Any]:
+    cfg = config or get_config()
+    sources = []
+    for source in cfg.devices.voice_sources:
+        route = resolve_reply_route(
+            cfg,
+            room=source.room,
+            source_device_id=source.source_device_id,
+            source_entity_id=source.source_entity_id,
+            reply_mode=source.default_reply,
+        )
+        sources.append({
+            **source.model_dump(),
+            "resolved_reply_route": route,
+            "has_room": bool(source.room),
+            "has_source_identity": bool(source.source_device_id or source.source_entity_id),
+            "trusted_for_sensitive": source.trust_level == "trusted",
+        })
+    return {
+        "voice_sources": sources,
+        "counts": {
+            "total": len(sources),
+            "trusted": sum(1 for s in sources if s.get("trust_level") == "trusted"),
+            "with_room": sum(1 for s in sources if s.get("has_room")),
+            "with_speaker_route": sum(1 for s in sources if s.get("resolved_reply_route", {}).get("target_entity_id")),
+        },
+    }
+
+
 async def preview_voice(
     assistant_id: str,
     text: str,
     target_entity_id: Optional[str] = None,
+    room: Optional[str] = None,
+    source_device_id: Optional[str] = None,
+    source_entity_id: Optional[str] = None,
+    reply_mode: str = "auto",
 ) -> dict[str, Any]:
     cfg = get_config()
-    profile = resolve_voice_profile(cfg, assistant_id, target_entity_id)
+    profile = resolve_voice_profile(
+        cfg, assistant_id, target_entity_id, room, source_device_id, source_entity_id, reply_mode
+    )
     return {
         "profile": profile,
         "text": text,
@@ -162,9 +210,23 @@ async def speak_text(
     text: str,
     target_entity_id: Optional[str] = None,
     force_browser: bool = False,
+    room: Optional[str] = None,
+    source_device_id: Optional[str] = None,
+    source_entity_id: Optional[str] = None,
+    reply_mode: str = "auto",
 ) -> dict[str, Any]:
     cfg = get_config()
-    profile = resolve_voice_profile(cfg, assistant_id, target_entity_id)
+    profile = resolve_voice_profile(
+        cfg, assistant_id, target_entity_id, room, source_device_id, source_entity_id, reply_mode
+    )
+    if profile.get("route", {}).get("mode") == "none":
+        return {
+            "mode": "silent",
+            "provider": "none",
+            "profile": profile,
+            "text": text,
+            "speaker_route": profile.get("route"),
+        }
     if force_browser or profile["provider"] == "browser":
         return _browser_response(profile, text)
     if profile["provider"] != "openai":
@@ -212,6 +274,81 @@ def _profile_from_assistant(assistant: Optional[Assistant], assistant_id: str) -
     alias = str(raw or "").lower()
     mapped = DEFAULT_PROFILES.get(alias) or default
     return _with_runtime_defaults(mapped, settings.openai_tts_model, settings.openai_tts_format)
+
+
+def resolve_reply_route(
+    config: AppConfig,
+    target_entity_id: Optional[str] = None,
+    room: Optional[str] = None,
+    source_device_id: Optional[str] = None,
+    source_entity_id: Optional[str] = None,
+    reply_mode: str = "auto",
+) -> dict[str, Any]:
+    source = _match_voice_source(config, source_device_id, source_entity_id)
+    resolved_room = room or (source.room if source else None)
+    mode = reply_mode if reply_mode != "auto" else (source.default_reply if source else "browser")
+    if target_entity_id:
+        return {
+            "mode": "media_player",
+            "output": "media_player",
+            "target_entity_id": target_entity_id,
+            "room": resolved_room,
+            "source": source.model_dump() if source else None,
+            "reason": "explicit_target",
+        }
+    if mode in {"none", "quiet"}:
+        return {
+            "mode": mode,
+            "output": "browser" if mode == "quiet" else "none",
+            "room": resolved_room,
+            "source": source.model_dump() if source else None,
+            "reason": f"reply_mode_{mode}",
+        }
+    if mode in {"room_speaker", "media_player"} and resolved_room:
+        speaker = _speaker_for_room(config, resolved_room, preferred_id=source.speaker if source else None)
+        if speaker:
+            return {
+                "mode": "room_speaker",
+                "output": "media_player",
+                "target_entity_id": speaker.entity_id,
+                "room": resolved_room,
+                "speaker": speaker.model_dump(),
+                "source": source.model_dump() if source else None,
+                "reason": "room_speaker",
+            }
+    return {
+        "mode": "browser",
+        "output": "browser",
+        "room": resolved_room,
+        "source": source.model_dump() if source else None,
+        "reason": "browser_fallback",
+    }
+
+
+def _match_voice_source(config: AppConfig, source_device_id: Optional[str], source_entity_id: Optional[str]):
+    for source in config.devices.voice_sources:
+        if source_device_id and source.source_device_id == source_device_id:
+            return source
+        if source_entity_id and source.source_entity_id == source_entity_id:
+            return source
+    return None
+
+
+def _speaker_for_room(config: AppConfig, room: str, preferred_id: Optional[str] = None):
+    if preferred_id:
+        for speaker in config.devices.speakers:
+            if preferred_id in {speaker.id, speaker.entity_id, speaker.name}:
+                return speaker
+    needle = room.lower().replace(" ", "_")
+    for speaker in config.devices.speakers:
+        if (speaker.room or "").lower().replace(" ", "_") == needle:
+            return speaker
+    for room_cfg in config.devices.rooms:
+        if needle in {room_cfg.id.lower(), room_cfg.name.lower().replace(" ", "_")} and room_cfg.speaker:
+            for speaker in config.devices.speakers:
+                if speaker.entity_id == room_cfg.speaker or speaker.id == room_cfg.speaker:
+                    return speaker
+    return None
 
 
 def _with_runtime_defaults(profile: VoiceProfile, model: str, response_format: str) -> VoiceProfile:

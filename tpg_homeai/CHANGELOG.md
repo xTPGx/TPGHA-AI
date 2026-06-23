@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.30
+
+- Added voice source trust, user, default reply, and speaker routing metadata for Assist satellites, panels, and microphones.
+- Added room-aware reply routing for assistant speech: browser, quiet, explicit media player, or room speaker.
+- Added `/brain/house-state`, `/brain/assistants`, and `/dashboards/tablet-profiles` endpoints for situational awareness and management.
+- Added a House Brain UI showing modes, presence, security/energy/media/maintenance attention, rooms, assistants, and tablet panels.
+- Expanded dashboard drafts with optional tablet/profile and voice-panel views.
+- Added starter voice source templates for office, kitchen, bedroom, and living room deployments.
+- Expanded proactive scans with repeated-command learning suggestions and away-mode climate recommendations.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.29
 
 - Added assistant voice profiles with provider, model, voice, instructions, output, and fallback settings.

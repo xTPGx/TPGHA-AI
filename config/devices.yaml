@@ -444,6 +444,54 @@ climate:
       - temperature
 
 
+voice_sources:
+  - id: office_panel
+    name: Office Voice Panel
+    room: office
+    user: shawn
+    trust_level: trusted
+    default_reply: room_speaker
+    speaker: office
+    aliases:
+      - office panel
+      - office microphone
+      - shawn office mic
+
+  - id: kitchen_display
+    name: Kitchen Display Voice
+    room: kitchen
+    trust_level: household
+    default_reply: room_speaker
+    speaker: kitchen
+    source_entity_id: media_player.kitchen_display
+    aliases:
+      - kitchen display
+      - kitchen voice
+      - kitchen mic
+
+  - id: bedroom_satellite
+    name: Bedroom Voice Satellite
+    room: bedroom
+    trust_level: household
+    default_reply: quiet
+    speaker: bedroom
+    aliases:
+      - bedroom satellite
+      - bedroom mic
+      - bedroom voice
+
+  - id: living_room_satellite
+    name: Living Room Voice Satellite
+    room: living_room
+    trust_level: household
+    default_reply: room_speaker
+    speaker: living_room
+    aliases:
+      - living room satellite
+      - living room mic
+      - downstairs voice
+
+
 device_aliases:
   - id: office_light
     name: Office Light

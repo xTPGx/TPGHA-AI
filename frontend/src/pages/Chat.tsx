@@ -195,7 +195,7 @@ export default function Chat() {
     audioRef.current?.pause();
     window.speechSynthesis?.cancel();
     try {
-      const response = await api.voiceSpeak({ assistant, text: message });
+      const response = await api.voiceSpeak({ assistant, text: message, room: room || undefined, reply_mode: "auto" });
       if (response.audio_base64 && response.content_type) {
         const audio = new Audio(`data:${response.content_type};base64,${response.audio_base64}`);
         audioRef.current = audio;

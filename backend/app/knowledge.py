@@ -152,6 +152,7 @@ async def build_house_graph(include_registries: bool = True) -> dict[str, Any]:
         "ungrouped_entities": ungrouped_entities[:250],
         "people": [u.model_dump() for u in config.assistants.users],
         "assistants": [a.model_dump() for a in config.assistants.assistants],
+        "voice_sources": [v.model_dump() for v in config.devices.voice_sources],
         "pending_approvals": summary.get("pending_count", 0),
         "unavailable_devices": summary.get("unavailable_count", 0),
         "counts": {
@@ -160,6 +161,7 @@ async def build_house_graph(include_registries: bool = True) -> dict[str, Any]:
             "devices": len(enriched_devices),
             "entities": len(entities) if entities else len(states),
             "ungrouped_entities": len(ungrouped_entities),
+            "voice_sources": len(config.devices.voice_sources),
         },
     }
     graph["physical_devices"] = build_physical_devices(graph)

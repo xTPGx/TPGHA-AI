@@ -52,13 +52,16 @@ from .const import (
     SERVICE_DRAFT_MEMORY,
     SERVICE_GENERATE_SUGGESTIONS,
     SERVICE_GET_AI_PROVIDERS,
+    SERVICE_GET_ASSISTANT_INTELLIGENCE,
     SERVICE_GET_BRAIN_LAYERS,
     SERVICE_GET_DEVICE_PROFILES,
+    SERVICE_GET_HOUSE_STATE,
     SERVICE_GET_VOICE_PROFILES,
     SERVICE_GET_VOICES,
     SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
     SERVICE_GET_PHYSICAL_DEVICES,
+    SERVICE_GET_TABLET_PROFILES,
     SERVICE_GET_COMMANDS,
     SERVICE_GET_LAST_COMMAND,
     SERVICE_IGNORE,
@@ -151,6 +154,15 @@ class TPGHomeAIClient:
             f"/brain/layers?include_registries={'true' if include_registries else 'false'}",
         )
 
+    async def async_house_state(self, include_registries: bool = True) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/brain/house-state?include_registries={'true' if include_registries else 'false'}",
+        )
+
+    async def async_assistant_intelligence(self) -> dict[str, Any]:
+        return await self._request("GET", "/brain/assistants")
+
     async def async_physical_devices(self, include_registries: bool = True) -> dict[str, Any]:
         return await self._request(
             "GET",
@@ -162,6 +174,9 @@ class TPGHomeAIClient:
             "GET",
             f"/knowledge/device-profiles?include_registries={'true' if include_registries else 'false'}",
         )
+
+    async def async_tablet_profiles(self) -> dict[str, Any]:
+        return await self._request("GET", "/dashboards/tablet-profiles")
 
     async def async_ai_providers(self) -> dict[str, Any]:
         return await self._request("GET", "/ai/providers")
@@ -552,6 +567,13 @@ def _register_services(hass: HomeAssistant) -> None:
         return await _first_client(hass).async_brain_layers(
             include_registries=call.data.get("include_registries", True))
 
+    async def _get_house_state(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_house_state(
+            include_registries=call.data.get("include_registries", True))
+
+    async def _get_assistant_intelligence(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_assistant_intelligence()
+
     async def _get_physical_devices(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_physical_devices(
             include_registries=call.data.get("include_registries", True))
@@ -559,6 +581,9 @@ def _register_services(hass: HomeAssistant) -> None:
     async def _get_device_profiles(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_device_profiles(
             include_registries=call.data.get("include_registries", True))
+
+    async def _get_tablet_profiles(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_tablet_profiles()
 
     async def _get_ai_providers(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_ai_providers()
@@ -665,10 +690,16 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_BRAIN_LAYERS, _get_brain_layers,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_HOUSE_STATE, _get_house_state,
+        schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_ASSISTANT_INTELLIGENCE, _get_assistant_intelligence,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_PHYSICAL_DEVICES, _get_physical_devices,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_DEVICE_PROFILES, _get_device_profiles,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_TABLET_PROFILES, _get_tablet_profiles,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_AI_PROVIDERS, _get_ai_providers,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_VOICE_PROFILES, _get_voice_profiles,
@@ -705,7 +736,9 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
                     SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
                     SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_BRAIN_LAYERS,
+                    SERVICE_GET_HOUSE_STATE, SERVICE_GET_ASSISTANT_INTELLIGENCE,
                     SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_DEVICE_PROFILES,
+                    SERVICE_GET_TABLET_PROFILES,
                     SERVICE_GET_AI_PROVIDERS,
                     SERVICE_GET_VOICE_PROFILES, SERVICE_GET_VOICES, SERVICE_SPEAK,
                     SERVICE_GET_LAST_COMMAND,

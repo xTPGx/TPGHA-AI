@@ -247,6 +247,21 @@ get_brain_layers:
       selector:
         boolean:
 
+get_house_state:
+  name: Get house state
+  description: Return situational house modes, attention items, rooms, and recommendations.
+  fields:
+    include_registries:
+      name: Include HA registries
+      required: false
+      default: true
+      selector:
+        boolean:
+
+get_assistant_intelligence:
+  name: Get assistant intelligence
+  description: Return assistant personalities, voices, permissions context, and approved memories.
+
 get_physical_devices:
   name: Get physical devices
   description: Return grouped real-world devices built from HA entities and registries.
@@ -270,6 +285,10 @@ get_device_profiles:
       default: true
       selector:
         boolean:
+
+get_tablet_profiles:
+  name: Get tablet profiles
+  description: Return display/tablet routing profiles for dashboards and Browser Mod targets.
 
 get_ai_providers:
   name: Get AI providers

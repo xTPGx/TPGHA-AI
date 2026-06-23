@@ -153,6 +153,9 @@ export const api = {
   ignoreProactiveSuggestion: (id: number) =>
     http<any>(`/suggestions/proactive/${id}/ignore`, { method: "POST" }),
   brainLayers: () => http<any>("/brain/layers"),
+  houseState: () => http<any>("/brain/house-state"),
+  assistantIntelligence: () => http<any>("/brain/assistants"),
+  tabletProfiles: () => http<any>("/dashboards/tablet-profiles"),
   deviceProfiles: () => http<any>("/knowledge/device-profiles"),
   deviceAdapters: () => http<any>("/knowledge/device-adapters"),
   voiceSources: () => http<any>("/knowledge/voice-sources"),

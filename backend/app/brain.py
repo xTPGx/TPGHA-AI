@@ -33,6 +33,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     providers = ai.provider_status()
     counts = graph.get("counts", {})
     physical = graph.get("physical_devices", [])
+    voice_sources = graph.get("voice_sources", [])
     pending = int(graph.get("pending_approvals") or 0)
     unavailable = int(graph.get("unavailable_devices") or 0)
     controllable = _controllable_count(graph)
@@ -54,14 +55,15 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "room_context",
             "title": "Room-Aware Voice Context",
-            "status": "ready" if counts.get("rooms", 0) else "partial",
-            "score": 84 if counts.get("rooms", 0) else 58,
+            "status": "ready" if counts.get("rooms", 0) and voice_sources else "partial",
+            "score": 90 if counts.get("rooms", 0) and voice_sources else 64,
             "evidence": [
                 "Commands accept room, source_device_id, and source_entity_id context.",
                 "Router applies room context to generic targets like light, fan, TV, and speaker.",
                 f"{counts.get('rooms', 0)} configured rooms available for context resolution.",
+                f"{len(voice_sources)} configured voice source profiles available.",
             ],
-            "next": "Map HA Assist satellite/device IDs to rooms automatically.",
+            "next": "Bind real HA Assist satellite device IDs as they are installed.",
         },
         {
             "id": "security_identity",
@@ -104,15 +106,16 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "id": "voice_layer",
             "title": "Voice Layer",
             "status": "ready" if settings.openai_configured else "partial",
-            "score": 88 if settings.openai_configured else 74,
+            "score": 92 if settings.openai_configured else 78,
             "evidence": [
                 "Browser mic input is available in Chat.",
                 "Configured assistant voice profiles can use OpenAI TTS with browser fallback.",
+                "Reply routing can target browser, quiet mode, explicit media player, or room speaker.",
                 "Voice Settings exposes profile readiness, catalog, preview, and test playback.",
                 "Home Assistant Assist can forward conversation to TPG HomeAI.",
                 f"OpenAI TTS configured: {settings.openai_configured}.",
             ],
-            "next": "Add wake-word/satellite setup docs plus trusted speaker-routing profiles.",
+            "next": "Connect real wake-word satellites and assign each a source_device_id.",
         },
         {
             "id": "proactive_suggestions",
@@ -130,13 +133,26 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "id": "ha_native_ui",
             "title": "HA Native UI + Dashboard Builder",
             "status": "ready",
-            "score": 86,
+            "score": 91,
             "evidence": [
                 "Ingress/sidebar add-on UI is enabled.",
                 "Custom integration exposes services, sensors, buttons, notifications, and dashboard draft/install.",
                 f"{counts.get('rooms', 0)} configured rooms can be used for dashboard generation.",
+                "Dashboard drafts include tablet/profile and voice-panel views.",
             ],
-            "next": "Add a visual dashboard editor with Browser Mod tablet profiles.",
+            "next": "Add drag-and-drop dashboard editing.",
+        },
+        {
+            "id": "house_state",
+            "title": "House State Brain",
+            "status": "ready",
+            "score": 84,
+            "evidence": [
+                "House-state endpoint summarizes presence, modes, room activity, and attention items.",
+                "House Brain UI shows security, energy, media, maintenance, rooms, assistants, and tablet panels.",
+                "Recommendations are generated from live HA state without directly executing actions.",
+            ],
+            "next": "Persist learned house modes and add per-mode policies.",
         },
         {
             "id": "ai_hybrid",

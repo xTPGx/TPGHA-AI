@@ -57,17 +57,23 @@ from .router.resolver import Resolver
 from .settings import get_settings
 from .voice import (
     list_voice_profiles,
+    list_voice_source_readiness,
     list_voices,
     preview_voice,
     speak_text,
     voice_audio_path,
+)
+from .house_state import (
+    build_assistant_intelligence,
+    build_house_state,
+    build_tablet_profiles,
 )
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.29"
+APP_VERSION = "0.1.30"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -588,13 +594,25 @@ async def device_adapters(include_registries: bool = True):
 @app.get("/knowledge/voice-sources")
 async def voice_sources():
     cfg = get_config()
-    return {"voice_sources": [source.model_dump() for source in cfg.devices.voice_sources]}
+    return list_voice_source_readiness(cfg)
 
 
 @app.get("/brain/layers")
 async def brain_layers(include_registries: bool = True):
     graph = await build_house_graph(include_registries=include_registries)
     return build_brain_layers(graph)
+
+
+@app.get("/brain/house-state")
+async def brain_house_state(include_registries: bool = True):
+    cfg = get_config()
+    graph = await build_house_graph(include_registries=include_registries)
+    return await build_house_state(cfg, graph)
+
+
+@app.get("/brain/assistants")
+async def brain_assistants():
+    return build_assistant_intelligence(get_config())
 
 
 @app.get("/ai/providers")
@@ -615,7 +633,15 @@ async def voice_voices():
 
 @app.post("/voice/preview")
 async def voice_preview(req: VoicePreviewRequest):
-    return await preview_voice(req.assistant, req.text, req.target_entity_id)
+    return await preview_voice(
+        req.assistant,
+        req.text,
+        req.target_entity_id,
+        room=req.room,
+        source_device_id=req.source_device_id,
+        source_entity_id=req.source_entity_id,
+        reply_mode=req.reply_mode,
+    )
 
 
 @app.post("/voice/speak")
@@ -625,6 +651,10 @@ async def voice_speak(req: VoiceSpeakRequest):
         req.text,
         target_entity_id=req.target_entity_id,
         force_browser=req.force_browser,
+        room=req.room,
+        source_device_id=req.source_device_id,
+        source_entity_id=req.source_entity_id,
+        reply_mode=req.reply_mode,
     )
 
 
@@ -691,6 +721,8 @@ async def dashboard_draft(req: DashboardDraftRequest):
         room=req.room,
         include_browser_mod=req.include_browser_mod,
         include_unavailable=req.include_unavailable,
+        tablet_mode=req.tablet_mode,
+        voice_panel=req.voice_panel,
     )
 
 
@@ -701,6 +733,8 @@ async def dashboard_draft_get(
     room: str | None = None,
     include_browser_mod: bool = True,
     include_unavailable: bool = False,
+    tablet_mode: bool = False,
+    voice_panel: bool = False,
 ):
     cfg = get_config()
     return build_dashboard_draft(
@@ -710,7 +744,14 @@ async def dashboard_draft_get(
         room=room,
         include_browser_mod=include_browser_mod,
         include_unavailable=include_unavailable,
+        tablet_mode=tablet_mode,
+        voice_panel=voice_panel,
     )
+
+
+@app.get("/dashboards/tablet-profiles")
+async def dashboard_tablet_profiles():
+    return build_tablet_profiles(get_config())
 
 
 @app.post("/dashboards/install")
@@ -723,6 +764,8 @@ async def dashboard_install(req: DashboardDraftRequest):
         room=req.room,
         include_browser_mod=req.include_browser_mod,
         include_unavailable=req.include_unavailable,
+        tablet_mode=req.tablet_mode,
+        voice_panel=req.voice_panel,
     )
     install = install_dashboard_yaml(draft["yaml"], req.title)
     return {"draft": draft, "install": install}

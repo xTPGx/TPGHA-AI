@@ -177,6 +177,49 @@ def _voice_source_cards(config: AppConfig) -> list[dict[str, Any]]:
                 f"- Room: `{source.room}`\n"
                 f"- Source device: `{source.source_device_id or 'not set'}`\n"
                 f"- Source entity: `{source.source_entity_id or 'not set'}`"
+                f"\n- Trust: `{source.trust_level}`"
+                f"\n- Default reply: `{source.default_reply}`"
+            ),
+        })
+    return cards
+
+
+def _voice_panel_cards(config: AppConfig) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = [
+        {
+            "type": "markdown",
+            "content": (
+                "## TPG HomeAI Voice Panel\n"
+                "Use the Chat page, HA Assist, or configured voice sources to talk to the house."
+            ),
+        }
+    ]
+    for assistant in config.assistants.assistants:
+        voice = assistant.voice.model_dump() if hasattr(assistant.voice, "model_dump") else {"preset": assistant.voice}
+        cards.append({
+            "type": "markdown",
+            "content": (
+                f"### {assistant.name}\n"
+                f"- Owner: `{assistant.owner}`\n"
+                f"- Tone: `{assistant.tone}`\n"
+                f"- Voice: `{voice.get('voice', voice.get('preset', 'browser'))}`\n"
+                f"- Provider: `{voice.get('provider', 'browser')}`"
+            ),
+        })
+    return cards
+
+
+def _tablet_view_cards(config: AppConfig) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
+    for display in config.devices.displays:
+        cards.append({
+            "type": "markdown",
+            "content": (
+                f"### {display.name}\n"
+                f"- Type: `{display.type}`\n"
+                f"- Entity: `{display.entity_id or 'not set'}`\n"
+                f"- Browser ID: `{display.browser_id or 'not set'}`\n"
+                f"- Dashboard: `{display.dashboard_path or '/lovelace/tpg-home'}`"
             ),
         })
     return cards
@@ -185,7 +228,9 @@ def _voice_source_cards(config: AppConfig) -> list[dict[str, Any]]:
 def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
                           style: str = "native", room: str | None = None,
                           include_browser_mod: bool = True,
-                          include_unavailable: bool = False) -> dict[str, Any]:
+                          include_unavailable: bool = False,
+                          tablet_mode: bool = False,
+                          voice_panel: bool = False) -> dict[str, Any]:
     """Build a Lovelace dashboard draft from approved HomeAI config.
 
     This intentionally returns a draft rather than writing HA storage directly.
@@ -237,6 +282,24 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
             "cards": device_cards + voice_cards,
         })
 
+    if voice_panel:
+        views.append({
+            "title": "Voice",
+            "path": "tpg-voice",
+            "icon": "mdi:microphone-message",
+            "cards": _voice_panel_cards(config),
+        })
+
+    if tablet_mode:
+        views.append({
+            "title": "Tablets",
+            "path": "tpg-tablets",
+            "icon": "mdi:tablet-dashboard",
+            "cards": _tablet_view_cards(config) or [
+                {"type": "markdown", "content": "No display/tablet profiles configured yet."}
+            ],
+        })
+
     media_entities = [s.entity_id for s in config.devices.speakers]
     if media_entities:
         views.append({
@@ -262,6 +325,10 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
             "example_data": {"path": "/lovelace/tpg-home"},
         }
         notes.append("Browser Mod can navigate displays to the dashboard after it exists.")
+    if tablet_mode:
+        notes.append("Tablet mode adds a display/profile view for wall panels and Browser Mod targets.")
+    if voice_panel:
+        notes.append("Voice panel adds assistant voice profile and source readiness cards.")
     if include_unavailable:
         notes.append("Unavailable devices are included when Home Assistant exposes them in approved config.")
 

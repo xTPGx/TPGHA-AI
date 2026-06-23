@@ -9,6 +9,8 @@ export default function DashboardBuilder() {
     room: "",
     include_browser_mod: true,
     include_unavailable: false,
+    tablet_mode: true,
+    voice_panel: true,
   });
   const [draft, setDraft] = useState<any>(null);
   const [install, setInstall] = useState<any>(null);
@@ -54,7 +56,7 @@ export default function DashboardBuilder() {
       {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
       <div className="card mb-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-7">
           <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
           <select className="input" value={form.style} onChange={(e) => setForm({ ...form, style: e.target.value })}>
             <option value="native">Native</option>
@@ -76,6 +78,22 @@ export default function DashboardBuilder() {
               onChange={(e) => setForm({ ...form, include_unavailable: e.target.checked })}
             />
             Unavailable
+          </label>
+          <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={form.tablet_mode}
+              onChange={(e) => setForm({ ...form, tablet_mode: e.target.checked })}
+            />
+            Tablets
+          </label>
+          <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={form.voice_panel}
+              onChange={(e) => setForm({ ...form, voice_panel: e.target.checked })}
+            />
+            Voice Panel
           </label>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">

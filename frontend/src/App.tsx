@@ -18,11 +18,13 @@ import MemoryCenter from "./pages/MemoryCenter";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import VoiceSources from "./pages/VoiceSources";
 import VoiceSettings from "./pages/VoiceSettings";
+import HouseBrain from "./pages/HouseBrain";
 
 const nav = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/chat", label: "Chat" },
   { to: "/jarvis", label: "Jarvis Brain" },
+  { to: "/house-brain", label: "House Brain" },
   { to: "/profiles", label: "Device Profiles" },
   { to: "/memory-center", label: "Memory" },
   { to: "/dashboard-builder", label: "Dashboard Builder" },
@@ -77,6 +79,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/jarvis" element={<Brain />} />
+          <Route path="/house-brain" element={<HouseBrain />} />
           <Route path="/profiles" element={<DeviceProfiles />} />
           <Route path="/memory-center" element={<MemoryCenter />} />
           <Route path="/dashboard-builder" element={<DashboardBuilder />} />
