@@ -9,7 +9,11 @@ export default function DeviceProfiles() {
 
   const load = async () => {
     try {
-      setData(await api.deviceProfiles());
+      const [profiles, adapters] = await Promise.all([
+        api.deviceProfiles(),
+        api.deviceAdapters(),
+      ]);
+      setData({ ...profiles, adapters: adapters.adapters || [], adapter_counts: adapters.counts || {} });
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -31,6 +35,14 @@ export default function DeviceProfiles() {
     );
   }, [data, query]);
 
+  const adapterByDevice = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const adapter of data?.adapters || []) {
+      if (adapter.device_id) map[adapter.device_id] = adapter;
+    }
+    return map;
+  }, [data]);
+
   return (
     <div>
       <PageHeader
@@ -48,6 +60,7 @@ export default function DeviceProfiles() {
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
         <Stat label="Profiles" value={data?.counts?.profiles ?? "—"} />
         <Stat label="With quirks" value={data?.counts?.with_quirks ?? "—"} />
+        <Stat label="Adapters" value={data?.adapter_counts?.devices ?? "—"} />
         <Stat label="Visible" value={profiles.length} />
         <input
           className="input"
@@ -59,7 +72,19 @@ export default function DeviceProfiles() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {profiles.map((profile: any) => (
-          <div key={profile.id} className="card">
+          <ProfileCard key={profile.id} profile={profile} adapter={adapterByDevice[profile.id]} />
+        ))}
+      </div>
+
+      {!data && !error && <div className="card text-slate-400">Loading device profiles...</div>}
+      {data && profiles.length === 0 && <div className="card text-slate-500">No matching profiles.</div>}
+    </div>
+  );
+}
+
+function ProfileCard({ profile, adapter }: { profile: any; adapter?: any }) {
+  return (
+    <div className="card">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-slate-100">{profile.name || profile.id}</div>
@@ -75,18 +100,22 @@ export default function DeviceProfiles() {
             <Pills label="Capabilities" items={profile.capabilities || []} />
             <Pills label="Quirks" items={profile.quirks || []} mutedFallback="No known quirks" />
             <Pills label="Entities" items={profile.entity_ids || []} mono />
+            {adapter && (
+              <>
+                <Pills
+                  label="Adapters"
+                  items={(adapter.entities || []).map((item: any) => `${item.entity_id}: ${item.adapter}`)}
+                  mono
+                />
+                <Pills label="Recovery" items={adapter.recovery || []} mutedFallback="No recovery hints" />
+              </>
+            )}
 
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <History label="Successes" value={profile.history?.successful_actions ?? 0} detail={profile.history?.last_success} />
               <History label="Failures" value={profile.history?.failed_actions ?? 0} detail={profile.history?.last_failure} />
             </div>
           </div>
-        ))}
-      </div>
-
-      {!data && !error && <div className="card text-slate-400">Loading device profiles…</div>}
-      {data && profiles.length === 0 && <div className="card text-slate-500">No matching profiles.</div>}
-    </div>
   );
 }
 

@@ -176,6 +176,16 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/knowledge/device-profiles has counts", "counts" in r.json(), str(r.json()))
 
+    r = client.get("/knowledge/device-adapters?include_registries=false")
+    check("/knowledge/device-adapters returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/knowledge/device-adapters has counts", "counts" in r.json(), str(r.json()))
+
+    r = client.get("/knowledge/voice-sources")
+    check("/knowledge/voice-sources returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/knowledge/voice-sources has list", "voice_sources" in r.json(), str(r.json()))
+
     r = client.get("/ai/providers")
     check("/ai/providers returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -330,6 +340,15 @@ def main() -> int:
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/profiles")
     check("GET ingress profiles route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/memory-center")
+    check("GET ingress memory center route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/dashboard-builder")
+    check("GET ingress dashboard builder route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/voice-sources")
+    check("GET ingress voice sources route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/ha")
     check("GET ingress HA route is HTML", is_html(r),

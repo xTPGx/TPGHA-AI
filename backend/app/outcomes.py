@@ -160,7 +160,13 @@ def _expected_state(result: ActionResult) -> str | None:
 
 def _draft_repair_suggestion(result: ActionResult, outcome: dict[str, Any]) -> None:
     title = f"Verify {result.intent.replace('_', ' ')} outcome"
-    payload = {"intent": result.intent, "resolved": result.resolved, "outcome": outcome}
+    recovery = _recovery_steps(result, outcome)
+    payload = {
+        "intent": result.intent,
+        "resolved": result.resolved,
+        "outcome": outcome,
+        "recovery_steps": recovery,
+    }
     with get_session() as session:
         exists = session.query(Suggestion).filter(
             Suggestion.title == title,
@@ -171,14 +177,50 @@ def _draft_repair_suggestion(result: ActionResult, outcome: dict[str, Any]) -> N
             return
         session.add(Suggestion(
             title=title,
-            message="A command executed but the follow-up state check did not match the expected result.",
+            message=(
+                "A command executed but the follow-up state check did not match. "
+                + (recovery[0] if recovery else "Review the device profile and Home Assistant integration.")
+            ),
             category="repair",
             priority="high",
-            action_type="review_device_profile",
+            action_type="device_recovery",
             payload=json.dumps(payload),
             status="suggested",
         ))
         session.commit()
+
+
+def _recovery_steps(result: ActionResult, outcome: dict[str, Any]) -> list[str]:
+    resolved = result.resolved or {}
+    entity_ids = _target_entity_ids(result)
+    entity_id = entity_ids[0] if entity_ids else str(resolved.get("entity_id") or "")
+    domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
+    steps: list[str] = []
+    if result.intent == "set_fan_percentage" or domain == "fan":
+        steps.extend([
+            "Check whether this fan uses preset modes instead of percentage speed.",
+            "If preset_modes exist, map requested levels to fan.set_preset_mode.",
+            "Approve a device memory such as 'office fan uses preset speed modes'.",
+        ])
+    elif domain == "media_player":
+        steps.extend([
+            "Verify the media player supports turn_on/turn_off in Home Assistant.",
+            "Try a direct media_player.turn_on or media_player.turn_off service call.",
+            "If the TV needs an alternate integration, mark that in the device profile.",
+        ])
+    elif domain in {"light", "switch"}:
+        steps.extend([
+            "Check if the entity is unavailable or delayed by the integration.",
+            "Retry after refreshing Home Assistant state.",
+        ])
+    elif domain == "lock":
+        steps.extend([
+            "Check lock connectivity and battery state before retrying.",
+            "Do not bypass unlock confirmation or PIN requirements.",
+        ])
+    if any(not r.get("available", True) for r in outcome.get("readings", [])):
+        steps.insert(0, "Home Assistant reported the target unavailable or unreadable.")
+    return steps
 
 
 def _entity_capabilities(entity: dict[str, Any]) -> list[str]:

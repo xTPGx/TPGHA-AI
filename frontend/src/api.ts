@@ -154,7 +154,21 @@ export const api = {
     http<any>(`/suggestions/proactive/${id}/ignore`, { method: "POST" }),
   brainLayers: () => http<any>("/brain/layers"),
   deviceProfiles: () => http<any>("/knowledge/device-profiles"),
+  deviceAdapters: () => http<any>("/knowledge/device-adapters"),
+  voiceSources: () => http<any>("/knowledge/voice-sources"),
   aiProviders: () => http<any>("/ai/providers"),
+  memories: (status?: string) =>
+    http<any>(`/memory${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  draftMemory: (body: Record<string, any>) =>
+    http<any>("/memory/draft", { method: "POST", body: JSON.stringify(body) }),
+  approveMemory: (id: number) =>
+    http<any>(`/memory/${id}/approve`, { method: "POST" }),
+  ignoreMemory: (id: number) =>
+    http<any>(`/memory/${id}/ignore`, { method: "POST" }),
+  dashboardDraft: (body: Record<string, any>) =>
+    http<any>("/dashboards/draft", { method: "POST", body: JSON.stringify(body) }),
+  dashboardInstall: (body: Record<string, any>) =>
+    http<any>("/dashboards/install", { method: "POST", body: JSON.stringify(body) }),
   approveDraft: (id: number) =>
     http<any>(`/automation/drafts/${id}/approve`, { method: "POST" }),
   ignoreDraft: (id: number) =>

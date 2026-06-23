@@ -47,6 +47,7 @@ from .actions.dashboards import build_dashboard_draft, install_dashboard_yaml
 from .actions.automation_installer import install_automation_yaml
 from .knowledge import build_house_graph
 from .brain import build_brain_layers
+from .device_adapters import build_device_adapters
 from .outcomes import build_device_profiles
 from . import memory as memory_store
 from . import proactive as proactive_store
@@ -57,7 +58,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.27"
+APP_VERSION = "0.1.28"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -567,6 +568,18 @@ async def physical_devices(include_registries: bool = True):
 async def device_profiles(include_registries: bool = True):
     graph = await build_house_graph(include_registries=include_registries)
     return build_device_profiles(graph)
+
+
+@app.get("/knowledge/device-adapters")
+async def device_adapters(include_registries: bool = True):
+    graph = await build_house_graph(include_registries=include_registries)
+    return build_device_adapters(graph)
+
+
+@app.get("/knowledge/voice-sources")
+async def voice_sources():
+    cfg = get_config()
+    return {"voice_sources": [source.model_dump() for source in cfg.devices.voice_sources]}
 
 
 @app.get("/brain/layers")

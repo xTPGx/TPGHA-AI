@@ -1,0 +1,133 @@
+"""Device adapter hints for real-world Home Assistant quirks.
+
+This is intentionally advisory. Actions still use vetted service calls, but the
+adapter map gives the UI and recovery brain a grounded answer to "how should
+this actual device be controlled?"
+"""
+from __future__ import annotations
+
+from typing import Any
+
+
+def build_device_adapters(graph: dict[str, Any]) -> dict[str, Any]:
+    adapters: list[dict[str, Any]] = []
+    for device in graph.get("physical_devices", []):
+        entities = device.get("entities", []) or []
+        hints = [_hint_for_entity(entity) for entity in entities]
+        hints = [hint for hint in hints if hint]
+        if not hints:
+            continue
+        adapters.append({
+            "device_id": device.get("id"),
+            "name": device.get("name"),
+            "area": device.get("area"),
+            "device_type": device.get("device_type"),
+            "entities": hints,
+            "recovery": _recovery_for_hints(hints),
+        })
+    return {
+        "adapters": adapters,
+        "counts": {
+            "devices": len(adapters),
+            "entities": sum(len(a["entities"]) for a in adapters),
+            "with_recovery": sum(1 for a in adapters if a["recovery"]),
+        },
+    }
+
+
+def _hint_for_entity(entity: dict[str, Any]) -> dict[str, Any] | None:
+    domain = entity.get("domain")
+    entity_id = entity.get("entity_id")
+    attrs = entity.get("attributes") or {}
+    if not entity_id:
+        return None
+
+    if domain == "fan":
+        preset_modes = attrs.get("preset_modes") or []
+        supports_percentage = bool(attrs.get("percentage") is not None)
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "fan_percentage_or_preset",
+            "services": (
+                ["fan.set_percentage", "fan.turn_on", "fan.turn_off"]
+                if supports_percentage
+                else ["fan.set_preset_mode", "fan.turn_on", "fan.turn_off"]
+            ),
+            "capabilities": {
+                "percentage": supports_percentage,
+                "preset_modes": preset_modes,
+            },
+            "quirks": [] if supports_percentage else ["preset_mode_fallback"],
+        }
+
+    if domain == "media_player":
+        supported = attrs.get("supported_features")
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "media_power_volume_source",
+            "services": [
+                "media_player.turn_on",
+                "media_player.turn_off",
+                "media_player.volume_set",
+                "media_player.select_source",
+                "media_player.media_stop",
+            ],
+            "capabilities": {
+                "supported_features": supported,
+                "source_list": attrs.get("source_list") or [],
+            },
+            "quirks": ["state_may_lag"] if entity.get("state") in {"unknown", "unavailable"} else [],
+        }
+
+    if domain in {"light", "switch"}:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "basic_power_brightness",
+            "services": [f"{domain}.turn_on", f"{domain}.turn_off"],
+            "capabilities": {
+                "brightness": "brightness" in attrs or "brightness_pct" in attrs,
+            },
+            "quirks": [],
+        }
+
+    if domain == "lock":
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "security_lock",
+            "services": ["lock.lock", "lock.unlock"],
+            "capabilities": {"lock": True, "unlock": True},
+            "quirks": ["unlock_requires_pin"],
+        }
+
+    if domain in {"person", "device_tracker"} or _looks_personal_device(entity):
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "personal_presence_device",
+            "services": [],
+            "capabilities": {"presence": True, "diagnostic": True},
+            "quirks": ["do_not_control", "group_diagnostics"],
+        }
+
+    return None
+
+
+def _looks_personal_device(entity: dict[str, Any]) -> bool:
+    text = f"{entity.get('entity_id', '')} {entity.get('friendly_name', '')}".lower()
+    return any(word in text for word in ("iphone", "ipad", "android", "watch", "phone"))
+
+
+def _recovery_for_hints(hints: list[dict[str, Any]]) -> list[str]:
+    recovery: list[str] = []
+    for hint in hints:
+        if "preset_mode_fallback" in hint.get("quirks", []):
+            recovery.append("If percentage speed fails, retry with fan.set_preset_mode.")
+        if hint.get("domain") == "media_player":
+            recovery.append("If power state does not change, verify media_player support and try turn_on/turn_off service directly.")
+        if "group_diagnostics" in hint.get("quirks", []):
+            recovery.append("Group mobile diagnostic entities into one personal device profile.")
+    return sorted(set(recovery))

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.28
+
+- Added a device adapter map at `/knowledge/device-adapters` for fan presets, media players, lights, locks, and personal devices.
+- Added recovery guidance to repair suggestions when post-action verification does not match expected state.
+- Added a Memory Center UI for drafting, approving, and ignoring learned house/user/device preferences.
+- Added a Dashboard Builder UI for generating and installing Lovelace YAML from approved HomeAI configuration.
+- Added a Voice Sources UI plus `/knowledge/voice-sources` so room-aware microphone/panel mappings are visible.
+- Expanded Device Profiles with adapter and recovery hints.
+- Added ingress/API regression checks for the new Jarvis management pages and endpoints.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.27
 
 - Added voice source mappings so commands can infer room context from a panel, satellite, or microphone source.

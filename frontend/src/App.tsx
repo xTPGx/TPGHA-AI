@@ -14,12 +14,18 @@ import Chat from "./pages/Chat";
 import Suggestions from "./pages/Suggestions";
 import Brain from "./pages/Brain";
 import DeviceProfiles from "./pages/DeviceProfiles";
+import MemoryCenter from "./pages/MemoryCenter";
+import DashboardBuilder from "./pages/DashboardBuilder";
+import VoiceSources from "./pages/VoiceSources";
 
 const nav = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/chat", label: "Chat" },
   { to: "/jarvis", label: "Jarvis Brain" },
   { to: "/profiles", label: "Device Profiles" },
+  { to: "/memory-center", label: "Memory" },
+  { to: "/dashboard-builder", label: "Dashboard Builder" },
+  { to: "/voice-sources", label: "Voice Sources" },
   { to: "/suggestions", label: "Suggestions" },
   { to: "/ha", label: "HA Integration" },
   { to: "/discovery", label: "Discovery" },
@@ -70,6 +76,9 @@ export default function App() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/jarvis" element={<Brain />} />
           <Route path="/profiles" element={<DeviceProfiles />} />
+          <Route path="/memory-center" element={<MemoryCenter />} />
+          <Route path="/dashboard-builder" element={<DashboardBuilder />} />
+          <Route path="/voice-sources" element={<VoiceSources />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/ha" element={<HAStatus />} />
           <Route path="/discovery" element={<Discovery />} />
