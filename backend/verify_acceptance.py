@@ -10,7 +10,7 @@ import os
 import sys
 
 os.environ.setdefault("CONFIG_DIR", os.path.join(os.path.dirname(__file__), "..", "config"))
-os.environ.setdefault("DATABASE_URL", "sqlite:///./verify_tmp.db")
+os.environ["DATABASE_URL"] = "sqlite:///./verify_tmp.db"
 # Ensure no OpenAI usage.
 os.environ.pop("OPENAI_API_KEY", None)
 
@@ -49,7 +49,8 @@ async def main():
     rest.HomeAssistantREST.call_service = rec_call_service
 
     async def fake_get_entity(self, entity_id):
-        return {"entity_id": entity_id, "state": "idle", "attributes": {}}
+        attrs = {"supported_features": 1} if entity_id.startswith("fan.") else {}
+        return {"entity_id": entity_id, "state": "idle", "attributes": attrs}
     rest.HomeAssistantREST.get_entity = fake_get_entity
 
     def called(domain, service, entity_id):

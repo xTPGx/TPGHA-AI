@@ -7,11 +7,20 @@ recorded, states are injected, no OpenAI.
 """
 import asyncio
 import os
+import shutil
 import sys
+import tempfile
 import time
 
-os.environ.setdefault("CONFIG_DIR", os.path.join(os.path.dirname(__file__), "..", "config"))
-os.environ.setdefault("DATABASE_URL", "sqlite:///./verify_ext_tmp.db")
+_SRC_CONFIG = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config"))
+_TMP_CONFIG = tempfile.mkdtemp(prefix="tpg_ext_cfg_")
+shutil.copytree(_SRC_CONFIG, _TMP_CONFIG, dirs_exist_ok=True)
+for _overlay in ("discovered.yaml", "ignored.yaml"):
+    with open(os.path.join(_TMP_CONFIG, _overlay), "w", encoding="utf-8") as _fh:
+        _fh.write("{}\n")
+
+os.environ["CONFIG_DIR"] = _TMP_CONFIG
+os.environ["DATABASE_URL"] = "sqlite:///./verify_ext_tmp.db"
 os.environ.pop("OPENAI_API_KEY", None)
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -63,9 +72,10 @@ async def main():
     rest.HomeAssistantREST.call_service = rec_call_service
 
     async def fake_get_entity(self, entity_id):
+        attrs = {"supported_features": 1} if entity_id.startswith("fan.") else {}
         return {"entity_id": entity_id,
                 "state": FAKE_STATES.get(entity_id, "idle"),
-                "attributes": {}}
+                "attributes": attrs}
     rest.HomeAssistantREST.get_entity = fake_get_entity
 
     # Inject live states for discovery + resolver availability.
