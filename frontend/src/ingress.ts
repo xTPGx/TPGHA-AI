@@ -17,6 +17,9 @@ const APP_ROUTES = new Set([
 
 export function ingressBasePath(): string {
   const parts = window.location.pathname.split("/").filter(Boolean);
+  if (parts[0] === "api" && parts[1] === "hassio_ingress" && parts[2]) {
+    return `/${parts.slice(0, 3).join("/")}`;
+  }
   const first = parts[0] || "";
   if (!first || APP_ROUTES.has(first)) {
     return "";

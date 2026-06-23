@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15
+
+- Added support for Home Assistant's `/api/hassio_ingress/<token>` URL shape.
+- Kept API calls scoped to the add-on while running inside HA ingress.
+- Added regression checks for HA ingress wrapper API and asset paths.
+
 ## 0.1.14
 
 - Added frontend API base fallback for HA Supervisor ingress variations.

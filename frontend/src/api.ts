@@ -12,12 +12,9 @@ const BASES: string[] = env.VITE_API_BASE
   ? [env.VITE_API_BASE]
   : env.DEV
     ? ["/api"]
-    : [
-        ...(ingressBase ? [`${ingressBase}/api`] : []),
-        "/api",
-        ingressBase,
-        "",
-      ];
+    : ingressBase
+      ? [`${ingressBase}/api`, ingressBase]
+      : ["/api", ""];
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   let lastError: Error | null = null;

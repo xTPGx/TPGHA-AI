@@ -50,7 +50,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.14"
+APP_VERSION = "0.1.15"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -119,7 +119,12 @@ async def api_prefix_compatibility(request: Request, call_next):
     """Accept /api and HA ingress /<addon_slug>/api calls."""
     path = request.scope.get("path", "")
     parts = path.lstrip("/").split("/", 2)
-    if len(parts) >= 2 and parts[1] == "api":
+    if len(parts) >= 3 and parts[0] == "api" and parts[1] == "hassio_ingress":
+        # HA ingress path: /api/hassio_ingress/<token>/api/health -> /api/health.
+        token_rest = parts[2].split("/", 1)
+        path = "/" + (token_rest[1] if len(token_rest) == 2 else "")
+        request.scope["path"] = path
+    elif len(parts) >= 2 and parts[1] == "api":
         # HA ingress path: /3e5a55d6_tpg_homeai/api/health -> /api/health.
         path = "/" + "/".join(parts[1:])
         request.scope["path"] = path
@@ -662,6 +667,16 @@ def _strip_ingress_prefix(full_path: str) -> str:
     /assets mount, so strip the unknown first segment for static assets.
     API calls use /<slug>/api/... and are normalized by middleware.
     """
+    hassio_prefix = "api/hassio_ingress/"
+    if full_path.startswith(hassio_prefix):
+        remainder = full_path[len(hassio_prefix):]
+        token_rest = remainder.split("/", 1)
+        if len(token_rest) == 2:
+            rest = token_rest[1]
+            if rest.split("/", 1)[0].lower() == "assets":
+                return rest
+        return full_path
+
     parts = full_path.split("/", 1)
     if len(parts) != 2:
         return full_path
