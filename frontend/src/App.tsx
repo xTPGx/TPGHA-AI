@@ -13,11 +13,13 @@ import CapabilityMap from "./pages/CapabilityMap";
 import Chat from "./pages/Chat";
 import Suggestions from "./pages/Suggestions";
 import Brain from "./pages/Brain";
+import DeviceProfiles from "./pages/DeviceProfiles";
 
 const nav = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/chat", label: "Chat" },
   { to: "/jarvis", label: "Jarvis Brain" },
+  { to: "/profiles", label: "Device Profiles" },
   { to: "/suggestions", label: "Suggestions" },
   { to: "/ha", label: "HA Integration" },
   { to: "/discovery", label: "Discovery" },
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/jarvis" element={<Brain />} />
+          <Route path="/profiles" element={<DeviceProfiles />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/ha" element={<HAStatus />} />
           <Route path="/discovery" element={<Discovery />} />

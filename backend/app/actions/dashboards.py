@@ -129,9 +129,63 @@ def _camera_cards(config: AppConfig) -> list[dict[str, Any]]:
     ]
 
 
+def _device_overview_cards(config: AppConfig, style: str) -> list[dict[str, Any]]:
+    card = _mushroom_card if style == "mushroom" else _entity_card
+    groups: list[tuple[str, str, list[tuple[str, str]]]] = [
+        ("Lighting and Switches", "mdi:lightbulb-group", [
+            (d.entity_id, d.name) for d in config.devices.device_aliases
+            if (d.domain or d.entity_id.split(".", 1)[0]) in {"light", "switch", "fan"}
+        ]),
+        ("Personal Devices", "mdi:cellphone-link", [
+            (d.entity_id, d.name) for d in config.devices.personal_devices
+        ]),
+        ("Displays", "mdi:television", [
+            (d.entity_id, d.name) for d in config.devices.displays if d.entity_id
+        ]),
+        ("Speakers", "mdi:speaker", [
+            (d.entity_id, d.name) for d in config.devices.speakers
+        ]),
+        ("Climate", "mdi:thermostat", [
+            (d.entity_id, d.name) for d in config.devices.climate
+        ]),
+    ]
+    cards: list[dict[str, Any]] = []
+    for title, icon, entities in groups:
+        unique = list(dict.fromkeys((eid, name) for eid, name in entities if eid))
+        if not unique:
+            continue
+        cards.append({
+            "type": "grid",
+            "title": title,
+            "columns": 2,
+            "square": False,
+            "cards": [
+                {"type": "heading", "heading": title, "icon": icon},
+                *[card(entity_id, name) for entity_id, name in unique],
+            ] if style == "mushroom" else [card(entity_id, name) for entity_id, name in unique],
+        })
+    return cards
+
+
+def _voice_source_cards(config: AppConfig) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
+    for source in config.devices.voice_sources:
+        cards.append({
+            "type": "markdown",
+            "content": (
+                f"### {source.name}\n"
+                f"- Room: `{source.room}`\n"
+                f"- Source device: `{source.source_device_id or 'not set'}`\n"
+                f"- Source entity: `{source.source_entity_id or 'not set'}`"
+            ),
+        })
+    return cards
+
+
 def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
                           style: str = "native", room: str | None = None,
-                          include_browser_mod: bool = True) -> dict[str, Any]:
+                          include_browser_mod: bool = True,
+                          include_unavailable: bool = False) -> dict[str, Any]:
     """Build a Lovelace dashboard draft from approved HomeAI config.
 
     This intentionally returns a draft rather than writing HA storage directly.
@@ -173,6 +227,16 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
             "cards": security,
         })
 
+    device_cards = _device_overview_cards(config, style)
+    voice_cards = _voice_source_cards(config)
+    if device_cards or voice_cards:
+        views.append({
+            "title": "Devices",
+            "path": "tpg-devices",
+            "icon": "mdi:devices",
+            "cards": device_cards + voice_cards,
+        })
+
     media_entities = [s.entity_id for s in config.devices.speakers]
     if media_entities:
         views.append({
@@ -198,6 +262,8 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
             "example_data": {"path": "/lovelace/tpg-home"},
         }
         notes.append("Browser Mod can navigate displays to the dashboard after it exists.")
+    if include_unavailable:
+        notes.append("Unavailable devices are included when Home Assistant exposes them in approved config.")
 
     yaml_text = yaml.safe_dump(dashboard, sort_keys=False, allow_unicode=True)
     return {

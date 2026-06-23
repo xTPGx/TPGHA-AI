@@ -132,6 +132,13 @@ function serviceSummary(command?: CommandResponse) {
     .join(", ");
 }
 
+function outcomeLabel(command?: CommandResponse) {
+  const outcome = command?.data?.outcome;
+  if (!outcome) return "";
+  if (!outcome.checked) return `Not checked: ${outcome.reason || "no verification needed"}`;
+  return outcome.verified ? "Verified in Home Assistant" : "Needs review: state did not match";
+}
+
 function targetSummary(command?: CommandResponse) {
   const r = command?.resolved || {};
   return (
@@ -408,6 +415,23 @@ export default function Chat() {
                   {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
                   {serviceSummary(m.command) && <div><span className="text-slate-500">Would call:</span> {serviceSummary(m.command)}</div>}
                   {m.command.data?.policy?.decision && <div><span className="text-slate-500">Policy:</span> {m.command.data.policy.decision}</div>}
+                  {outcomeLabel(m.command) && (
+                    <div className={m.command.data?.outcome?.verified === false ? "text-amber-200" : "text-emerald-200"}>
+                      <span className="text-slate-500">Outcome:</span> {outcomeLabel(m.command)}
+                    </div>
+                  )}
+                  {m.command.data?.outcome?.expected_state && (
+                    <div><span className="text-slate-500">Expected:</span> {m.command.data.outcome.expected_state}</div>
+                  )}
+                  {Array.isArray(m.command.data?.outcome?.readings) && m.command.data.outcome.readings.length > 0 && (
+                    <div className="mt-1 space-y-1">
+                      {m.command.data.outcome.readings.map((reading: any) => (
+                        <div key={reading.entity_id} className="rounded bg-slate-900/70 px-2 py-1">
+                          {reading.entity_id}: {reading.state || reading.error || "unknown"}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {m.command.data?.security?.pin_required && <div className="text-amber-200">Security PIN required</div>}
                   {m.command.requires_confirmation && <div className="text-amber-200">Confirmation required</div>}
                 </div>

@@ -201,6 +201,22 @@ class PersonalDevice(_CfgBase):
     aliases: list[str] = Field(default_factory=list)
 
 
+class VoiceSource(_CfgBase):
+    """A microphone/panel/satellite that can provide room context.
+
+    Assist and browser panels can send source_device_id or source_entity_id.
+    This lets "turn on the light" become "turn on the office light" when the
+    command came from the office panel, without training automations first.
+    """
+
+    id: str
+    name: str
+    room: str
+    source_device_id: Optional[str] = None
+    source_entity_id: Optional[str] = None
+    aliases: list[str] = Field(default_factory=list)
+
+
 class DevicesConfig(_CfgBase):
     music_accounts: dict[str, MusicAccount] = Field(default_factory=dict)
     rooms: list[Room] = Field(default_factory=list)
@@ -212,6 +228,7 @@ class DevicesConfig(_CfgBase):
     device_aliases: list[DeviceAlias] = Field(default_factory=list)
     security_sensors: list[SecuritySensor] = Field(default_factory=list)
     personal_devices: list[PersonalDevice] = Field(default_factory=list)
+    voice_sources: list[VoiceSource] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
     # Entities the user explicitly ignored via discovery (subset of avoid with
     # reasons), kept for UI display.

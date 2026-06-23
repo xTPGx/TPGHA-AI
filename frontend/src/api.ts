@@ -146,7 +146,15 @@ export const api = {
     }),
   drafts: () => http<any>("/automation/drafts"),
   suggestions: () => http<any>("/suggestions"),
+  proactiveSuggestions: (status?: string) =>
+    http<any>(`/suggestions/proactive${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  approveProactiveSuggestion: (id: number) =>
+    http<any>(`/suggestions/proactive/${id}/approve`, { method: "POST" }),
+  ignoreProactiveSuggestion: (id: number) =>
+    http<any>(`/suggestions/proactive/${id}/ignore`, { method: "POST" }),
   brainLayers: () => http<any>("/brain/layers"),
+  deviceProfiles: () => http<any>("/knowledge/device-profiles"),
+  aiProviders: () => http<any>("/ai/providers"),
   approveDraft: (id: number) =>
     http<any>(`/automation/drafts/${id}/approve`, { method: "POST" }),
   ignoreDraft: (id: number) =>

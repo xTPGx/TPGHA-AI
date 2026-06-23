@@ -328,6 +328,9 @@ def main() -> int:
     r = client.get(f"{ingress}/suggestions")
     check("GET ingress suggestions route is HTML", is_html(r),
           r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/profiles")
+    check("GET ingress profiles route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/ha")
     check("GET ingress HA route is HTML", is_html(r),
           r.headers.get("content-type", ""))

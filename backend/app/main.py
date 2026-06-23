@@ -57,7 +57,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.26"
+APP_VERSION = "0.1.27"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -624,6 +624,7 @@ async def dashboard_draft(req: DashboardDraftRequest):
         style=req.style,
         room=req.room,
         include_browser_mod=req.include_browser_mod,
+        include_unavailable=req.include_unavailable,
     )
 
 
@@ -633,6 +634,7 @@ async def dashboard_draft_get(
     style: str = "native",
     room: str | None = None,
     include_browser_mod: bool = True,
+    include_unavailable: bool = False,
 ):
     cfg = get_config()
     return build_dashboard_draft(
@@ -641,6 +643,7 @@ async def dashboard_draft_get(
         style=style,
         room=room,
         include_browser_mod=include_browser_mod,
+        include_unavailable=include_unavailable,
     )
 
 
@@ -653,6 +656,7 @@ async def dashboard_install(req: DashboardDraftRequest):
         style=req.style,
         room=req.room,
         include_browser_mod=req.include_browser_mod,
+        include_unavailable=req.include_unavailable,
     )
     install = install_dashboard_yaml(draft["yaml"], req.title)
     return {"draft": draft, "install": install}

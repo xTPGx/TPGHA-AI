@@ -153,6 +153,12 @@ dashboard_draft:
       default: true
       selector:
         boolean:
+    include_unavailable:
+      name: Include unavailable devices
+      required: false
+      default: false
+      selector:
+        boolean:
 
 dashboard_install:
   name: Install dashboard YAML
@@ -184,6 +190,12 @@ dashboard_install:
       name: Include Browser Mod helper
       required: false
       default: true
+      selector:
+        boolean:
+    include_unavailable:
+      name: Include unavailable devices
+      required: false
+      default: false
       selector:
         boolean:
 

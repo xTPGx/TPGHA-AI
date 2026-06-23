@@ -333,7 +333,7 @@ def _select_tool(
 def _apply_room_context(ctx: ActionContext, tool_call: Optional[ToolCall]) -> Optional[ToolCall]:
     if tool_call is None or not tool_call.name:
         return tool_call
-    room = str((getattr(ctx, "command_context", {}) or {}).get("room") or "").strip()
+    room = _room_from_command_source(ctx)
     if not room:
         return tool_call
     args = dict(tool_call.arguments or {})
@@ -353,6 +353,28 @@ def _apply_room_context(ctx: ActionContext, tool_call: Optional[ToolCall]) -> Op
         return ToolCall(tool_call.name, args, source=f"{tool_call.source}:room_context",
                         assistant_text=tool_call.assistant_text)
     return tool_call
+
+
+def _room_from_command_source(ctx: ActionContext) -> str:
+    command_context = getattr(ctx, "command_context", {}) or {}
+    room = str(command_context.get("room") or "").strip()
+    if room:
+        return room
+
+    source_device_id = str(command_context.get("source_device_id") or "").strip().lower()
+    source_entity_id = str(command_context.get("source_entity_id") or "").strip().lower()
+    if not source_device_id and not source_entity_id:
+        return ""
+
+    for source in getattr(ctx.config.devices, "voice_sources", []) or []:
+        if source_device_id and source.source_device_id and source.source_device_id.lower() == source_device_id:
+            return source.room
+        if source_entity_id and source.source_entity_id and source.source_entity_id.lower() == source_entity_id:
+            return source.room
+        aliases = {a.lower() for a in (source.aliases or [])}
+        if source_device_id in aliases or source_entity_id in aliases:
+            return source.room
+    return ""
 
 
 def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult) -> None:

@@ -3,6 +3,7 @@ const APP_ROUTES = new Set([
   "chat",
   "suggestions",
   "jarvis",
+  "profiles",
   "ha",
   "discovery",
   "tester",

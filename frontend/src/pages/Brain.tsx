@@ -11,11 +11,17 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function Brain() {
   const [brain, setBrain] = useState<any>(null);
+  const [providers, setProviders] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      setBrain(await api.brainLayers());
+      const [brainResult, providerResult] = await Promise.all([
+        api.brainLayers(),
+        api.aiProviders(),
+      ]);
+      setBrain(brainResult);
+      setProviders(providerResult);
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -46,6 +52,32 @@ export default function Brain() {
         <Stat label="Controllable" value={brain?.summary?.controllable_entities ?? "—"} />
         <Stat label="Pending" value={brain?.summary?.pending_approvals ?? "—"} />
       </div>
+
+      {providers && (
+        <div className="card mb-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-slate-100">AI Router</div>
+              <div className="text-sm text-slate-400">Cloud, local, and deterministic fallback readiness</div>
+            </div>
+            <span className="badge bg-cyan-500/10 text-cyan-200">
+              active: {providers.active || providers.active_provider || providers.mode || "fallback"}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {Object.entries(providers.providers || {}).map(([id, provider]: [string, any]) => (
+              <div key={id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-semibold text-slate-100">{id}</div>
+                  <span className={`h-2.5 w-2.5 rounded-full ${provider.available ? "bg-emerald-400" : provider.configured ? "bg-amber-400" : "bg-slate-600"}`} />
+                </div>
+                <div className="mt-1 text-xs text-slate-400">{provider.role || "provider"}</div>
+                <div className="mt-1 font-mono text-xs text-slate-500">{provider.model || provider.base_url || "not configured"}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {(brain?.layers || []).map((layer: any) => (

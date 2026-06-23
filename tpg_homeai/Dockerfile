@@ -52,7 +52,7 @@ RUN chmod a+x /run.sh
 LABEL \
   io.hass.name="TPG HomeAI Orchestrator" \
   io.hass.type="app" \
-  io.hass.version="0.1.26" \
+  io.hass.version="0.1.27" \
   io.hass.arch="amd64|aarch64"
 
 EXPOSE 8088

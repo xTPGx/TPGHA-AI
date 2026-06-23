@@ -193,23 +193,27 @@ class TPGHomeAIClient:
     async def async_dashboard_draft(self, title: str = "TPG Home",
                                     style: str = "native",
                                     room: str | None = None,
-                                    include_browser_mod: bool = True) -> dict[str, Any]:
+                                    include_browser_mod: bool = True,
+                                    include_unavailable: bool = False) -> dict[str, Any]:
         return await self._request("POST", "/dashboards/draft", json={
             "title": title,
             "style": style,
             "room": room,
             "include_browser_mod": include_browser_mod,
+            "include_unavailable": include_unavailable,
         })
 
     async def async_dashboard_install(self, title: str = "TPG Home",
                                       style: str = "native",
                                       room: str | None = None,
-                                      include_browser_mod: bool = True) -> dict[str, Any]:
+                                      include_browser_mod: bool = True,
+                                      include_unavailable: bool = False) -> dict[str, Any]:
         return await self._request("POST", "/dashboards/install", json={
             "title": title,
             "style": style,
             "room": room,
             "include_browser_mod": include_browser_mod,
+            "include_unavailable": include_unavailable,
         })
 
     async def async_monitor_scan(self) -> dict[str, Any]:
@@ -370,6 +374,7 @@ DASHBOARD_DRAFT_SCHEMA = vol.Schema({
     vol.Optional("style", default="native"): vol.In(["native", "mushroom"]),
     vol.Optional("room"): cv.string,
     vol.Optional("include_browser_mod", default=True): cv.boolean,
+    vol.Optional("include_unavailable", default=False): cv.boolean,
 })
 OPEN_PANEL_SCHEMA = vol.Schema({
     vol.Optional("path", default="/tpg-homeai"): cv.string,
@@ -485,6 +490,7 @@ def _register_services(hass: HomeAssistant) -> None:
             style=call.data.get("style", "native"),
             room=call.data.get("room"),
             include_browser_mod=call.data.get("include_browser_mod", True),
+            include_unavailable=call.data.get("include_unavailable", False),
         )
 
     async def _dashboard_install(call: ServiceCall) -> ServiceResponse:
@@ -493,6 +499,7 @@ def _register_services(hass: HomeAssistant) -> None:
             style=call.data.get("style", "native"),
             room=call.data.get("room"),
             include_browser_mod=call.data.get("include_browser_mod", True),
+            include_unavailable=call.data.get("include_unavailable", False),
         )
 
     async def _open_panel(call: ServiceCall) -> ServiceResponse:

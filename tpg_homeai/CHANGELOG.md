@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.27
+
+- Added voice source mappings so commands can infer room context from a panel, satellite, or microphone source.
+- Added outcome verification details to Chat so executed actions show post-action state checks.
+- Added a Device Profiles UI for capabilities, quirks, entity grouping, and action history.
+- Added proactive and repair suggestions to the Suggestions approval inbox.
+- Added AI provider routing visibility to the Jarvis Brain page.
+- Expanded dashboard drafts with Devices and voice-source views plus HA service support.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.26
 
 - Added router-level outcome verification so executed commands record post-action HA state checks.
