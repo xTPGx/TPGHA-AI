@@ -22,7 +22,8 @@ DOMAIN_CAPABILITIES: dict[str, list[str]] = {
     "lock": ["lock", "unlock_sensitive", "get_status"],
     "cover": ["open_sensitive_if_garage", "close", "stop", "get_status"],
     "camera": ["view", "snapshot", "stream", "get_status"],
-    "media_player": ["play", "pause", "stop", "volume", "play_media", "select_source"],
+    "media_player": ["turn_on", "turn_off", "play", "pause", "stop", "volume",
+                     "play_media", "select_source"],
     "alarm_control_panel": ["arm_home_sensitive", "arm_away_sensitive",
                             "arm_night_sensitive", "disarm_sensitive", "get_status"],
     "binary_sensor": ["get_status"],
@@ -231,6 +232,10 @@ def plan_for(
 
     # ---- media_player ----
     if domain == "media_player":
+        if a == "turn_on":
+            return ServicePlan(True, "media_player", "turn_on", eid, risk="low")
+        if a == "turn_off":
+            return ServicePlan(True, "media_player", "turn_off", eid, risk="low")
         if a == "play":
             return ServicePlan(True, "media_player", "media_play", eid, risk="low")
         if a == "pause":

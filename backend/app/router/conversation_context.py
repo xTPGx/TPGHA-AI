@@ -19,6 +19,13 @@ _OFF_RE = re.compile(r"\b(turn|switch|power|shut)\s+off\b|\boff\b|\bdisable\b", 
 _PCT_RE = re.compile(r"\b(\d{1,3})\s*%?\b")
 _FAN_WORDS = re.compile(r"\bfan\b", re.I)
 _LIGHT_WORDS = re.compile(r"\blight(s)?\b|\blamp\b", re.I)
+_SPEED_WORDS = re.compile(r"\b(speed|level|power|faster|slower|up|down|higher|lower)\b", re.I)
+_FAN_LEVEL_WORDS = {
+    "minimum": 10, "min": 10, "lowest": 10, "low": 25,
+    "medium": 50, "mid": 50, "normal": 50,
+    "high": 75, "max": 100, "maximum": 100, "full": 100,
+    "turbo": 100, "boost": 100,
+}
 
 
 def context_key(assistant: str, user: Optional[str], conversation_id: Optional[str]) -> str:
@@ -71,13 +78,20 @@ def context_tool_call(message: str, ctx: Optional[ConversationState]) -> Optiona
     text = message.lower().strip()
     has_pronoun = bool(_PRONOUN_RE.search(text))
     correction = bool(_CORRECTION_RE.search(text))
-    if not has_pronoun and not correction:
+    fan_speed_followup = (
+        not has_pronoun
+        and not correction
+        and ctx.last_domain == "fan"
+        and bool(_FAN_WORDS.search(text))
+        and bool(_SPEED_WORDS.search(text))
+    )
+    if not has_pronoun and not correction and not fan_speed_followup:
         return None
 
     target = _corrected_target(text, ctx) if correction else ctx.last_target
     domain = _domain_hint(text, ctx)
     action = _action_hint(text) or (ctx.last_action if correction else "")
-    percentage = _percentage(text)
+    percentage = _fan_percentage(text) if domain == "fan" else _percentage(text)
 
     if percentage is not None:
         if domain == "fan":
@@ -206,3 +220,22 @@ def _percentage(text: str) -> Optional[int]:
         return None
     value = int(match.group(1))
     return max(0, min(100, value))
+
+
+def _fan_percentage(text: str) -> Optional[int]:
+    match = _PCT_RE.search(text)
+    if match:
+        value = int(match.group(1))
+        if re.search(r"\b(speed|level|power)\s+(to\s+)?[1-5]\b", text):
+            value = int(round(value / 5 * 100))
+        return max(0, min(100, value))
+    for word, value in _FAN_LEVEL_WORDS.items():
+        if re.search(rf"\b{re.escape(word)}\b", text):
+            return value
+    if re.search(r"\b(down|lower|slower|decrease|reduce)\b", text):
+        return 25
+    if re.search(r"\b(up|higher|faster|increase|boost|max|level 5|speed 5)\b", text):
+        return 100
+    if re.search(r"\b(speed|level|power)\b", text):
+        return 50
+    return None

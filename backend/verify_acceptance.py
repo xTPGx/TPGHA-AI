@@ -166,6 +166,14 @@ async def main():
     check("Q9 everywhere speaker", r.resolved.get("speaker") == "media_player.everywhere",
           r.resolved.get("speaker"))
 
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "turn on office tv")
+    check("Q9b office TV power on executes", r.success is True and r.executed is True,
+          f"{r.intent}/{r.message}")
+    check("Q9b calls media_player.turn_on",
+          called("media_player", "turn_on", "media_player.office_office_monitor_1_2"),
+          str(SERVICE_CALLS))
+
     # 10. Scheduling -> automation draft
     r = await intent_router.handle_command("atlas", "shawn", "At 7 AM turn on the kitchen lights.")
     check("Q10 automation draft", r.intent == "create_simple_automation", r.intent)
@@ -284,6 +292,15 @@ async def main():
     check("F1 calls fan.turn_off fan.office", called("fan", "turn_off", "fan.office"))
     check("F1 message", r.message == "Turned off Office Fan.", r.message)
 
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "turn up fan speed")
+    check("F1b relative speed follow-up -> set_fan_percentage",
+          r.intent == "set_fan_percentage", r.intent)
+    check("F1b relative speed uses office fan",
+          r.resolved.get("entity_id") == "fan.office", r.resolved)
+    check("F1b relative speed calls set_percentage",
+          called("fan", "set_percentage", "fan.office"), str(SERVICE_CALLS))
+
     r = await intent_router.handle_command("atlas", "shawn", "turn on living room fan")
     check("F2 turn on living room fan -> turn_on_fan", r.intent == "turn_on_fan", r.intent)
     check("F2 resolves fan.living_room", r.resolved.get("entity_id") == "fan.living_room",
@@ -319,6 +336,20 @@ async def main():
     r = await intent_router.handle_command("atlas", "shawn", "set office fan level to 3")
     check("F6 fan level 3 -> 60%", r.resolved.get("percentage") == 60,
           r.resolved.get("percentage"))
+
+    async def fake_get_entity_tuya(self, entity_id):
+        return {
+            "entity_id": entity_id,
+            "state": "on",
+            "attributes": {"supported_features": 0, "preset_modes": ["low", "medium", "high"]},
+        }
+    rest.HomeAssistantREST.get_entity = fake_get_entity_tuya
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command("atlas", "shawn", "set office fan speed to 10")
+    check("F7 Tuya preset fallback succeeds", r.success is True and r.executed is True,
+          r.message)
+    check("F7 Tuya preset fallback calls set_preset_mode",
+          called("fan", "set_preset_mode", "fan.office"), str(SERVICE_CALLS))
 
     print("\n--- SUMMARY ---")
     failed = [r for r in results if r[0] == FAIL]

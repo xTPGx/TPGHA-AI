@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.22
+
+- Added vetted media_player turn_on/turn_off service planning for TV/display power commands.
+- Added deterministic generic power routing for commands like "turn on office TV".
+- Added Tuya/Smart Life fan fallback from percentage requests to preset modes.
+- Improved fan-speed follow-up context for requests like "turn up fan speed".
+- Added regression checks for Office TV power and Tuya-style fan speed control.
+
 ## 0.1.21
 
 - Rebuilt Chat around preview-first action execution.

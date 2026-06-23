@@ -13,6 +13,10 @@ from . import ActionContext
 
 FAN_SET_SPEED = 1
 
+_LOW_PRESETS = ("low", "1", "speed 1", "level 1", "silent", "quiet", "sleep")
+_MID_PRESETS = ("medium", "med", "2", "3", "speed 2", "speed 3", "level 2", "level 3")
+_HIGH_PRESETS = ("high", "4", "5", "speed 4", "speed 5", "level 4", "level 5", "turbo", "boost", "max", "maximum")
+
 
 def _resolve(ctx: ActionContext, params: dict[str, Any], intent: str):
     target = (params.get("target") or "").strip()
@@ -80,6 +84,15 @@ async def set_fan_percentage(ctx: ActionContext, params: dict[str, Any]) -> Acti
         if not supports_percentage:
             resolved["supported_features"] = supported_features
             resolved["preset_modes"] = attrs.get("preset_modes") or []
+            preset = _preset_for_percentage(percentage, resolved["preset_modes"])
+            if preset:
+                await ctx.ha.call_service(
+                    "fan", "set_preset_mode",
+                    {"entity_id": res.entity_id, "preset_mode": preset},
+                )
+                return ActionResult(success=True, intent=intent, executed=True,
+                                    message=f"Set {res.name} to {preset}.",
+                                    resolved={**resolved, "preset_mode": preset})
             if percentage <= 0:
                 await ctx.ha.call_service("fan", "turn_off", {"entity_id": res.entity_id})
                 return ActionResult(success=True, intent=intent, executed=True,
@@ -105,3 +118,18 @@ async def set_fan_percentage(ctx: ActionContext, params: dict[str, Any]) -> Acti
     except HAError as exc:
         return ActionResult.fail(intent, f"Couldn't set {res.name}: {exc.message}",
                                  resolved=resolved)
+
+
+def _preset_for_percentage(percentage: int, preset_modes: list[str]) -> str:
+    if not preset_modes:
+        return ""
+    normalized = [(str(p), str(p).strip().lower()) for p in preset_modes if str(p).strip()]
+    if not normalized:
+        return ""
+    buckets = [_LOW_PRESETS, _MID_PRESETS, _HIGH_PRESETS]
+    bucket = buckets[0] if percentage <= 33 else (buckets[1] if percentage <= 66 else buckets[2])
+    for original, lower in normalized:
+        if any(word == lower or word in lower for word in bucket):
+            return original
+    index = round((max(1, min(100, percentage)) - 1) / 99 * (len(normalized) - 1))
+    return normalized[index][0]

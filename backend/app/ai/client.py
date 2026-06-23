@@ -295,6 +295,12 @@ def pre_route(message: str) -> Optional["ToolCall"]:
         room = _extract_after(text, ["in the", "in", "on the", "on"]) or "everywhere"
         return ToolCall("play_music", {"room": room.strip(), "user": None}, source=src)
 
+    # Generic device power control for TVs, displays, switches, media players,
+    # and other mapped devices that do not have a more specific tool.
+    generic_power = _generic_power_tool_call(message, source=src)
+    if generic_power is not None:
+        return generic_power
+
     return None
 
 
@@ -324,6 +330,25 @@ def _looks_like_explain_request(text: str) -> bool:
     return any(p in text for p in patterns)
 
 
+def _generic_power_tool_call(message: str, source: str) -> Optional["ToolCall"]:
+    text = message.lower().strip()
+    on = re.search(r"\b(turn|switch|power)\s+on\b", text)
+    off = re.search(r"\b(turn|switch|power|shut)\s+off\b", text)
+    if bool(on) == bool(off):
+        return None
+    target = re.sub(r"\b(turn|switch|power|shut)\s+(on|off)\b", " ", text)
+    target = re.sub(r"\bthe\b", " ", target)
+    target = re.sub(r"[?.!,]", " ", target)
+    target = " ".join(target.split()).strip()
+    if not target or target in {"light", "lights", "fan", "fans"}:
+        return None
+    return ToolCall(
+        "control_device",
+        {"target": target, "action": "turn_on" if on else "turn_off"},
+        source=source,
+    )
+
+
 def _light_target(message: str) -> str:
     t = message.lower()
     t = re.sub(r"\b(turn|switch)\s+(on|off)\b", " ", t)
@@ -338,7 +363,15 @@ def _fan_tool_call(message: str, source: str) -> Optional["ToolCall"]:
     if "fan" not in text:
         return None
     percentage = _fan_level_value(text)
+    if percentage is None and re.search(r"\b(speed|level|power|faster|slower|up|down|higher|lower)\b", text):
+        percentage = _relative_fan_percentage(text)
     if any(k in text for k in ("set", "speed", "level", "power")) and percentage is not None:
+        return ToolCall("set_fan_percentage",
+                        {"target": _fan_target(message), "percentage": percentage},
+                        source=source)
+    if any(k in text for k in ("turn up", "speed up", "increase", "boost", "higher", "faster",
+                               "turn down", "slow down", "decrease", "lower", "slower")) and \
+            percentage is not None:
         return ToolCall("set_fan_percentage",
                         {"target": _fan_target(message), "percentage": percentage},
                         source=source)
@@ -355,6 +388,7 @@ def _fan_target(message: str) -> str:
     """Strip command words, leaving the fan/room phrase (keeps the word 'fan')."""
     t = message.lower()
     t = re.sub(r"\b(turn|switch|shut)\s+(on|off)\b", " ", t)
+    t = re.sub(r"\b(turn\s+up|speed\s+up|turn\s+down|slow\s+down|increase|decrease|boost|higher|lower|faster|slower|reduce)\b", " ", t)
     t = re.sub(r"\bset\b", " ", t)
     t = re.sub(r"\bto\b", " ", t)
     t = re.sub(r"\bthe\b", " ", t)
@@ -378,6 +412,14 @@ def _fan_level_value(text: str) -> Optional[int]:
         if re.search(rf"\b{re.escape(word)}\b", text):
             return value
     return None
+
+
+def _relative_fan_percentage(text: str) -> int:
+    if re.search(r"\b(turn down|slow down|decrease|lower|slower|reduce)\b", text):
+        return 25
+    if re.search(r"\b(turn up|speed up|increase|boost|higher|faster|max)\b", text):
+        return 100
+    return 50
 
 
 def _extract_after(text: str, markers: list[str]) -> Optional[str]:
