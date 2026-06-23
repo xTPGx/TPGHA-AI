@@ -64,6 +64,11 @@ def is_html(resp) -> bool:
     return "text/html" in (resp.headers.get("content-type") or "")
 
 
+def is_js(resp) -> bool:
+    ctype = resp.headers.get("content-type") or ""
+    return "javascript" in ctype or "application/octet-stream" in ctype
+
+
 def main() -> int:
     init_db()
     # Run bootstrap deterministically (instead of the background lifespan task).
@@ -101,6 +106,11 @@ def main() -> int:
     r = client.get("/api/health")
     check("/api/health legacy prefix is JSON", is_json(r) and not is_html(r),
           r.headers.get("content-type", ""))
+
+    ingress = "/3e5a55d6_tpg_homeai"
+    r = client.get(f"{ingress}/api/health")
+    check("ingress /api/health is JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
 
     r = client.post("/api/config/reload", json={})
     check("/api/config/reload legacy prefix works", r.status_code == 200 and is_json(r),
@@ -189,8 +199,16 @@ def main() -> int:
     print("Frontend routes return HTML")
     r = client.get("/")
     check("GET / is HTML", is_html(r), r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}")
+    check("GET ingress root is HTML", is_html(r), r.headers.get("content-type", ""))
     r = client.get("/dashboard")
     check("GET /dashboard is HTML", is_html(r))
+    r = client.get(f"{ingress}/discovery")
+    check("GET ingress frontend route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/assets/app.js")
+    check("GET ingress asset is JS", r.status_code == 200 and is_js(r) and not is_html(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')} body={r.text[:40]}")
     r = client.get("/ha-integration")
     check("GET /ha-integration is HTML", is_html(r))
     r = client.get("/some/unknown/spa/route")

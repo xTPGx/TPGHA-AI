@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13
+
+- Fixed Home Assistant add-on ingress frontend loading.
+- Made built frontend assets relative so they load under Supervisor ingress.
+- Routed frontend API calls through ingress-safe `/api` paths.
+- Added regression checks for ingress root, frontend routes, API calls, and assets.
+
 ## 0.1.12
 
 - Added Home Assistant registry enrichment through the HA WebSocket API.

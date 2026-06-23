@@ -50,7 +50,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.12"
+APP_VERSION = "0.1.13"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -106,8 +106,13 @@ app.add_middleware(
 
 @app.middleware("http")
 async def api_prefix_compatibility(request: Request, call_next):
-    """Accept legacy frontend calls built with VITE_API_BASE=/api."""
+    """Accept /api and HA ingress /<addon_slug>/api calls."""
     path = request.scope.get("path", "")
+    parts = path.lstrip("/").split("/", 2)
+    if len(parts) >= 2 and parts[1] == "api":
+        # HA ingress path: /3e5a55d6_tpg_homeai/api/health -> /api/health.
+        path = "/" + "/".join(parts[1:])
+        request.scope["path"] = path
     if path == "/api":
         request.scope["path"] = "/"
     elif path.startswith("/api/"):
@@ -631,6 +636,25 @@ def _is_api_path(full_path: str) -> bool:
     return head in _API_PREFIXES
 
 
+def _strip_ingress_prefix(full_path: str) -> str:
+    """Normalize HA add-on ingress paths.
+
+    Supervisor ingress mounts the add-on at /<slug>, e.g.
+    /3e5a55d6_tpg_homeai. Static assets then arrive as
+    /3e5a55d6_tpg_homeai/assets/app.js. The backend itself only has an
+    /assets mount, so strip the unknown first segment for static assets.
+    API calls use /<slug>/api/... and are normalized by middleware.
+    """
+    parts = full_path.split("/", 1)
+    if len(parts) != 2:
+        return full_path
+    first, rest = parts[0].lower(), parts[1]
+    rest_head = rest.split("/", 1)[0].lower()
+    if first not in _API_PREFIXES and rest_head == "assets":
+        return rest
+    return full_path
+
+
 # --------------------------------------------------------------- static (SPA)
 # When STATIC_DIR points at a built frontend (e.g. inside the Home Assistant
 # add-on image), serve the React SPA. Registered last so all API routes win.
@@ -644,12 +668,13 @@ if _STATIC_DIR and os.path.isdir(_STATIC_DIR):
 
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
+        normalized_path = _strip_ingress_prefix(full_path)
         # Never let the SPA shadow an API route: unknown API paths get JSON 404.
-        if _is_api_path(full_path):
-            return JSONResponse({"detail": f"Not found: /{full_path}"}, status_code=404)
+        if _is_api_path(normalized_path):
+            return JSONResponse({"detail": f"Not found: /{normalized_path}"}, status_code=404)
         # Serve a real static file if it exists, else index.html for routing.
-        candidate = os.path.join(_STATIC_DIR, full_path)
-        if full_path and os.path.isfile(candidate) and os.path.abspath(
+        candidate = os.path.join(_STATIC_DIR, normalized_path)
+        if normalized_path and os.path.isfile(candidate) and os.path.abspath(
                 candidate).startswith(os.path.abspath(_STATIC_DIR)):
             return FileResponse(candidate)
         return FileResponse(os.path.join(_STATIC_DIR, "index.html"))

@@ -7,7 +7,10 @@ import { ingressBasePath } from "./ingress";
 //   - In a production build (e.g. served by the add-on backend) we use
 //     same-origin relative URLs so /health hits the backend directly.
 const env = (import.meta as any).env ?? {};
-const BASE: string = env.VITE_API_BASE ?? (env.DEV ? "/api" : ingressBasePath());
+const ingressBase = ingressBasePath();
+const BASE: string = env.VITE_API_BASE ?? (
+  env.DEV ? "/api" : (ingressBase ? `${ingressBase}/api` : "")
+);
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
