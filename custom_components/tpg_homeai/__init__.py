@@ -60,6 +60,7 @@ from .const import (
     SERVICE_MAP_ENTITY,
     SERVICE_OPEN_PANEL,
     SERVICE_APPROVE_MEMORY,
+    SERVICE_PREVIEW_COMMAND,
     SERVICE_RELOAD_CONFIG,
     SERVICE_SCAN_DEVICES,
     SERVICE_TEST_COMMAND,
@@ -231,6 +232,13 @@ class TPGHomeAIClient:
     async def async_command(self, text: str, assistant_id: str, user_id: str | None,
                             conversation_id: str | None) -> dict[str, Any]:
         return await self._request("POST", "/command", json={
+            "assistant_id": assistant_id, "user_id": user_id, "text": text,
+            "conversation_id": conversation_id})
+
+    async def async_preview_command(self, text: str, assistant_id: str,
+                                    user_id: str | None,
+                                    conversation_id: str | None) -> dict[str, Any]:
+        return await self._request("POST", "/command/preview", json={
             "assistant_id": assistant_id, "user_id": user_id, "text": text,
             "conversation_id": conversation_id})
 
@@ -523,6 +531,19 @@ def _register_services(hass: HomeAssistant) -> None:
             "success", "intent", "message", "executed", "requires_confirmation",
             "confirmation_token", "resolved")}
 
+    async def _preview_command(call: ServiceCall) -> ServiceResponse:
+        entry = _first_entry(hass)
+        options = entry.options if entry else {}
+        assistant_id = call.data.get("assistant_id") or options.get(
+            CONF_ASSISTANT_ID, DEFAULT_ASSISTANT_ID)
+        user_id = call.data.get("user_id") or options.get(CONF_USER_ID, DEFAULT_USER_ID)
+        result = await _first_client(hass).async_preview_command(
+            text=call.data["text"], assistant_id=assistant_id, user_id=user_id,
+            conversation_id=call.data.get("conversation_id"))
+        return {k: result.get(k) for k in (
+            "success", "intent", "message", "executed", "requires_confirmation",
+            "confirmation_message", "resolved", "data", "tool_call", "error")}
+
     reg = hass.services.async_register
     reg(DOMAIN, SERVICE_RELOAD_CONFIG, _reload_config)
     reg(DOMAIN, SERVICE_SCAN_DEVICES, _scan_devices, supports_response=SupportsResponse.OPTIONAL)
@@ -558,6 +579,8 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_TEST_COMMAND, _test_command, schema=TEST_COMMAND_SCHEMA,
         supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_PREVIEW_COMMAND, _preview_command, schema=TEST_COMMAND_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
 
 
 def _unregister_services(hass: HomeAssistant) -> None:
@@ -570,5 +593,5 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,
                     SERVICE_DRAFT_MEMORY,
                     SERVICE_APPROVE_MEMORY, SERVICE_IGNORE_MEMORY,
-                    SERVICE_TEST_COMMAND):
+                    SERVICE_TEST_COMMAND, SERVICE_PREVIEW_COMMAND):
         hass.services.async_remove(DOMAIN, service)

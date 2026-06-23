@@ -29,6 +29,7 @@ DEFAULT_ENABLE_SIDEBAR_PANEL = True
 # Service names
 SERVICE_RELOAD_CONFIG = "reload_config"
 SERVICE_TEST_COMMAND = "test_command"
+SERVICE_PREVIEW_COMMAND = "preview_command"
 SERVICE_SCAN_DEVICES = "scan_devices"
 SERVICE_APPROVE = "approve_discovered_entity"
 SERVICE_IGNORE = "ignore_discovered_entity"

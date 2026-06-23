@@ -361,3 +361,34 @@ test_command:
       required: false
       selector:
         text:
+
+preview_command:
+  name: Preview command
+  description: >
+    Dry-run a natural-language command and return the selected tool, resolved
+    target, risk/confirmation requirement, and Home Assistant service calls
+    that would run. This does not execute anything.
+  fields:
+    text:
+      name: Text
+      required: true
+      example: "turn off office fan"
+      selector:
+        text:
+    assistant_id:
+      name: Assistant
+      required: false
+      example: atlas
+      selector:
+        text:
+    user_id:
+      name: User
+      required: false
+      example: shawn
+      selector:
+        text:
+    conversation_id:
+      name: Conversation ID
+      required: false
+      selector:
+        text:

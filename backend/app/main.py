@@ -55,7 +55,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.19"
+APP_VERSION = "0.1.20"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -256,6 +256,15 @@ async def command(req: CommandRequest):
     return resp
 
 
+@app.post("/command/preview", response_model=CommandResponse)
+async def command_preview(req: CommandRequest):
+    resp = await intent_router.handle_preview(
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+    )
+    resp.conversation_id = req.conversation_id
+    return resp
+
+
 @app.post("/chat")
 async def chat(req: ChatRequest):
     """Conversational entrypoint.
@@ -279,6 +288,21 @@ async def chat(req: ChatRequest):
     success = True if resp.error == "no_tool_selected" else resp.success
     return {
         "success": success,
+        "mode": mode,
+        "response": resp.message,
+        "command": resp.model_dump(),
+    }
+
+
+@app.post("/chat/preview")
+async def chat_preview(req: ChatRequest):
+    resp = await intent_router.handle_preview(
+        req.assistant, req.user, req.message, conversation_id=req.conversation_id
+    )
+    resp.conversation_id = req.conversation_id
+    mode = "preview_confirmation_required" if resp.requires_confirmation else "preview"
+    return {
+        "success": resp.success,
         "mode": mode,
         "response": resp.message,
         "command": resp.model_dump(),

@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import json
 import re
+import time
 from typing import Any, Optional
 
 from ..actions import ActionContext
@@ -41,6 +42,7 @@ from ..homeassistant.rest import get_ha_client
 from ..homeassistant.services import safe_get_states
 from ..models.results import ActionResult, CommandResponse
 from .permissions import PermissionEngine, get_confirmation_store
+from .permissions import PendingConfirmation
 from .conversation_context import context_tool_call, load_context, save_context
 from .resolver import Resolver
 
@@ -148,23 +150,7 @@ async def handle_command(
             error="unknown_assistant",
         )
 
-    conv = load_context(ctx.assistant.id, ctx.user.id if ctx.user else user_name,
-                        conversation_id)
-
-    # Conversation context first for pronouns/corrections ("turn it off",
-    # "actually the fan"), then deterministic pre-router, then the AI.
-    tool_call: Optional[ToolCall] = context_tool_call(message, conv)
-    if tool_call is None:
-        tool_call = pre_route(message)
-    if tool_call is None:
-        ai = get_ai_client()
-        tool_call = ai.select_tool(message, ctx.config, ctx.assistant, ctx.user)
-
-    tool_call = _repair_direction_conflict(message, tool_call)
-    if tool_call is not None and tool_call.name == "explain_last_action":
-        tool_call.arguments = dict(tool_call.arguments or {})
-        tool_call.arguments["conversation_id"] = conversation_id or ""
-    tool_dict = tool_call.to_dict() if tool_call else None
+    tool_call, tool_dict = _select_tool(ctx, user_name, message, conversation_id)
 
     if tool_call is None or not tool_call.name:
         text = (tool_call.assistant_text if tool_call else "") or \
@@ -207,6 +193,115 @@ async def handle_command(
     resp = _to_response(ctx, result, tool_dict)
     resp.conversation_id = conversation_id
     return resp
+
+
+async def handle_preview(
+    assistant_name: str,
+    user_name: Optional[str],
+    message: str,
+    conversation_id: Optional[str] = None,
+) -> CommandResponse:
+    """Resolve and run the command path in dry-run mode.
+
+    Existing handlers still do all normal permission and resolver work, but HA
+    service calls are recorded instead of sent, and confirmation tokens are not
+    armed. This gives the UI/HA a reliable "what would happen?" layer.
+    """
+    ctx = await build_context(assistant_name, user_name)
+
+    if ctx.assistant is None:
+        return CommandResponse(
+            success=False, assistant=assistant_name, user=user_name,
+            message=f"Unknown assistant '{assistant_name}'.",
+            error="unknown_assistant",
+        )
+
+    tool_call, tool_dict = _select_tool(ctx, user_name, message, conversation_id)
+
+    if tool_call is None or not tool_call.name:
+        text = (tool_call.assistant_text if tool_call else "") or \
+            "I couldn't map that to an action."
+        return CommandResponse(
+            success=False, assistant=ctx.assistant.id,
+            user=(ctx.user.id if ctx.user else None),
+            conversation_id=conversation_id,
+            message=text, tool_call=tool_dict, error="no_tool_selected",
+        )
+
+    if tool_call.name not in TOOL_NAMES or tool_call.name not in _HANDLERS:
+        return CommandResponse(
+            success=False, assistant=ctx.assistant.id,
+            user=(ctx.user.id if ctx.user else None), intent=tool_call.name,
+            conversation_id=conversation_id,
+            message=f"Tool '{tool_call.name}' is not allowed.",
+            tool_call=tool_dict, error="tool_not_allowed",
+        )
+
+    recorder = RecordingHA(ctx.resolver.live_states)
+    preview_confirmations = PreviewConfirmationStore()
+    ctx.ha = recorder
+    ctx.confirmations = preview_confirmations
+
+    result: ActionResult = await _HANDLERS[tool_call.name](ctx, tool_call.arguments)
+    would_execute = bool(result.executed or recorder.calls or result.requires_confirmation)
+    data = dict(result.data or {})
+    data["preview"] = {
+        "dry_run": True,
+        "would_execute": would_execute,
+        "service_calls": recorder.calls,
+        "confirmations": [pc.public_dict() for pc in preview_confirmations.items],
+        "original_executed": result.executed,
+    }
+    message_prefix = "Preview:"
+    if result.requires_confirmation:
+        msg = result.confirmation_message or result.message
+        message = f"{message_prefix} this would require confirmation. {msg}"
+    elif recorder.calls:
+        call_text = ", ".join(f"{c['domain']}.{c['service']}" for c in recorder.calls)
+        message = f"{message_prefix} I would run {call_text}. {result.message}"
+    else:
+        message = f"{message_prefix} {result.message}"
+
+    preview = ActionResult(
+        success=result.success,
+        intent=result.intent,
+        executed=False,
+        message=message,
+        requires_confirmation=result.requires_confirmation,
+        confirmation_message=result.confirmation_message,
+        confirmation_token=None,
+        resolved=result.resolved,
+        data=data,
+        error=result.error,
+    )
+    resp = _to_response(ctx, preview, tool_dict)
+    resp.conversation_id = conversation_id
+    return resp
+
+
+def _select_tool(
+    ctx: ActionContext,
+    user_name: Optional[str],
+    message: str,
+    conversation_id: Optional[str],
+) -> tuple[Optional[ToolCall], Optional[dict[str, Any]]]:
+    conv = load_context(ctx.assistant.id, ctx.user.id if ctx.user else user_name,
+                        conversation_id)
+
+    # Conversation context first for pronouns/corrections ("turn it off",
+    # "actually the fan"), then deterministic pre-router, then the AI.
+    tool_call: Optional[ToolCall] = context_tool_call(message, conv)
+    if tool_call is None:
+        tool_call = pre_route(message)
+    if tool_call is None:
+        ai = get_ai_client()
+        tool_call = ai.select_tool(message, ctx.config, ctx.assistant, ctx.user)
+
+    tool_call = _repair_direction_conflict(message, tool_call)
+    if tool_call is not None and tool_call.name == "explain_last_action":
+        tool_call.arguments = dict(tool_call.arguments or {})
+        tool_call.arguments["conversation_id"] = conversation_id or ""
+    return tool_call, (tool_call.to_dict() if tool_call else None)
 
 
 def _emit_command_events(ctx: ActionContext, message: str, result: ActionResult) -> None:
@@ -303,6 +398,138 @@ def _action_is_on(action: Any) -> bool:
 
 def _action_is_off(action: Any) -> bool:
     return str(action or "").lower() in {"off", "turn_off", "switch_off", "disable", "power_off"}
+
+
+class RecordingHA:
+    """Home Assistant client shim for command previews.
+
+    It exposes the small HomeAssistantREST surface used by action handlers, but
+    never sends a write to Home Assistant.
+    """
+
+    configured = True
+
+    def __init__(self, live_states: dict[str, Any]) -> None:
+        self.live_states = live_states or {}
+        self.calls: list[dict[str, Any]] = []
+
+    async def get_entity(self, entity_id: str) -> dict[str, Any]:
+        ent = self.live_states.get(entity_id)
+        if ent is None:
+            return {"entity_id": entity_id, "state": "unknown", "attributes": {}}
+        return {
+            "entity_id": ent.entity_id,
+            "state": ent.state,
+            "attributes": ent.attributes or {},
+        }
+
+    async def is_available(self, entity_id: str) -> bool:
+        ent = self.live_states.get(entity_id)
+        if ent is None:
+            return True
+        return bool(ent.available)
+
+    async def call_service(
+        self, domain: str, service: str, data: Optional[dict] = None
+    ) -> dict[str, Any]:
+        call = {"domain": domain, "service": service, "data": data or {}}
+        self.calls.append(call)
+        return {"preview": True, "service_call": call}
+
+    async def turn_on(self, entity_id: str, **extra: Any) -> dict[str, Any]:
+        domain = entity_id.split(".", 1)[0]
+        return await self.call_service(domain, "turn_on", {"entity_id": entity_id, **extra})
+
+    async def turn_off(self, entity_id: str, **extra: Any) -> dict[str, Any]:
+        domain = entity_id.split(".", 1)[0]
+        return await self.call_service(domain, "turn_off", {"entity_id": entity_id, **extra})
+
+    async def lock(self, entity_id: str) -> dict[str, Any]:
+        return await self.call_service("lock", "lock", {"entity_id": entity_id})
+
+    async def unlock(self, entity_id: str) -> dict[str, Any]:
+        return await self.call_service("lock", "unlock", {"entity_id": entity_id})
+
+    async def set_volume(self, entity_id: str, level: float) -> dict[str, Any]:
+        return await self.call_service(
+            "media_player",
+            "volume_set",
+            {"entity_id": entity_id, "volume_level": max(0.0, min(1.0, float(level)))},
+        )
+
+    async def media_stop(self, entity_id: str) -> dict[str, Any]:
+        return await self.call_service("media_player", "media_stop", {"entity_id": entity_id})
+
+    async def play_media(
+        self, entity_id: str, media_content_id: str, media_content_type: str
+    ) -> dict[str, Any]:
+        return await self.call_service(
+            "media_player",
+            "play_media",
+            {
+                "entity_id": entity_id,
+                "media_content_id": media_content_id,
+                "media_content_type": media_content_type,
+            },
+        )
+
+    async def set_climate_temperature(
+        self,
+        entity_id: str,
+        temperature: float,
+        hvac_mode: Optional[str] = None,
+    ) -> dict[str, Any]:
+        if hvac_mode:
+            await self.call_service(
+                "climate",
+                "set_hvac_mode",
+                {"entity_id": entity_id, "hvac_mode": hvac_mode},
+            )
+        return await self.call_service(
+            "climate",
+            "set_temperature",
+            {"entity_id": entity_id, "temperature": float(temperature)},
+        )
+
+
+class PreviewConfirmationStore:
+    """Records confirmation requirements without arming real tokens."""
+
+    def __init__(self) -> None:
+        self.items: list[PendingConfirmation] = []
+
+    def create(self, intent: str, params: dict[str, Any], message: str,
+               ttl: int, assistant: Optional[str], user: Optional[str],
+               plan: dict[str, Any], risk_level: str = "critical",
+               target: str = "") -> PendingConfirmation:
+        now = time.monotonic()
+        pc = PendingConfirmation(
+            token=f"preview-{len(self.items) + 1}",
+            intent=intent,
+            params=params,
+            assistant=assistant,
+            user=user,
+            expires_at=now + ttl,
+            created_at=now,
+            message=message,
+            plan=plan,
+            risk_level=risk_level,
+            target=target,
+        )
+        self.items.append(pc)
+        return pc
+
+    def pop(self, token: str) -> None:
+        return None
+
+    def cancel(self, token: str) -> bool:
+        return False
+
+    def list_pending(self) -> list[PendingConfirmation]:
+        return list(self.items)
+
+    def purge_expired(self) -> None:
+        return None
 
 
 async def handle_confirmation(token: str) -> CommandResponse:

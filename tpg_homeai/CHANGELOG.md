@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.20
+
+- Added dry-run command preview endpoints for safe action planning.
+- Added a recording Home Assistant client so previews resolve real targets without executing services.
+- Added preview confirmation handling that reports sensitive actions without creating live tokens.
+- Added Home Assistant `preview_command` service for dashboards, scripts, and voice UX.
+
 ## 0.1.19
 
 - Added command audit persistence with selected tool, resolved target, result data, and errors.

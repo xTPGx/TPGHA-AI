@@ -208,6 +208,35 @@ def main() -> int:
           isinstance(r.json().get("commands", [{}])[0].get("tool_call"), dict),
           str(r.json()))
 
+    r = client.post("/command/preview", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "turn off office fan",
+    })
+    check("/command/preview returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    preview = r.json()
+    check("/command/preview does not execute", preview.get("executed") is False,
+          str(preview))
+    check("/command/preview has dry-run data",
+          preview.get("data", {}).get("preview", {}).get("dry_run") is True,
+          str(preview))
+
+    r = client.post("/chat/preview", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "unlock the front door",
+    })
+    check("/chat/preview returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    body = r.json()
+    check("/chat/preview marks confirmation preview",
+          body.get("mode") == "preview_confirmation_required",
+          str(body))
+    check("/chat/preview does not return live token",
+          body.get("command", {}).get("confirmation_token") is None,
+          str(body))
+
     r = client.get("/suggestions")
     check("/suggestions is JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code}")

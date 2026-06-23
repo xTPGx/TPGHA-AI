@@ -23,6 +23,7 @@ from app.ai.client import ToolCall  # noqa: E402
 from app.homeassistant import rest  # noqa: E402
 from app.models.schemas import HAEntity  # noqa: E402
 from app.router import intent_router  # noqa: E402
+from app.router.permissions import get_confirmation_store  # noqa: E402
 
 PASS, FAIL = "PASS", "FAIL"
 results = []
@@ -256,6 +257,23 @@ async def main():
     check("L3 direction guard fixes generic off action",
           fixed_generic.name == "control_device" and fixed_generic.arguments.get("action") == "turn_on",
           fixed_generic.to_dict())
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_preview("atlas", "shawn", "turn off office fan")
+    check("P0 preview fan -> turn_off_fan", r.intent == "turn_off_fan", r.intent)
+    check("P0 preview does not execute", r.executed is False, str(r.data))
+    check("P0 preview records fan.turn_off",
+          r.data.get("preview", {}).get("service_calls", [{}])[0].get("service") == "turn_off",
+          str(r.data))
+    check("P0 preview does not call real HA", SERVICE_CALLS == [], str(SERVICE_CALLS))
+
+    before_conf = len(get_confirmation_store().list_pending())
+    r = await intent_router.handle_preview("atlas", "shawn", "unlock the front door")
+    after_conf = len(get_confirmation_store().list_pending())
+    check("P0b preview unlock requires confirmation", r.requires_confirmation is True)
+    check("P0b preview unlock has no live token", r.confirmation_token is None)
+    check("P0b preview unlock does not arm confirmation", before_conf == after_conf,
+          f"{before_conf}->{after_conf}")
 
     SERVICE_CALLS.clear()
     r = await intent_router.handle_command("atlas", "shawn", "turn off office fan")

@@ -1,7 +1,7 @@
 {
   "domain": "tpg_homeai",
   "name": "TPG HomeAI",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "documentation": "https://github.com/xTPGx/TPGHA-AI",
   "issue_tracker": "https://github.com/xTPGx/TPGHA-AI/issues",
   "codeowners": ["@xTPGx"],
