@@ -25,7 +25,13 @@ logger = logging.getLogger("tpg.discovery.scanner")
 # Only classify entities in supported, useful domains by default.
 from .capabilities import SUPPORTED_DOMAINS  # noqa: E402
 
-_last_scan: dict[str, Any] = {"ts": None, "summary": None}
+_last_scan: dict[str, Any] = {
+    "ts": None,            # last scan attempt
+    "ok_ts": None,        # last successful scan
+    "summary": None,
+    "ha_reachable": False,
+    "error": None,
+}
 
 
 async def scan(auto_low_risk: bool = False,
@@ -68,8 +74,13 @@ async def scan(auto_low_risk: bool = False,
     }
 
     import time
-    _last_scan["ts"] = time.time()
+    now = time.time()
+    _last_scan["ts"] = now
     _last_scan["summary"] = summary
+    _last_scan["ha_reachable"] = bool(states)
+    _last_scan["error"] = None if states else "Home Assistant returned no states."
+    if states:
+        _last_scan["ok_ts"] = now
 
     new_count = summary["new_entities"]["count"]
     if new_count:
@@ -87,16 +98,30 @@ def last_scan_summary() -> dict[str, Any]:
     return _last_scan
 
 
+def _iso(ts: Optional[float]) -> Optional[str]:
+    if not ts:
+        return None
+    import datetime
+    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat()
+
+
 async def summary() -> dict[str, Any]:
-    """Lightweight summary derived from persisted state (no live HA call)."""
+    """Lightweight summary derived from persisted state (no live HA call).
+
+    Always returns valid JSON, even before the first scan completes (PART 5).
+    """
     pending = registry.get_pending()
     all_rows = registry.get_all()
     unavailable = [r for r in all_rows if not r["is_available"]]
+    scanned = _last_scan["ts"] is not None
     return {
         "pending_count": len(pending),
         "known_count": len([r for r in all_rows if r["status"] in ("known", "approved")]),
         "unavailable_count": len(unavailable),
         "unavailable": [r["entity_id"] for r in unavailable],
         "pending": pending,
-        "last_scan_ts": _last_scan["ts"],
+        "last_scan_ts": _iso(_last_scan["ts"]),
+        "last_successful_scan_ts": _iso(_last_scan["ok_ts"]),
+        "ha_reachable": _last_scan["ha_reachable"],
+        "message": None if scanned else "No discovery scan has completed yet.",
     }

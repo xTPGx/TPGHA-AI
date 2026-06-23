@@ -16,7 +16,12 @@ FROM node:20-alpine AS build
 RUN apk add --no-cache git
 ARG REPO=https://github.com/xTPGx/TPGHA-AI
 ARG REF=main
-RUN git clone --depth 1 --branch "${REF}" "${REPO}" /src
+# BUILD_VERSION (passed by the Supervisor) busts the Docker layer cache so an
+# auto-update rebuild ALWAYS re-clones the latest code instead of reusing a
+# stale cached clone. Bump config.yaml `version` on every release.
+ARG BUILD_VERSION=dev
+RUN echo "Building TPG HomeAI ${BUILD_VERSION}" \
+    && git clone --depth 1 --branch "${REF}" "${REPO}" /src
 WORKDIR /src/frontend
 RUN npm install && npm run build
 
@@ -26,8 +31,8 @@ FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12-alpine3.21
 
 ENV PYTHONUNBUFFERED=1 \
     STATIC_DIR=/app/static \
-    CONFIG_DIR=/config \
-    DATABASE_URL=sqlite:////config/tpg_homeai.db
+    CONFIG_DIR=/config/tpg_homeai \
+    DATABASE_URL=sqlite:////config/tpg_homeai/tpg_homeai.db
 
 WORKDIR /app
 
@@ -47,7 +52,7 @@ RUN chmod a+x /run.sh
 LABEL \
   io.hass.name="TPG HomeAI Orchestrator" \
   io.hass.type="app" \
-  io.hass.version="0.1.4" \
+  io.hass.version="0.1.5" \
   io.hass.arch="amd64|aarch64"
 
 EXPOSE 8088

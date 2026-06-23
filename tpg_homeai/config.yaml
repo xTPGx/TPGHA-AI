@@ -1,5 +1,5 @@
 name: "TPG HomeAI Orchestrator"
-version: "0.1.4"
+version: "0.1.5"
 slug: "tpg_homeai"
 description: "AI smart-home orchestration layer for Home Assistant"
 url: "https://github.com/xTPGx/TPGHA-AI"
@@ -26,13 +26,26 @@ options:
   home_assistant_url: "http://supervisor/core"
   home_assistant_token: ""
   openai_api_key: ""
-  config_dir: "/config"
-  database_url: "sqlite:////config/tpg_homeai.db"
+  config_dir: "/config/tpg_homeai"
+  database_url: "sqlite:////config/tpg_homeai/tpg_homeai.db"
   log_level: "info"
+  scan_on_start: true
+  scan_interval_minutes: 5
+  notify_on_new_devices: true
+  notify_on_unavailable_devices: true
+  auto_approve_low_risk_entities: false
+  auto_approve_domains: []
 schema:
   home_assistant_url: "str"
   home_assistant_token: "password?"
-  openai_api_key: "password"
+  openai_api_key: "password?"
   config_dir: "str"
   database_url: "str"
   log_level: "list(debug|info|warning|error)"
+  scan_on_start: "bool"
+  scan_interval_minutes: "int(1,1440)"
+  notify_on_new_devices: "bool"
+  notify_on_unavailable_devices: "bool"
+  auto_approve_low_risk_entities: "bool"
+  auto_approve_domains:
+    - "str"

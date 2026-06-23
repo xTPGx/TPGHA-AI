@@ -19,6 +19,25 @@ API and a web UI on port **8088**.
 - **Sensitive actions** (unlock, open garage, disarm…) never execute directly —
   they require a confirmation token that expires after 60 seconds.
 
+## Self-initialization on startup
+
+You do **not** need to manually run a discovery scan after every restart. When
+the add-on starts it automatically:
+
+1. Starts the backend API + serves the web UI on port 8088.
+2. Validates config (degrades instead of crashing on errors).
+3. Connects to Home Assistant (Supervisor proxy or long-lived token).
+4. Pulls all entity states and runs an **initial discovery scan**.
+5. Classifies entities by domain / capability / risk and merges
+   `devices.yaml` + `discovered.yaml`.
+6. Detects new, unavailable, duplicate, ignored, and risky entities.
+7. Raises Home Assistant persistent notifications for anything needing review.
+8. Becomes ready for commands — no manual `/discovery/scan` required.
+
+A background scan then re-runs every `scan_interval_minutes` to stay current. If
+Home Assistant is unreachable, OpenAI is missing, or config has errors, the
+backend runs in **degraded** mode (surfaced in `/health`) rather than failing.
+
 ## Configuration
 
 | Option | Description |
@@ -26,9 +45,15 @@ API and a web UI on port **8088**.
 | `home_assistant_url` | Leave as `http://supervisor/core` to use the Supervisor proxy. |
 | `home_assistant_token` | Leave **blank** to use the add-on's Supervisor token automatically. Only set a long-lived token if you run against a remote HA. |
 | `openai_api_key` | **Required** for full AI understanding. Without it, the backend uses a deterministic fallback parser (fewer capabilities). |
-| `config_dir` | Where YAML config + the database live. Default `/config` (the add-on's own persistent config folder). |
-| `database_url` | SQLite path for command history / discovery state. Default `sqlite:////config/tpg_homeai.db`. |
+| `config_dir` | Where YAML config + the database live. Default `/config/tpg_homeai`. |
+| `database_url` | SQLite path for command history / discovery state. Default `sqlite:////config/tpg_homeai/tpg_homeai.db`. |
 | `log_level` | `debug` / `info` / `warning` / `error`. |
+| `scan_on_start` | Run the initial discovery scan automatically on startup (default `true`). |
+| `scan_interval_minutes` | Background re-scan interval, 1–1440 (default `5`). |
+| `notify_on_new_devices` | Notify when new entities need review (default `true`). |
+| `notify_on_unavailable_devices` | Notify when known devices go unavailable (default `true`). |
+| `auto_approve_low_risk_entities` | Auto-approve low-risk discoveries (default `false`). |
+| `auto_approve_domains` | List of domains to auto-approve, e.g. `["light", "fan"]`. |
 
 ### Home Assistant token
 
@@ -44,7 +69,10 @@ Create a key at <https://platform.openai.com/api-keys> and paste it into
 
 ## After starting
 
-- **Health check:** <http://homeassistant.local:8088/health>
+- **Health check:** <http://homeassistant.local:8088/health> — must return
+  **JSON** (`status: ok` / `degraded` / `initializing`).
+- **Discovery:** <http://homeassistant.local:8088/discovery/summary> — JSON with
+  `pending_count`, `known_count`, `unavailable_count`, `last_scan_ts`.
 - **Web UI:** open the add-on's *Open Web UI* button, or
   <http://homeassistant.local:8088>
 - In the custom integration, set the server URL to
@@ -52,12 +80,35 @@ Create a key at <https://platform.openai.com/api-keys> and paste it into
 
 ## Where config is stored
 
-Everything persists in the `config_dir` (default `/config`, the add-on's private
-config folder):
+Everything persists in the `config_dir` (default `/config/tpg_homeai`):
 
 - `household.yaml`, `assistants.yaml`, `devices.yaml`, `permissions.yaml`
   (starter copies are seeded on first run; your edits are never overwritten)
 - `discovered.yaml` — discovery approvals/ignores (generated)
+- `ignored.yaml` — explicit ignore list (generated)
 - `tpg_homeai.db` — command history + discovery state
 
 Nothing runtime is written inside the container image.
+
+## Troubleshooting
+
+- **UI says `Unexpected token '<'` / "API routing is misconfigured":** the
+  frontend received HTML instead of JSON. Make sure you're on the latest add-on
+  version and that `/health` returns JSON. (Fixed in 0.1.5 — the SPA fallback
+  no longer intercepts API routes, and the UI calls same-origin endpoints.)
+- **`/health` returns HTML:** API routing is broken — update the add-on.
+- **Counts are all zero right after start:** the initial scan may still be
+  running (`/health` → `discovery.scan_in_progress: true`). It populates within
+  a few seconds; the dashboard also shows "Run scan now".
+
+## Updates
+
+This add-on builds from the public GitHub repo. To get new code:
+
+1. The maintainer pushes code **and bumps `version`** in `config.yaml`.
+2. Home Assistant detects the new version on its periodic store refresh (or when
+   you click **Check for updates**).
+3. With **Auto update** enabled on the add-on, HA rebuilds automatically and the
+   new code takes effect — **no need to remove/re-add the repository or
+   reinstall**. The build always re-clones the latest code (the version busts
+   the Docker layer cache).

@@ -1,13 +1,28 @@
 // Thin API client for the TPG HomeAI backend.
-// Base URL comes from VITE_API_BASE; in dev we default to the Vite proxy "/api".
-
-const BASE = (import.meta as any).env?.VITE_API_BASE ?? "/api";
+//
+// Base URL resolution (PART 1):
+//   - VITE_API_BASE wins if explicitly set at build time.
+//   - In the Vite dev server we use the "/api" proxy (see vite.config.ts).
+//   - In a production build (e.g. served by the add-on backend) we use
+//     same-origin relative URLs so /health hits the backend directly.
+const env = (import.meta as any).env ?? {};
+const BASE: string = env.VITE_API_BASE ?? (env.DEV ? "/api" : "");
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+
+  // The backend always returns JSON for API routes. If we got HTML, the SPA
+  // fallback intercepted the call — i.e. API routing is misconfigured.
+  const ctype = res.headers.get("content-type") || "";
+  if (ctype.includes("text/html")) {
+    throw new Error(
+      "API endpoint returned HTML. Add-on API routing is misconfigured."
+    );
+  }
+
   if (!res.ok) {
     let detail = res.statusText;
     try {

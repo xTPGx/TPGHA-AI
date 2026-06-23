@@ -400,6 +400,40 @@ always passes (`ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12`), so no
 > sibling folders). After pushing code changes, **rebuild** the add-on to pick
 > them up. The root-level `tpg_homeai/` is the canonical (and only) add-on.
 
+### Startup behavior (add-on)
+
+The add-on self-initializes on every start — no manual scan needed:
+
+1. Starts the API + serves the UI on port 8088.
+2. Validates config (degrades, never crashes, on errors).
+3. Connects to Home Assistant (Supervisor proxy or token).
+4. Pulls states, runs the **initial discovery scan**, classifies entities, and
+   merges `devices.yaml` + `discovered.yaml`.
+5. Raises persistent notifications for pending approvals / unavailable devices.
+6. Re-scans every `scan_interval_minutes` in the background.
+
+`/health` and `/discovery/summary` always return JSON; `last_scan_ts` is
+populated automatically after the first startup scan. Runtime config lives under
+`/config/tpg_homeai/` (devices/discovered/ignored YAML + the SQLite db).
+
+### Automatic updates from GitHub
+
+Enable **Auto update** on the add-on. When the maintainer pushes code **and
+bumps `version` in `tpg_homeai/config.yaml`**, Home Assistant detects the new
+version on its periodic store refresh (or via *Check for updates*) and rebuilds
+automatically — you do **not** need to remove/re-add the repository or
+reinstall. The Dockerfile re-clones the latest code on each version (the version
+busts the build cache), so the running container always matches the push.
+
+### Troubleshooting
+
+- **UI: `Unexpected token '<'`** → the frontend got HTML instead of JSON; the
+  API routing was misconfigured. Update to ≥ 0.1.5 (SPA fallback no longer
+  shadows API routes; UI calls same-origin endpoints).
+- **`/health` must return JSON.** If it returns HTML, the add-on is out of date.
+- **`/discovery/summary` must return JSON**, even before the first scan
+  (it returns a `message` until a scan completes).
+
 **Custom integration (HACS)** — `custom_components/tpg_homeai/`
 
 - `manifest.json` — domain `tpg_homeai`, depends on `conversation`.

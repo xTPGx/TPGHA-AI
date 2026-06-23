@@ -1,17 +1,21 @@
 """FastAPI application: TPG HomeAI Orchestrator backend."""
 from __future__ import annotations
 
+import asyncio
+import datetime
 import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .ai.client import get_ai_client
 from .ai.tools import TOOL_NAMES
+from .bootstrap import bootstrap, get_app_state, periodic_scan_loop
+from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
 from .db.database import init_db
 from .discovery import registry as discovery_registry
@@ -39,16 +43,47 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
+APP_VERSION = "0.1.5"
+
+# API path prefixes that the SPA fallback must NEVER intercept (PART 1).
+_API_PREFIXES = (
+    "health", "state", "events", "config", "discovery", "command", "confirm",
+    "confirmations", "ha", "test", "tools", "docs", "redoc", "openapi.json",
+)
+
+
+def _iso(ts: float | None) -> str | None:
+    if not ts:
+        return None
+    return datetime.datetime.fromtimestamp(
+        ts, datetime.timezone.utc).isoformat()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     get_config()
-    logger.info("TPG HomeAI Orchestrator started.")
-    yield
+    # Run bootstrap in the background so the server is immediately responsive
+    # (/health reports "initializing" until the first scan finishes). Then keep
+    # the registry fresh with a periodic scan.
+    tasks = [
+        asyncio.create_task(bootstrap()),
+        asyncio.create_task(periodic_scan_loop()),
+    ]
+    logger.info("TPG HomeAI Orchestrator starting; bootstrap running in background.")
+    try:
+        yield
+    finally:
+        for t in tasks:
+            t.cancel()
+        for t in tasks:
+            try:
+                await t
+            except BaseException:  # noqa: BLE001 - best-effort shutdown
+                pass
 
 
-app = FastAPI(title="TPG HomeAI Orchestrator", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="TPG HomeAI Orchestrator", version=APP_VERSION, lifespan=lifespan)
 
 settings = get_settings()
 app.add_middleware(
@@ -63,34 +98,53 @@ app.add_middleware(
 # --------------------------------------------------------------------- health
 @app.get("/health")
 async def health():
+    """Always-JSON health snapshot (PART 4). Never blocks on a live HA call;
+    Home Assistant reachability reflects the last bootstrap/periodic scan."""
     s = get_settings()
-    ha = get_ha_client()
     ai = get_ai_client()
-    ha_status = await ha.ping() if s.ha_configured else {"connected": False, "message": "not configured"}
+    state = get_app_state()
     cfg_err = config_error()
     disc = await discovery_scanner.summary()
-    bus = get_event_bus()
-    status = "degraded" if cfg_err else "ok"
+    refresh_degraded_reasons(state)
+    reasons = state.degraded_reasons
+    status = "degraded" if reasons else ("initializing" if state.initializing else "ok")
     return {
         "status": status,
-        "version": app.version,
-        "config_ok": cfg_err is None,
-        "config_error": cfg_err,
-        "openai_configured": s.openai_configured,
-        "openai_mode": "openai" if ai.using_openai else "fallback",
+        "reasons": reasons,
+        "backend": {
+            "online": True,
+            "version": app.version,
+            "mode": state.mode,
+            "ready": state.ready,
+            "initializing": state.initializing,
+            "started_at": _iso(state.started_at),
+            "uptime_seconds": state.uptime_seconds,
+        },
         "home_assistant": {
             "configured": s.ha_configured,
+            "reachable": state.ha_reachable,
             "url": s.home_assistant_url,
-            **ha_status,
+            "auth_mode": s.ha_auth_mode,
+        },
+        "openai": {
+            "configured": s.openai_configured,
+            "mode": "openai" if ai.using_openai else "fallback_parser",
         },
         "discovery": {
-            "pending_approvals": disc["pending_count"],
-            "known_devices": disc["known_count"],
-            "unavailable_devices": disc["unavailable_count"],
             "last_scan_ts": disc["last_scan_ts"],
+            "last_successful_scan_ts": disc["last_successful_scan_ts"],
+            "scan_in_progress": state.scan_in_progress,
+            "known_count": disc["known_count"],
+            "pending_count": disc["pending_count"],
+            "unavailable_count": disc["unavailable_count"],
+        },
+        "config": {
+            "config_dir": s.config_dir,
+            "valid": cfg_err is None,
+            "error": cfg_err,
         },
         "pending_confirmations": len(get_confirmation_store().list_pending()),
-        "last_command": bus.last_command,
+        "last_command": get_event_bus().last_command,
         "settings": s.safe_dict(),
     }
 
@@ -248,15 +302,24 @@ async def events(since: int = 0, limit: int = 100):
 async def state():
     """Compact operational snapshot used by the HA integration sensors."""
     bus = get_event_bus()
+    st = get_app_state()
     disc = await discovery_scanner.summary()
     cfg_err = config_error()
+    refresh_degraded_reasons(st)
     pending_conf = [pc.public_dict() for pc in get_confirmation_store().list_pending()]
     needs_attention = bool(
         cfg_err or disc["pending_count"] or pending_conf
-        or disc["unavailable_count"]
+        or disc["unavailable_count"] or st.degraded_reasons
     )
     return {
         "version": app.version,
+        "status": st.status,
+        "reasons": st.degraded_reasons,
+        "mode": st.mode,
+        "ready": st.ready,
+        "initializing": st.initializing,
+        "scan_in_progress": st.scan_in_progress,
+        "ha_reachable": st.ha_reachable,
         "config_ok": cfg_err is None,
         "config_error": cfg_err,
         "pending_approvals": disc["pending_count"],
@@ -266,6 +329,7 @@ async def state():
         "pending_confirmations": pending_conf,
         "last_command": bus.last_command,
         "last_scan_ts": disc["last_scan_ts"],
+        "last_successful_scan_ts": disc["last_successful_scan_ts"],
         "needs_attention": needs_attention,
     }
 
@@ -324,9 +388,16 @@ async def root():
     return {"name": "TPG HomeAI Orchestrator", "docs": "/docs", "health": "/health"}
 
 
+def _is_api_path(full_path: str) -> bool:
+    head = full_path.split("/", 1)[0].lower()
+    return head in _API_PREFIXES
+
+
 # --------------------------------------------------------------- static (SPA)
 # When STATIC_DIR points at a built frontend (e.g. inside the Home Assistant
 # add-on image), serve the React SPA. Registered last so all API routes win.
+# The catch-all explicitly refuses API prefixes so it can NEVER return HTML for
+# an API call (the cause of the "Unexpected token '<'" error) — PART 1.
 _STATIC_DIR = os.environ.get("STATIC_DIR", "")
 if _STATIC_DIR and os.path.isdir(_STATIC_DIR):
     _assets = os.path.join(_STATIC_DIR, "assets")
@@ -335,9 +406,13 @@ if _STATIC_DIR and os.path.isdir(_STATIC_DIR):
 
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
-        # Serve a real file if it exists, else index.html for client routing.
+        # Never let the SPA shadow an API route: unknown API paths get JSON 404.
+        if _is_api_path(full_path):
+            return JSONResponse({"detail": f"Not found: /{full_path}"}, status_code=404)
+        # Serve a real static file if it exists, else index.html for routing.
         candidate = os.path.join(_STATIC_DIR, full_path)
-        if full_path and os.path.isfile(candidate):
+        if full_path and os.path.isfile(candidate) and os.path.abspath(
+                candidate).startswith(os.path.abspath(_STATIC_DIR)):
             return FileResponse(candidate)
         return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
 
