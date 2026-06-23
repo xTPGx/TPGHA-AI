@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.21
+
+- Rebuilt Chat around preview-first action execution.
+- Added Execute, Request confirmation, Confirm, and Cancel controls in chat.
+- Kept browser voice input flowing through the same safe preview path.
+- Made automation and routine previews side-effect free so dry-runs do not create drafts.
+
 ## 0.1.20
 
 - Added dry-run command preview endpoints for safe action planning.

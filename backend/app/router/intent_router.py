@@ -241,6 +241,7 @@ async def handle_preview(
     preview_confirmations = PreviewConfirmationStore()
     ctx.ha = recorder
     ctx.confirmations = preview_confirmations
+    ctx.dry_run = True
 
     result: ActionResult = await _HANDLERS[tool_call.name](ctx, tool_call.arguments)
     would_execute = bool(result.executed or recorder.calls or result.requires_confirmation)

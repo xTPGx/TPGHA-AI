@@ -65,6 +65,7 @@ export interface CommandResponse {
   success: boolean;
   assistant?: string;
   user?: string;
+  conversation_id?: string;
   intent?: string;
   resolved: Record<string, any>;
   executed: boolean;
@@ -97,8 +98,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ assistant, user, message }),
     }),
+  commandPreview: (assistant: string, user: string, message: string, conversation_id?: string) =>
+    http<CommandResponse>("/command/preview", {
+      method: "POST",
+      body: JSON.stringify({ assistant, user, message, conversation_id }),
+    }),
   chat: (assistant: string, user: string, message: string, conversation_id?: string) =>
     http<any>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ assistant, user, message, conversation_id }),
+    }),
+  chatPreview: (assistant: string, user: string, message: string, conversation_id?: string) =>
+    http<any>("/chat/preview", {
       method: "POST",
       body: JSON.stringify({ assistant, user, message, conversation_id }),
     }),

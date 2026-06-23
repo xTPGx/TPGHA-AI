@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { api, CommandResponse } from "../api";
 import PageHeader from "../components/PageHeader";
 
 interface Msg {
+  id: string;
   role: "user" | "assistant";
   text: string;
   mode?: string;
+  kind?: "normal" | "preview" | "confirmation";
+  command?: CommandResponse;
+  originalText?: string;
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -19,9 +23,45 @@ type SpeechRecognitionCtor = new () => {
   stop: () => void;
 };
 
+function id() {
+  return crypto?.randomUUID ? crypto.randomUUID() : `msg-${Date.now()}-${Math.random()}`;
+}
+
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
   const w = window as any;
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
+}
+
+function shouldShowPreview(command?: CommandResponse) {
+  if (!command?.success || !command.intent) return false;
+  const preview = command.data?.preview;
+  return Boolean(
+    command.requires_confirmation ||
+      preview?.would_execute ||
+      command.intent === "create_simple_automation" ||
+      command.intent === "create_routine",
+  );
+}
+
+function serviceSummary(command?: CommandResponse) {
+  const calls = command?.data?.preview?.service_calls || [];
+  if (!Array.isArray(calls) || calls.length === 0) return "";
+  return calls
+    .map((c: any) => `${c.domain}.${c.service} ${c.data?.entity_id || ""}`.trim())
+    .join(", ");
+}
+
+function targetSummary(command?: CommandResponse) {
+  const r = command?.resolved || {};
+  return (
+    r.label ||
+    r.target ||
+    r.entity_id ||
+    r.door ||
+    r.routine ||
+    r.trigger?.platform ||
+    ""
+  );
 }
 
 export default function Chat() {
@@ -37,6 +77,7 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [speakResponses, setSpeakResponses] = useState(true);
+  const [safePreview, setSafePreview] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
   const speechSupported = Boolean(getSpeechRecognition());
@@ -57,21 +98,103 @@ export default function Chat() {
     window.speechSynthesis.speak(utterance);
   };
 
+  const appendAssistant = (msg: Omit<Msg, "id" | "role">) => {
+    setMessages((m) => [...m, { id: id(), role: "assistant", ...msg }]);
+  };
+
+  const executeChat = async (message: string, appendUser = false) => {
+    if (appendUser) {
+      setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
+    }
+    const r = await api.chat(assistant, user, message, conversationId);
+    const command = r.command as CommandResponse | undefined;
+    const response = r.response || command?.message || "Done.";
+    appendAssistant({
+      text: response,
+      mode: r.mode,
+      kind: command?.requires_confirmation ? "confirmation" : "normal",
+      command,
+      originalText: message,
+    });
+    speak(response);
+  };
+
   const send = async (override?: string) => {
     const message = (override ?? text).trim();
     if (!message) return;
     setText("");
     setBusy(true);
     setError(null);
-    setMessages((m) => [...m, { role: "user", text: message }]);
+    setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
     try {
-      const r = await api.chat(assistant, user, message, conversationId);
-      const response = r.response || "Done.";
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", text: response, mode: r.mode },
-      ]);
-      speak(response);
+      if (safePreview) {
+        const preview = await api.chatPreview(assistant, user, message, conversationId);
+        const command = preview.command as CommandResponse | undefined;
+        if (shouldShowPreview(command)) {
+          const response = preview.response || command?.message || "Preview ready.";
+          appendAssistant({
+            text: response,
+            mode: preview.mode,
+            kind: "preview",
+            command,
+            originalText: message,
+          });
+          speak(response);
+          return;
+        }
+      }
+      await executeChat(message, false);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const executePreview = async (msg: Msg) => {
+    if (!msg.originalText) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await executeChat(msg.originalText, false);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = async (token: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.confirm(token);
+      appendAssistant({
+        text: r.message || "Confirmed.",
+        mode: r.executed ? "confirmed" : "confirmation",
+        kind: "normal",
+        command: r,
+      });
+      speak(r.message || "Confirmed.");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = async (token: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.cancelConfirm(token);
+      appendAssistant({
+        text: r.message || "Cancelled.",
+        mode: "cancelled",
+        kind: "normal",
+        command: r,
+      });
+      speak(r.message || "Cancelled.");
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -153,6 +276,14 @@ export default function Chat() {
         <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
           <input
             type="checkbox"
+            checked={safePreview}
+            onChange={(e) => setSafePreview(e.target.checked)}
+          />
+          Preview actions
+        </label>
+        <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
+          <input
+            type="checkbox"
             checked={speakResponses}
             onChange={(e) => setSpeakResponses(e.target.checked)}
           />
@@ -166,18 +297,51 @@ export default function Chat() {
       <div className="card mb-4 min-h-[28rem] space-y-3">
         {messages.length === 0 && (
           <div className="text-slate-500">
-            Try "set a sleep timer on the office TV in 30 minutes" or "suggest a bedtime routine."
+            Try "turn off office fan", "set a sleep timer on the office TV in 30 minutes", or "why did you do that?"
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
-            <div className={`inline-block max-w-[80%] rounded-lg border px-3 py-2 text-sm ${
+        {messages.map((m) => (
+          <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>
+            <div className={`inline-block max-w-[86%] rounded-lg border px-3 py-2 text-sm ${
               m.role === "user"
                 ? "border-brand-dark bg-brand-dark/20 text-slate-100"
-                : "border-slate-700 bg-slate-950/60 text-slate-200"
+                : m.kind === "preview"
+                  ? "border-cyan-500/60 bg-cyan-950/40 text-slate-100"
+                  : "border-slate-700 bg-slate-950/60 text-slate-200"
             }`}>
               {m.mode && <div className="mb-1 text-xs uppercase text-brand">{m.mode}</div>}
               <div className="whitespace-pre-wrap">{m.text}</div>
+
+              {m.command && (
+                <div className="mt-2 grid gap-1 rounded border border-slate-700/70 bg-slate-950/50 p-2 text-xs text-slate-300">
+                  {m.command.intent && <div><span className="text-slate-500">Intent:</span> {m.command.intent}</div>}
+                  {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
+                  {serviceSummary(m.command) && <div><span className="text-slate-500">Would call:</span> {serviceSummary(m.command)}</div>}
+                  {m.command.requires_confirmation && <div className="text-amber-200">Confirmation required</div>}
+                </div>
+              )}
+
+              {m.kind === "preview" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="btn px-3 py-1.5 text-xs" onClick={() => void executePreview(m)} disabled={busy}>
+                    {m.command?.requires_confirmation ? "Request confirmation" : "Execute"}
+                  </button>
+                  <button className="btn-ghost px-3 py-1.5 text-xs" onClick={() => appendAssistant({ text: "Cancelled.", mode: "cancelled" })} disabled={busy}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {m.kind === "confirmation" && m.command?.confirmation_token && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="btn px-3 py-1.5 text-xs" onClick={() => void confirm(m.command!.confirmation_token!)} disabled={busy}>
+                    Confirm
+                  </button>
+                  <button className="btn-ghost px-3 py-1.5 text-xs" onClick={() => void cancel(m.command!.confirmation_token!)} disabled={busy}>
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -191,13 +355,13 @@ export default function Chat() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              send();
+              void send();
             }
           }}
           placeholder={listening ? "Listening..." : "Talk to the house..."}
         />
         <button className="btn self-stretch" onClick={() => void send()} disabled={busy}>
-          {busy ? "Thinking..." : "Send"}
+          {busy ? "Thinking..." : safePreview ? "Preview" : "Send"}
         </button>
       </div>
     </div>

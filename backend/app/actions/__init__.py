@@ -22,3 +22,4 @@ class ActionContext:
     confirmations: ConfirmationStore
     assistant: Optional[Assistant] = None
     user: Optional[User] = None
+    dry_run: bool = False

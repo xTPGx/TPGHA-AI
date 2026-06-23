@@ -237,6 +237,19 @@ def main() -> int:
           body.get("command", {}).get("confirmation_token") is None,
           str(body))
 
+    before_preview_drafts = len(client.get("/suggestions").json().get("suggestions", []))
+    r = client.post("/command/preview", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "set a sleep timer on the office TV in 20 minutes",
+    })
+    check("/command/preview timer returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    after_preview_drafts = len(client.get("/suggestions").json().get("suggestions", []))
+    check("/command/preview timer does not create draft",
+          before_preview_drafts == after_preview_drafts,
+          f"{before_preview_drafts}->{after_preview_drafts}")
+
     r = client.get("/suggestions")
     check("/suggestions is JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code}")

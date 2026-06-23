@@ -111,32 +111,35 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     }
     proposed_yaml = yaml.safe_dump(proposed, sort_keys=False)
 
-    # Persist as a draft (status=draft). Never pushed to HA.
+    # Persist as a draft (status=draft). Never pushed to HA. Preview mode must
+    # not create database rows or emit actionable notifications.
     draft_id = None
-    try:
-        from ..db.database import get_session
-        from ..db.models import AutomationDraft
+    if not ctx.dry_run:
+        try:
+            from ..db.database import get_session
+            from ..db.models import AutomationDraft
 
-        with get_session() as session:
-            draft = AutomationDraft(
-                trigger_description=trigger_desc,
-                action_description=action_desc,
-                proposed_yaml=proposed_yaml,
-                status="draft",
-            )
-            session.add(draft)
-            session.commit()
-            draft_id = draft.id
-    except Exception:  # pragma: no cover - DB optional in some contexts
-        pass
+            with get_session() as session:
+                draft = AutomationDraft(
+                    trigger_description=trigger_desc,
+                    action_description=action_desc,
+                    proposed_yaml=proposed_yaml,
+                    status="draft",
+                )
+                session.add(draft)
+                session.commit()
+                draft_id = draft.id
+        except Exception:  # pragma: no cover - DB optional in some contexts
+            pass
 
-    get_event_bus().emit("tpg_homeai_suggestion_created", {
-        "draft_id": draft_id,
-        "trigger_description": trigger_desc,
-        "action_description": action_desc,
-        "title": "TPG HomeAI suggestion ready",
-        "message": "A timer, routine, or automation draft is ready for review.",
-    })
+    if not ctx.dry_run:
+        get_event_bus().emit("tpg_homeai_suggestion_created", {
+            "draft_id": draft_id,
+            "trigger_description": trigger_desc,
+            "action_description": action_desc,
+            "title": "TPG HomeAI suggestion ready",
+            "message": "A timer, routine, or automation draft is ready for review.",
+        })
 
     return ActionResult(
         success=True, intent=intent, executed=False,
@@ -176,12 +179,13 @@ async def create_routine(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
         "mode": "single",
     }
     proposed_yaml = yaml.safe_dump(proposed, sort_keys=False, allow_unicode=True)
-    draft_id = _persist_draft(routine, f"Run {routine} routine", proposed_yaml)
-    get_event_bus().emit("tpg_homeai_suggestion_created", {
-        "draft_id": draft_id,
-        "title": f"{routine.title()} routine ready",
-        "message": "A multi-step routine draft is ready for approval.",
-    })
+    draft_id = None if ctx.dry_run else _persist_draft(routine, f"Run {routine} routine", proposed_yaml)
+    if not ctx.dry_run:
+        get_event_bus().emit("tpg_homeai_suggestion_created", {
+            "draft_id": draft_id,
+            "title": f"{routine.title()} routine ready",
+            "message": "A multi-step routine draft is ready for approval.",
+        })
     return ActionResult(
         success=True,
         intent=intent,
