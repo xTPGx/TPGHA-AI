@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.24
+
+- Added a backend action policy brain that labels every command/preview as execute-now, confirmation-required, proposal-required, review-required, clarify, or answer-only.
+- Added a live seven-layer Jarvis readiness map at `/brain/layers`.
+- Added a Jarvis Brain UI page showing policy, capability graph, conversation memory, voice, proactive suggestions, HA-native UI, and AI hybrid readiness.
+- Updated Chat to use backend `data.policy` decisions instead of frontend-only preview guessing.
+- Added regression checks for the brain endpoint and safe-vs-sensitive policy decisions.
+
 ## 0.1.23
 
 - Updated Chat safety flow so confident low-risk commands execute immediately.

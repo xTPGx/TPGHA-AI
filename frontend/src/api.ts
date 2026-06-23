@@ -146,6 +146,7 @@ export const api = {
     }),
   drafts: () => http<any>("/automation/drafts"),
   suggestions: () => http<any>("/suggestions"),
+  brainLayers: () => http<any>("/brain/layers"),
   approveDraft: (id: number) =>
     http<any>(`/automation/drafts/${id}/approve`, { method: "POST" }),
   ignoreDraft: (id: number) =>

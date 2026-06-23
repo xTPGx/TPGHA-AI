@@ -46,6 +46,7 @@ from .router.permissions import get_confirmation_store
 from .actions.dashboards import build_dashboard_draft, install_dashboard_yaml
 from .actions.automation_installer import install_automation_yaml
 from .knowledge import build_house_graph
+from .brain import build_brain_layers
 from . import memory as memory_store
 from . import proactive as proactive_store
 from .router.resolver import Resolver
@@ -55,13 +56,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.23"
+APP_VERSION = "0.1.24"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "debug", "knowledge", "memory", "test", "tools", "docs", "redoc",
+    "dashboards", "debug", "knowledge", "memory", "brain", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
 
@@ -71,7 +72,7 @@ _API_PREFIXES = (
 # names such as discovery/chat/suggestions/ha; those must serve index.html.
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "config", "command", "confirm",
-    "confirmations", "automation", "dashboards", "debug", "knowledge", "memory",
+    "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "brain",
     "test", "tools", "docs", "redoc", "openapi.json",
 )
 
@@ -541,6 +542,12 @@ async def debug_last_command():
 @app.get("/knowledge/graph")
 async def knowledge_graph(include_registries: bool = True):
     return await build_house_graph(include_registries=include_registries)
+
+
+@app.get("/brain/layers")
+async def brain_layers(include_registries: bool = True):
+    graph = await build_house_graph(include_registries=include_registries)
+    return build_brain_layers(graph)
 
 
 # ------------------------------------------------------------------ memory

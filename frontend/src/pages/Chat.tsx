@@ -112,6 +112,10 @@ function isUncertainCommand(command?: CommandResponse) {
 
 function shouldPauseForReview(command?: CommandResponse) {
   if (!command?.success || !command.intent) return false;
+  const policy = command.data?.policy;
+  if (policy && typeof policy.requires_review === "boolean") {
+    return policy.requires_review;
+  }
   return Boolean(
     command.requires_confirmation ||
       isSensitiveCommand(command) ||
@@ -394,6 +398,7 @@ export default function Chat() {
                   {m.command.intent && <div><span className="text-slate-500">Intent:</span> {m.command.intent}</div>}
                   {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
                   {serviceSummary(m.command) && <div><span className="text-slate-500">Would call:</span> {serviceSummary(m.command)}</div>}
+                  {m.command.data?.policy?.decision && <div><span className="text-slate-500">Policy:</span> {m.command.data.policy.decision}</div>}
                   {m.command.requires_confirmation && <div className="text-amber-200">Confirmation required</div>}
                 </div>
               )}

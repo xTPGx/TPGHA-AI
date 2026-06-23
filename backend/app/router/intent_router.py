@@ -43,6 +43,7 @@ from ..homeassistant.services import safe_get_states
 from ..models.results import ActionResult, CommandResponse
 from .permissions import PermissionEngine, get_confirmation_store
 from .permissions import PendingConfirmation
+from .action_policy import evaluate_action_policy
 from .conversation_context import context_tool_call, load_context, save_context
 from .resolver import Resolver
 
@@ -171,6 +172,10 @@ async def handle_command(
 
     handler = _HANDLERS[tool_call.name]
     result: ActionResult = await handler(ctx, tool_call.arguments)
+    result.data = {
+        **(result.data or {}),
+        "policy": evaluate_action_policy(result, tool_dict, preview=False),
+    }
 
     _log_command(
         ctx.assistant.id,
@@ -275,6 +280,10 @@ async def handle_preview(
         data=data,
         error=result.error,
     )
+    preview.data = {
+        **(preview.data or {}),
+        "policy": evaluate_action_policy(preview, tool_dict, preview=True),
+    }
     resp = _to_response(ctx, preview, tool_dict)
     resp.conversation_id = conversation_id
     return resp

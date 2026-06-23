@@ -158,6 +158,13 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/knowledge/graph has counts", "counts" in r.json(), str(r.json()))
 
+    r = client.get("/brain/layers?include_registries=false")
+    check("/brain/layers returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    brain = r.json()
+    check("/brain/layers has seven layers", len(brain.get("layers", [])) == 7,
+          str(brain))
+
     r = client.post("/memory/draft", json={
         "scope": "user",
         "owner": "shawn",
@@ -221,6 +228,9 @@ def main() -> int:
     check("/command/preview has dry-run data",
           preview.get("data", {}).get("preview", {}).get("dry_run") is True,
           str(preview))
+    check("/command/preview safe action policy execute_now",
+          preview.get("data", {}).get("policy", {}).get("decision") == "execute_now",
+          str(preview))
 
     r = client.post("/chat/preview", json={
         "assistant": "atlas",
@@ -235,6 +245,10 @@ def main() -> int:
           str(body))
     check("/chat/preview does not return live token",
           body.get("command", {}).get("confirmation_token") is None,
+          str(body))
+    check("/chat/preview unlock policy requires confirmation",
+          body.get("command", {}).get("data", {}).get("policy", {}).get("decision")
+          == "confirmation_required",
           str(body))
 
     before_preview_drafts = len(client.get("/suggestions").json().get("suggestions", []))
