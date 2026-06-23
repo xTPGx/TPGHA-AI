@@ -32,14 +32,91 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
-function shouldShowPreview(command?: CommandResponse) {
+const PROPOSAL_INTENTS = new Set([
+  "create_simple_automation",
+  "create_routine",
+]);
+
+const SENSITIVE_INTENTS = new Set([
+  "unlock_door",
+  "open_garage",
+  "open_cover",
+  "disarm_alarm",
+  "disable_alarm",
+  "disable_security",
+  "disable_camera",
+  "change_lock_code",
+  "delete_automation",
+  "remove_device",
+]);
+
+const SENSITIVE_ACTIONS = new Set([
+  "unlock",
+  "open",
+  "disarm",
+  "disable",
+  "delete",
+  "remove",
+]);
+
+const SENSITIVE_SERVICES = new Set([
+  "lock.unlock",
+  "cover.open_cover",
+  "cover.open_garage_door",
+  "alarm_control_panel.alarm_disarm",
+]);
+
+function commandConfidence(command?: CommandResponse) {
+  const c = command?.resolved?.confidence;
+  return typeof c === "number" ? c : 1;
+}
+
+function commandServiceNames(command?: CommandResponse) {
+  const calls = command?.data?.preview?.service_calls;
+  if (Array.isArray(calls) && calls.length > 0) {
+    return calls
+      .map((c: any) => `${c.domain || ""}.${c.service || ""}`.replace(/^\./, "").replace(/\.$/, ""))
+      .filter(Boolean);
+  }
+  const tool = command?.tool_call || {};
+  const name = typeof tool.name === "string" ? tool.name : "";
+  const args = (tool.arguments || {}) as Record<string, any>;
+  const domain = typeof args.domain === "string" ? args.domain : "";
+  const service = typeof args.service === "string" ? args.service : "";
+  return [`${domain}.${service}`, name].filter((v) => v && v !== ".");
+}
+
+function isSensitiveCommand(command?: CommandResponse) {
+  if (!command?.intent) return false;
+  if (SENSITIVE_INTENTS.has(command.intent)) return true;
+
+  const args = (command.tool_call?.arguments || {}) as Record<string, any>;
+  const action = String(args.action || args.service || "").toLowerCase();
+  const domain = String(args.domain || command.resolved?.domain || command.resolved?.entity_id || "").toLowerCase();
+  const serviceNames = commandServiceNames(command).map((s) => s.toLowerCase());
+
+  if (serviceNames.some((name) => SENSITIVE_SERVICES.has(name))) return true;
+  if (SENSITIVE_ACTIONS.has(action) && /lock|cover|garage|alarm|security|camera/.test(domain)) return true;
+  return false;
+}
+
+function isUncertainCommand(command?: CommandResponse) {
   if (!command?.success || !command.intent) return false;
   const preview = command.data?.preview;
+  const wouldExecute = Boolean(preview?.would_execute || command.tool_call);
+  if (!wouldExecute) return false;
+  if (commandConfidence(command) < 0.8) return true;
+  const r = command.resolved || {};
+  return Boolean(!r.entity_id && !r.label && !r.target && !r.door && !r.routine);
+}
+
+function shouldPauseForReview(command?: CommandResponse) {
+  if (!command?.success || !command.intent) return false;
   return Boolean(
     command.requires_confirmation ||
-      preview?.would_execute ||
-      command.intent === "create_simple_automation" ||
-      command.intent === "create_routine",
+      isSensitiveCommand(command) ||
+      PROPOSAL_INTENTS.has(command.intent) ||
+      isUncertainCommand(command),
   );
 }
 
@@ -130,7 +207,7 @@ export default function Chat() {
       if (safePreview) {
         const preview = await api.chatPreview(assistant, user, message, conversationId);
         const command = preview.command as CommandResponse | undefined;
-        if (shouldShowPreview(command)) {
+        if (shouldPauseForReview(command)) {
           const response = preview.response || command?.message || "Preview ready.";
           appendAssistant({
             text: response,
@@ -279,7 +356,7 @@ export default function Chat() {
             checked={safePreview}
             onChange={(e) => setSafePreview(e.target.checked)}
           />
-          Preview actions
+          Review risky or uncertain
         </label>
         <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
           <input
@@ -297,7 +374,7 @@ export default function Chat() {
       <div className="card mb-4 min-h-[28rem] space-y-3">
         {messages.length === 0 && (
           <div className="text-slate-500">
-            Try "turn off office fan", "set a sleep timer on the office TV in 30 minutes", or "why did you do that?"
+            Known safe actions run immediately. Risky or uncertain requests pause for review.
           </div>
         )}
         {messages.map((m) => (
@@ -361,7 +438,7 @@ export default function Chat() {
           placeholder={listening ? "Listening..." : "Talk to the house..."}
         />
         <button className="btn self-stretch" onClick={() => void send()} disabled={busy}>
-          {busy ? "Thinking..." : safePreview ? "Preview" : "Send"}
+          {busy ? "Thinking..." : "Send"}
         </button>
       </div>
     </div>

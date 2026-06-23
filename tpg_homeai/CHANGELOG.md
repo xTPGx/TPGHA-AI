@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.23
+
+- Updated Chat safety flow so confident low-risk commands execute immediately.
+- Kept review/confirmation for sensitive, uncertain, and proposal actions.
+- Adjusted Chat UI copy from preview-all to review risky or uncertain commands.
+
 ## 0.1.22
 
 - Added vetted media_player turn_on/turn_off service planning for TV/display power commands.
