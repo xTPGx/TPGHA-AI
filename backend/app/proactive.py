@@ -38,6 +38,8 @@ async def scan_proactive() -> dict[str, Any]:
     states = await safe_get_states()
     created = 0
     findings: list[dict[str, Any]] = []
+    people = [e for e in states.values() if e.domain in {"person", "device_tracker"}]
+    nobody_home = bool(people) and all((p.state or "").lower() not in {"home", "on"} for p in people)
     with get_session() as session:
         for entity in states.values():
             eid = entity.entity_id
@@ -79,6 +81,30 @@ async def scan_proactive() -> dict[str, Any]:
                 ):
                     created += 1
                 findings.append({"type": "media_active", "entity_id": eid, "name": name})
+            elif entity.domain == "light" and state == "on" and nobody_home:
+                if _add(
+                    session,
+                    title=f"{name} is on while nobody is home",
+                    message=f"{name} is still on and all tracked people appear away.",
+                    category="energy",
+                    priority="normal",
+                    action_type="turn_off_light",
+                    payload={"entity_id": eid, "state": state, "nobody_home": True},
+                ):
+                    created += 1
+                findings.append({"type": "light_on_away", "entity_id": eid, "name": name})
+            elif "battery" in eid.lower() and _low_battery_state(state):
+                if _add(
+                    session,
+                    title=f"{name} battery is low",
+                    message=f"{name} reports battery state {entity.state}.",
+                    category="maintenance",
+                    priority="normal",
+                    action_type="review_battery",
+                    payload={"entity_id": eid, "state": entity.state},
+                ):
+                    created += 1
+                findings.append({"type": "low_battery", "entity_id": eid, "name": name})
             elif not entity.available:
                 if _add(
                     session,
@@ -92,3 +118,12 @@ async def scan_proactive() -> dict[str, Any]:
                     created += 1
         session.commit()
     return {"created": created, "findings": findings}
+
+
+def _low_battery_state(state: str) -> bool:
+    if state in {"low", "critical"}:
+        return True
+    try:
+        return float(state) <= 20
+    except (TypeError, ValueError):
+        return False

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.26
+
+- Added router-level outcome verification so executed commands record post-action HA state checks.
+- Added repair suggestions when an action executes but the follow-up state does not match.
+- Added device profile generation with capabilities, quirks, and success/failure history.
+- Added `/knowledge/device-profiles` plus a Home Assistant service for profile data.
+- Added actual Ollama-compatible local model tool selection fallback.
+- Expanded proactive monitoring for away-mode lights and low-battery findings.
+
 ## 0.1.25
 
 - Added room/source context fields for room-aware commands from Chat, HA services, and Assist surfaces.

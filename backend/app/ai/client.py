@@ -11,6 +11,8 @@ import logging
 import re
 from typing import Any, Optional
 
+import httpx
+
 from ..models.schemas import AppConfig, Assistant, User
 from ..settings import get_settings
 from ..memory import approved_memory_context
@@ -55,8 +57,9 @@ class AIClient:
         return self._client is not None
 
     def provider_status(self) -> dict[str, Any]:
+        ollama_configured = bool(self.settings.ollama_base_url and self.settings.ollama_model)
         return {
-            "active": "openai" if self.using_openai else "fallback_parser",
+            "active": "openai" if self.using_openai else ("ollama" if ollama_configured else "fallback_parser"),
             "providers": {
                 "openai": {
                     "configured": self.settings.openai_configured,
@@ -65,8 +68,8 @@ class AIClient:
                     "role": "primary_reasoning",
                 },
                 "ollama": {
-                    "configured": bool(self.settings.ollama_base_url and self.settings.ollama_model),
-                    "available": False,
+                    "configured": ollama_configured,
+                    "available": ollama_configured,
                     "model": self.settings.ollama_model,
                     "base_url": self.settings.ollama_base_url,
                     "role": "planned_local_fallback",
@@ -92,6 +95,11 @@ class AIClient:
                 return self._select_via_openai(message, config, assistant, user)
             except Exception as exc:  # pragma: no cover - network/runtime
                 logger.warning("OpenAI call failed (%s); using fallback.", type(exc).__name__)
+        if self.settings.ollama_base_url and self.settings.ollama_model:
+            try:
+                return self._select_via_ollama(message, config, assistant, user)
+            except Exception as exc:  # pragma: no cover - network/runtime
+                logger.warning("Ollama call failed (%s); using deterministic fallback.", type(exc).__name__)
         return fallback_parse(message, user)
 
     def _select_via_openai(
@@ -130,6 +138,42 @@ class AIClient:
                             assistant_text=msg.content or "")
         # No tool selected: conversational reply.
         return ToolCall("", {}, source="openai", assistant_text=msg.content or "")
+
+    def _select_via_ollama(
+        self,
+        message: str,
+        config: AppConfig,
+        assistant: Optional[Assistant],
+        user: Optional[User],
+    ) -> Optional[ToolCall]:
+        prompt = (
+            "You select exactly one smart-home tool. Return ONLY compact JSON with "
+            "keys: name, arguments, assistant_text. If no tool applies, set name to ''.\n"
+            f"Allowed tools: {', '.join(TOOL_NAMES)}\n"
+            f"Assistant: {(assistant.name if assistant else 'unknown')}\n"
+            f"User: {(user.name if user else 'unknown')}\n"
+            "Important: unlock/open garage/disarm are allowed tool selections but "
+            "the backend will require confirmation. Do not invent arbitrary services.\n"
+            f"Command: {message}"
+        )
+        url = f"{self.settings.ollama_base_url.rstrip('/')}/api/chat"
+        with httpx.Client(timeout=20.0) as client:
+            resp = client.post(url, json={
+                "model": self.settings.ollama_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "options": {"temperature": 0},
+            })
+            resp.raise_for_status()
+            body = resp.json()
+        content = ((body.get("message") or {}).get("content") or "").strip()
+        parsed = _parse_tool_json(content)
+        name = str(parsed.get("name") or parsed.get("tool") or "")
+        arguments = parsed.get("arguments") if isinstance(parsed.get("arguments"), dict) else {}
+        if name and name not in TOOL_NAMES:
+            return ToolCall("", {}, source="ollama", assistant_text=f"Ollama selected unsupported tool '{name}'.")
+        return ToolCall(name, arguments, source="ollama",
+                        assistant_text=str(parsed.get("assistant_text") or ""))
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +501,24 @@ def _extract_after(text: str, markers: list[str]) -> Optional[str]:
             if rest:
                 return rest
     return None
+
+
+def _parse_tool_json(content: str) -> dict[str, Any]:
+    if not content:
+        return {}
+    try:
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"\{.*\}", content, re.S)
+    if not match:
+        return {}
+    try:
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        return {}
 
 
 _ai: Optional[AIClient] = None

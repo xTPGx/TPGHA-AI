@@ -53,6 +53,7 @@ from .const import (
     SERVICE_GENERATE_SUGGESTIONS,
     SERVICE_GET_AI_PROVIDERS,
     SERVICE_GET_BRAIN_LAYERS,
+    SERVICE_GET_DEVICE_PROFILES,
     SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
     SERVICE_GET_PHYSICAL_DEVICES,
@@ -151,6 +152,12 @@ class TPGHomeAIClient:
         return await self._request(
             "GET",
             f"/knowledge/physical-devices?include_registries={'true' if include_registries else 'false'}",
+        )
+
+    async def async_device_profiles(self, include_registries: bool = True) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/knowledge/device-profiles?include_registries={'true' if include_registries else 'false'}",
         )
 
     async def async_ai_providers(self) -> dict[str, Any]:
@@ -517,6 +524,10 @@ def _register_services(hass: HomeAssistant) -> None:
         return await _first_client(hass).async_physical_devices(
             include_registries=call.data.get("include_registries", True))
 
+    async def _get_device_profiles(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_device_profiles(
+            include_registries=call.data.get("include_registries", True))
+
     async def _get_ai_providers(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_ai_providers()
 
@@ -606,6 +617,8 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_PHYSICAL_DEVICES, _get_physical_devices,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_DEVICE_PROFILES, _get_device_profiles,
+        schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_AI_PROVIDERS, _get_ai_providers,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_LAST_COMMAND, _get_last_command,
@@ -636,7 +649,8 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
                     SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
                     SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_BRAIN_LAYERS,
-                    SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_AI_PROVIDERS,
+                    SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_DEVICE_PROFILES,
+                    SERVICE_GET_AI_PROVIDERS,
                     SERVICE_GET_LAST_COMMAND,
                     SERVICE_GET_COMMANDS, SERVICE_GENERATE_SUGGESTIONS,
                     SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,

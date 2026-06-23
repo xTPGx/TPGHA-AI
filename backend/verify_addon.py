@@ -171,6 +171,11 @@ def main() -> int:
     check("/knowledge/physical-devices has devices list", isinstance(r.json().get("devices"), list),
           str(r.json()))
 
+    r = client.get("/knowledge/device-profiles?include_registries=false")
+    check("/knowledge/device-profiles returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/knowledge/device-profiles has counts", "counts" in r.json(), str(r.json()))
+
     r = client.get("/ai/providers")
     check("/ai/providers returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")

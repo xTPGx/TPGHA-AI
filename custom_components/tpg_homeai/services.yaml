@@ -246,6 +246,19 @@ get_physical_devices:
       selector:
         boolean:
 
+get_device_profiles:
+  name: Get device profiles
+  description: >
+    Return operational profiles for physical devices, including capabilities,
+    quirks, and recent success/failure history.
+  fields:
+    include_registries:
+      name: Include HA registries
+      required: false
+      default: true
+      selector:
+        boolean:
+
 get_ai_providers:
   name: Get AI providers
   description: Return OpenAI, local/Ollama, and fallback parser readiness.
