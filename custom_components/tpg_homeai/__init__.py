@@ -54,6 +54,7 @@ from .const import (
     SERVICE_GET_AI_PROVIDERS,
     SERVICE_GET_ASSISTANT_INTELLIGENCE,
     SERVICE_GET_BRAIN_LAYERS,
+    SERVICE_GET_COMPLETION_STATUS,
     SERVICE_GET_DEVICE_PROFILES,
     SERVICE_GET_HOUSE_STATE,
     SERVICE_GET_MODE_BRAIN,
@@ -154,6 +155,12 @@ class TPGHomeAIClient:
         return await self._request(
             "GET",
             f"/brain/layers?include_registries={'true' if include_registries else 'false'}",
+        )
+
+    async def async_completion_status(self, include_registries: bool = True) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/brain/completion?include_registries={'true' if include_registries else 'false'}",
         )
 
     async def async_house_state(self, include_registries: bool = True) -> dict[str, Any]:
@@ -575,6 +582,10 @@ def _register_services(hass: HomeAssistant) -> None:
         return await _first_client(hass).async_brain_layers(
             include_registries=call.data.get("include_registries", True))
 
+    async def _get_completion_status(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_completion_status(
+            include_registries=call.data.get("include_registries", True))
+
     async def _get_house_state(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_house_state(
             include_registries=call.data.get("include_registries", True))
@@ -704,6 +715,8 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_BRAIN_LAYERS, _get_brain_layers,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_COMPLETION_STATUS, _get_completion_status,
+        schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_HOUSE_STATE, _get_house_state,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_MODE_BRAIN, _get_mode_brain,
@@ -754,7 +767,8 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
                     SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
                     SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_BRAIN_LAYERS,
-                    SERVICE_GET_HOUSE_STATE, SERVICE_GET_MODE_BRAIN,
+                    SERVICE_GET_COMPLETION_STATUS, SERVICE_GET_HOUSE_STATE,
+                    SERVICE_GET_MODE_BRAIN,
                     SERVICE_GET_ASSISTANT_INTELLIGENCE,
                     SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_DEVICE_PROFILES,
                     SERVICE_GET_TABLET_PROFILES,

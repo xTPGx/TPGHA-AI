@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from .ai.client import get_ai_client
-from .config_loader import get_config
+from .config_loader import config_error, get_config
 from .db.database import get_session
 from .db.models import CommandLog, ConversationState, MemoryItem, Suggestion
 from .discovery import capabilities
@@ -206,7 +206,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "overall_score": overall,
         "status": "ready" if overall >= 85 else "building",
         "layers": layers,
-            "summary": {
+        "summary": {
             "rooms": counts.get("rooms", 0),
             "devices": counts.get("devices", 0),
             "physical_devices": len(physical),
@@ -218,6 +218,243 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         },
         "health": health or {},
     }
+
+
+def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return the hard stop criteria for Jarvis v1.
+
+    The important distinction is software completeness versus house deployment
+    completeness. The repo can be v1-ready before every real microphone,
+    display, and HA source id is installed in the user's house.
+    """
+
+    config = get_config()
+    settings = get_settings()
+    ai = get_ai_client()
+    providers = ai.provider_status()
+    mode_brain = build_mode_brain(config)
+    wake_word = build_wake_word_deployment(config)
+    counts = graph.get("counts", {})
+    pending = int(graph.get("pending_approvals") or 0)
+    unavailable = int(graph.get("unavailable_devices") or 0)
+    controllable = _controllable_count(graph)
+    diagnostic = _diagnostic_count(graph)
+    active_voice = wake_word.get("counts", {})
+    cfg_err = config_error()
+    ha_health = (health or {}).get("home_assistant", {})
+    backend_health = (health or {}).get("backend", {})
+    openai_health = (health or {}).get("openai", {})
+
+    gates = [
+        _gate(
+            "core_runtime",
+            "Core Runtime + Add-on Lifecycle",
+            True,
+            bool(backend_health.get("online", True)) and cfg_err is None,
+            [
+                "Backend starts without crashing.",
+                "Config validates cleanly.",
+                "Add-on metadata, Docker label, backend package, and integration version are aligned.",
+            ],
+            [] if cfg_err is None else [f"Fix config validation error: {cfg_err}"],
+            "Health, config reload, ingress, and add-on update metadata are stable.",
+        ),
+        _gate(
+            "ha_bridge",
+            "Home Assistant Bridge",
+            True,
+            bool(settings.ha_configured) and bool(ha_health.get("reachable", True)),
+            [
+                f"HA URL configured: {settings.ha_configured}.",
+                f"HA reachable: {ha_health.get('reachable', 'unknown')}.",
+                "Custom integration exposes commands, sensors, services, notifications, and sidebar UI.",
+            ],
+            _missing([
+                (not settings.ha_configured, "Configure Home Assistant URL/token or Supervisor proxy."),
+                (ha_health.get("reachable") is False, "Fix HA reachability from the add-on/container."),
+            ]),
+            "The backend can read HA state and execute vetted HA services.",
+        ),
+        _gate(
+            "command_brain",
+            "Natural Language Command Brain",
+            True,
+            True,
+            [
+                "OpenAI tool selection, deterministic fallback, room context, corrections, and audit explainability exist.",
+                "Safe actions can auto-execute when confidence and policy allow.",
+                "Sensitive actions are confirmation-gated.",
+            ],
+            [],
+            "Lights, fans, locks, covers, media players, climate, cameras, timers, and routines route through guarded tools.",
+        ),
+        _gate(
+            "security",
+            "Security + Identity",
+            True,
+            bool(settings.security_pin),
+            [
+                "Unlock/open/disarm/garage/security actions are confirmation-gated.",
+                "User permissions are checked before confirmations are created.",
+                f"Security PIN configured: {bool(settings.security_pin)}.",
+            ],
+            _missing([
+                (not settings.security_pin, "Set security_pin in add-on options for PIN-backed critical confirmations."),
+            ]),
+            "Security-disabling actions need confirmation and PIN; security-enabling actions can stay one-step.",
+        ),
+        _gate(
+            "device_graph",
+            "Real Device Capability Graph",
+            True,
+            counts.get("rooms", 0) > 0 and controllable > 0 and pending == 0,
+            [
+                f"{counts.get('rooms', 0)} rooms configured.",
+                f"{controllable} controllable entities and {diagnostic} diagnostic entities mapped.",
+                f"{pending} pending approvals and {unavailable} unavailable entities.",
+            ],
+            _missing([
+                (counts.get("rooms", 0) <= 0, "Configure rooms."),
+                (controllable <= 0, "Approve controllable HA entities."),
+                (pending > 0, f"Approve, map, or ignore {pending} pending discovery items."),
+            ]),
+            "Every important real device is either approved, intentionally ignored, or safely diagnostic-only.",
+        ),
+        _gate(
+            "voice_assist",
+            "Voice, TTS, and Wake Word Deployment",
+            True,
+            bool(settings.openai_configured)
+            and active_voice.get("total", 0) > 0
+            and active_voice.get("missing_source_identity", 0) == 0,
+            [
+                f"OpenAI configured: {settings.openai_configured}.",
+                f"{active_voice.get('total', 0)} voice sources configured.",
+                f"{active_voice.get('missing_source_identity', 0)} voice sources missing source identity.",
+                f"{active_voice.get('rooms_without_voice_source', 0)} rooms without a source.",
+            ],
+            _missing([
+                (not settings.openai_configured, "Configure OpenAI API key for real assistant reasoning/TTS."),
+                (active_voice.get("total", 0) <= 0, "Add at least one real voice source."),
+                (active_voice.get("missing_source_identity", 0) > 0, "Paste real HA Assist/Browser Mod source IDs into voice_sources."),
+            ]),
+            "You can talk to the house from real microphones/panels and get natural replies in the right place.",
+        ),
+        _gate(
+            "memory_learning",
+            "Memory + Learning",
+            True,
+            True,
+            [
+                "Short-term conversation context is stored.",
+                "Command audit supports explanation and correction follow-ups.",
+                "Long-term memories require approval before becoming active context.",
+            ],
+            [],
+            "The system learns preferences through approved memory, not unsafe hidden mutation.",
+        ),
+        _gate(
+            "proactive_suggestions",
+            "Proactive Suggestions + Approval Inbox",
+            True,
+            True,
+            [
+                "Monitor scans can draft security, maintenance, sleep-timer, dashboard, and routine suggestions.",
+                "Automation drafts are approval-first.",
+                "Suggestion approve/ignore/install endpoints exist.",
+            ],
+            [],
+            "The assistant can suggest useful actions without silently changing the house.",
+        ),
+        _gate(
+            "dashboards_ui",
+            "Native HA UI + Dashboards",
+            True,
+            True,
+            [
+                "Ingress/sidebar UI is enabled.",
+                "Dashboard builder can draft and install Lovelace YAML.",
+                "Browser Mod/tablet profile data exists for room dashboards.",
+            ],
+            [],
+            "The system can be managed from Home Assistant without only using an external web UI.",
+        ),
+        _gate(
+            "ai_hybrid",
+            "OpenAI / Local AI Hybrid",
+            False,
+            bool(providers.get("providers", {}).get("ollama", {}).get("configured")),
+            [
+                f"OpenAI active: {ai.using_openai}.",
+                f"Ollama configured: {providers.get('providers', {}).get('ollama', {}).get('configured')}.",
+                "Fallback parser remains available for deterministic offline controls.",
+            ],
+            ["Optional: configure Ollama for local fallback on the TPG AI server."],
+            "OpenAI stays primary, local AI can be a privacy/offline fallback.",
+        ),
+    ]
+
+    required = [gate for gate in gates if gate["required"]]
+    optional = [gate for gate in gates if not gate["required"]]
+    required_ready = sum(1 for gate in required if gate["status"] == "complete")
+    optional_ready = sum(1 for gate in optional if gate["status"] == "complete")
+    software_ready = all(gate["software_ready"] for gate in required)
+    deployment_ready = all(gate["status"] == "complete" for gate in required)
+    score = int(round(sum(gate["score"] for gate in gates) / len(gates)))
+    blockers = [
+        blocker
+        for gate in required
+        for blocker in gate["blockers"]
+        if gate["status"] != "complete"
+    ]
+
+    return {
+        "version_target": "Jarvis v1",
+        "status": "complete" if deployment_ready else ("software_ready" if software_ready else "building"),
+        "overall_score": score,
+        "software_ship_complete": software_ready,
+        "house_deployment_complete": deployment_ready,
+        "required_complete": required_ready,
+        "required_total": len(required),
+        "optional_complete": optional_ready,
+        "optional_total": len(optional),
+        "blockers": blockers,
+        "complete_spot": {
+            "software": (
+                "Stop adding repo features when every required gate has software support, "
+                "tests pass, and only house-specific configuration remains."
+            ),
+            "deployment": (
+                "Call Jarvis v1 complete when required gates are complete in the live house: "
+                "HA reachable, security PIN set, pending approvals cleared, OpenAI configured, "
+                "and real voice source IDs mapped."
+            ),
+            "after_complete": (
+                "After that, freeze feature work and only do bug fixes, device mapping, voice tuning, "
+                "and small quality-of-life polish until a clear v2 requirement appears."
+            ),
+        },
+        "gates": gates,
+    }
+
+
+def _gate(identifier: str, title: str, required: bool, complete: bool,
+          evidence: list[str], blockers: list[str], done_when: str) -> dict[str, Any]:
+    return {
+        "id": identifier,
+        "title": title,
+        "required": required,
+        "status": "complete" if complete else "incomplete",
+        "score": 100 if complete else (75 if required else 60),
+        "software_ready": bool(evidence),
+        "evidence": evidence,
+        "blockers": blockers if not complete else [],
+        "done_when": done_when,
+    }
+
+
+def _missing(items: list[tuple[bool, str]]) -> list[str]:
+    return [message for condition, message in items if condition]
 
 
 def _controllable_count(graph: dict[str, Any]) -> int:

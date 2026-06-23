@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.32
+
+- Added `/brain/completion` with Jarvis v1 software readiness, live-house deployment gates, blockers, and stop criteria.
+- Added a Jarvis v1 Completion panel to the Jarvis Brain UI so the system shows when feature work should stop.
+- Added Home Assistant `get_completion_status` service for dashboards, scripts, and diagnostics.
+- Split completion into software ship readiness versus real-house deployment readiness.
+- Added acceptance coverage for the completion endpoint.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.31
 
 - Added a configurable house mode brain for home, away, sleep, movie, guest, cleaning, and security behavior.

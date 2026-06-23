@@ -48,7 +48,7 @@ from .router.permissions import get_confirmation_store
 from .actions.dashboards import build_dashboard_draft, install_dashboard_yaml
 from .actions.automation_installer import install_automation_yaml
 from .knowledge import build_house_graph
-from .brain import build_brain_layers
+from .brain import build_brain_layers, build_completion_status
 from .device_adapters import build_device_adapters
 from .outcomes import build_device_profiles
 from . import memory as memory_store
@@ -75,7 +75,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.31"
+APP_VERSION = "0.1.32"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -603,6 +603,12 @@ async def voice_sources():
 async def brain_layers(include_registries: bool = True):
     graph = await build_house_graph(include_registries=include_registries)
     return build_brain_layers(graph)
+
+
+@app.get("/brain/completion")
+async def brain_completion(include_registries: bool = True):
+    graph = await build_house_graph(include_registries=include_registries)
+    return build_completion_status(graph, await health())
 
 
 @app.get("/brain/house-state")

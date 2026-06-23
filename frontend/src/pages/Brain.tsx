@@ -12,16 +12,19 @@ const STATUS_COLORS: Record<string, string> = {
 export default function Brain() {
   const [brain, setBrain] = useState<any>(null);
   const [providers, setProviders] = useState<any>(null);
+  const [completion, setCompletion] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const [brainResult, providerResult] = await Promise.all([
+      const [brainResult, providerResult, completionResult] = await Promise.all([
         api.brainLayers(),
         api.aiProviders(),
+        api.completionStatus(),
       ]);
       setBrain(brainResult);
       setProviders(providerResult);
+      setCompletion(completionResult);
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -52,6 +55,46 @@ export default function Brain() {
         <Stat label="Controllable" value={brain?.summary?.controllable_entities ?? "—"} />
         <Stat label="Pending" value={brain?.summary?.pending_approvals ?? "—"} />
       </div>
+
+      {completion && (
+        <div className="card mb-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-slate-100">Jarvis v1 Completion</div>
+              <div className="text-sm text-slate-400">The stop line for feature work versus live-house deployment</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className={`badge ${completion.software_ship_complete ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+                software: {completion.software_ship_complete ? "ready" : "building"}
+              </span>
+              <span className={`badge ${completion.house_deployment_complete ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+                house: {completion.house_deployment_complete ? "complete" : "needs setup"}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <MiniStat label="Completion" value={`${completion.overall_score}%`} />
+            <MiniStat label="Required Gates" value={`${completion.required_complete}/${completion.required_total}`} />
+            <MiniStat label="Optional Gates" value={`${completion.optional_complete}/${completion.optional_total}`} />
+            <MiniStat label="Blockers" value={completion.blockers?.length || 0} />
+          </div>
+          {completion.blockers?.length > 0 && (
+            <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-3">
+              <div className="mb-2 text-sm font-semibold text-amber-200">Live-house blockers</div>
+              <div className="space-y-1 text-sm text-amber-100">
+                {completion.blockers.slice(0, 5).map((blocker: string) => (
+                  <div key={blocker}>{blocker}</div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            <StopLine label="Software stop" text={completion.complete_spot?.software} />
+            <StopLine label="Deployment stop" text={completion.complete_spot?.deployment} />
+            <StopLine label="After complete" text={completion.complete_spot?.after_complete} />
+          </div>
+        </div>
+      )}
 
       {providers && (
         <div className="card mb-4">
@@ -121,6 +164,24 @@ function Stat({ label, value }: { label: string; value: any }) {
     <div className="card">
       <div className="mb-1 text-xs text-slate-400">{label}</div>
       <div className="text-2xl font-semibold text-slate-100">{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+      <div className="mb-1 text-xs text-slate-400">{label}</div>
+      <div className="text-xl font-semibold text-slate-100">{value}</div>
+    </div>
+  );
+}
+
+function StopLine({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+      <div className="mb-1 text-xs font-semibold uppercase text-slate-500">{label}</div>
+      <div className="text-sm text-slate-300">{text}</div>
     </div>
   );
 }

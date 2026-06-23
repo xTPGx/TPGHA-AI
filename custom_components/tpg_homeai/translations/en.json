@@ -79,6 +79,10 @@
       "name": "Cancel confirmation",
       "description": "Cancel a pending sensitive action without executing it."
     },
+    "get_completion_status": {
+      "name": "Get completion status",
+      "description": "Return Jarvis v1 software and deployment completion gates, blockers, and stop criteria."
+    },
     "get_voice_profiles": {
       "name": "Get voice profiles",
       "description": "Return assistant voice profiles and TTS readiness."

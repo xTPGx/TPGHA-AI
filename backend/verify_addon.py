@@ -176,6 +176,13 @@ def main() -> int:
     check("/brain/layers has Jarvis layers", len(brain.get("layers", [])) >= 7,
           str(brain))
 
+    r = client.get("/brain/completion?include_registries=false")
+    check("/brain/completion returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/completion has stop criteria",
+          "gates" in r.json() and "complete_spot" in r.json(),
+          str(r.json()))
+
     r = client.get("/brain/house-state?include_registries=false")
     check("/brain/house-state returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")

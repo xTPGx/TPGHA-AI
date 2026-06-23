@@ -247,6 +247,19 @@ get_brain_layers:
       selector:
         boolean:
 
+get_completion_status:
+  name: Get completion status
+  description: >
+    Return Jarvis v1 software and live-house deployment completion gates,
+    blockers, and the defined stop point for feature work.
+  fields:
+    include_registries:
+      name: Include HA registries
+      required: false
+      default: true
+      selector:
+        boolean:
+
 get_house_state:
   name: Get house state
   description: Return situational house modes, attention items, rooms, and recommendations.
