@@ -181,6 +181,16 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/brain/house-state has modes", isinstance(r.json().get("modes"), list),
           str(r.json()))
+    check("/brain/house-state includes mode brain and wake word",
+          "mode_brain" in r.json() and "wake_word" in r.json(),
+          str(r.json()))
+
+    r = client.get("/brain/modes")
+    check("/brain/modes returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/modes has active policy",
+          "active_modes" in r.json() and "policy" in r.json(),
+          str(r.json()))
 
     r = client.get("/brain/assistants")
     check("/brain/assistants returns JSON", r.status_code == 200 and is_json(r),
@@ -211,6 +221,13 @@ def main() -> int:
     check("/knowledge/voice-sources has list", "voice_sources" in r.json(), str(r.json()))
     check("/knowledge/voice-sources includes route readiness",
           "counts" in r.json() and r.json()["counts"].get("total", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/voice/deployment")
+    check("/voice/deployment returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/voice/deployment has readiness counts",
+          "counts" in r.json() and "sources" in r.json(),
           str(r.json()))
 
     r = client.get("/dashboards/tablet-profiles")

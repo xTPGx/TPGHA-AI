@@ -66,14 +66,16 @@ from .voice import (
 from .house_state import (
     build_assistant_intelligence,
     build_house_state,
+    build_mode_brain,
     build_tablet_profiles,
+    build_wake_word_deployment,
 )
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.30"
+APP_VERSION = "0.1.31"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -610,6 +612,11 @@ async def brain_house_state(include_registries: bool = True):
     return await build_house_state(cfg, graph)
 
 
+@app.get("/brain/modes")
+async def brain_modes():
+    return build_mode_brain(get_config())
+
+
 @app.get("/brain/assistants")
 async def brain_assistants():
     return build_assistant_intelligence(get_config())
@@ -629,6 +636,11 @@ async def voice_profiles():
 @app.get("/voice/voices")
 async def voice_voices():
     return list_voices()
+
+
+@app.get("/voice/deployment")
+async def voice_deployment():
+    return build_wake_word_deployment(get_config())
 
 
 @app.post("/voice/preview")

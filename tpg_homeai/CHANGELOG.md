@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.31
+
+- Added a configurable house mode brain for home, away, sleep, movie, guest, cleaning, and security behavior.
+- Added `/brain/modes` with active mode inference, reply policy, safe auto-execute posture, and confirmation gates.
+- Added `/voice/deployment` with wake-word/source readiness, missing source identity checks, speaker route checks, and room satellite recommendations.
+- Added Mode Brain and Wake Word Deployment panels to the House Brain UI.
+- Added Home Assistant services for mode brain and wake-word deployment diagnostics.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.30
 
 - Added voice source trust, user, default reply, and speaker routing metadata for Assist satellites, panels, and microphones.

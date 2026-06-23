@@ -154,6 +154,7 @@ export const api = {
     http<any>(`/suggestions/proactive/${id}/ignore`, { method: "POST" }),
   brainLayers: () => http<any>("/brain/layers"),
   houseState: () => http<any>("/brain/house-state"),
+  modeBrain: () => http<any>("/brain/modes"),
   assistantIntelligence: () => http<any>("/brain/assistants"),
   tabletProfiles: () => http<any>("/dashboards/tablet-profiles"),
   deviceProfiles: () => http<any>("/knowledge/device-profiles"),
@@ -161,6 +162,7 @@ export const api = {
   voiceSources: () => http<any>("/knowledge/voice-sources"),
   voiceProfiles: () => http<any>("/voice/profiles"),
   voiceVoices: () => http<any>("/voice/voices"),
+  voiceDeployment: () => http<any>("/voice/deployment"),
   voicePreview: (body: Record<string, any>) =>
     http<any>("/voice/preview", { method: "POST", body: JSON.stringify(body) }),
   voiceSpeak: (body: Record<string, any>) =>

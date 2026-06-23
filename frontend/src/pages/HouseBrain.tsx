@@ -18,6 +18,8 @@ export default function HouseBrain() {
   const [state, setState] = useState<any>(null);
   const [assistants, setAssistants] = useState<any>(null);
   const [tablets, setTablets] = useState<any>(null);
+  const [modes, setModes] = useState<any>(null);
+  const [deployment, setDeployment] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,14 +27,18 @@ export default function HouseBrain() {
     setBusy(true);
     setError(null);
     try {
-      const [house, assistantData, tabletData] = await Promise.all([
+      const [house, assistantData, tabletData, modeData, deploymentData] = await Promise.all([
         api.houseState(),
         api.assistantIntelligence(),
         api.tabletProfiles(),
+        api.modeBrain(),
+        api.voiceDeployment(),
       ]);
       setState(house);
       setAssistants(assistantData);
       setTablets(tabletData);
+      setModes(modeData);
+      setDeployment(deploymentData);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -73,6 +79,98 @@ export default function HouseBrain() {
           <div className="text-xs uppercase text-slate-400">Recommendations</div>
           <div className="mt-2 text-2xl font-semibold">{state?.recommendations?.length || 0}</div>
         </div>
+      </div>
+
+      <div className="mb-5 grid gap-5 xl:grid-cols-2">
+        <section className="card">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Mode Brain</h2>
+              <div className="text-sm text-slate-400">Active behavior profile, reply route, and confirmation posture</div>
+            </div>
+            <Pill tone={modes?.quiet_hours_active ? "amber" : "green"}>
+              {modes?.quiet_hours_active ? "quiet hours" : "normal hours"}
+            </Pill>
+          </div>
+          <div className="mb-3 rounded border border-slate-700 bg-slate-950/40 p-3">
+            <div className="text-xs uppercase text-slate-400">Primary mode</div>
+            <div className="mt-1 text-lg font-semibold">{modes?.primary_mode?.name || "Loading"}</div>
+            <div className="mt-1 text-sm text-slate-400">{modes?.primary_mode?.description || ""}</div>
+          </div>
+          <div className="mb-3 grid gap-3 md:grid-cols-3">
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Reply</div>
+              <div className="mt-1 font-semibold">{modes?.policy?.reply_mode || "auto"}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Safe auto-run</div>
+              <div className="mt-1 font-semibold">{modes?.policy?.safe_actions_auto_execute ? "enabled" : "paused"}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Confirm gates</div>
+              <div className="mt-1 font-semibold">{modes?.policy?.confirmation_keywords?.length || 0}</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(modes?.active_modes || []).map((mode: any) => (
+              <Pill key={mode.id} tone={mode.id === "security" ? "rose" : mode.quiet_hours ? "amber" : "cyan"}>
+                {mode.name}
+              </Pill>
+            ))}
+          </div>
+          <div className="mt-4 space-y-2">
+            {(modes?.recommendations || []).slice(0, 3).map((rec: any) => (
+              <div key={rec.title} className="rounded border border-slate-700 bg-slate-950/40 p-3">
+                <div className="font-semibold">{rec.title}</div>
+                <div className="text-sm text-slate-400">{rec.reason}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Wake Word Deployment</h2>
+              <div className="text-sm text-slate-400">Room-aware source mapping for satellites, panels, and microphones</div>
+            </div>
+            <Pill tone={(deployment?.counts?.rooms_without_voice_source || 0) ? "amber" : "green"}>
+              {deployment?.counts?.ready || 0}/{deployment?.counts?.total || 0} ready
+            </Pill>
+          </div>
+          <div className="mb-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Sources</div>
+              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.total || 0}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Trusted</div>
+              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.trusted || 0}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Missing IDs</div>
+              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.missing_source_identity || 0}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Rooms left</div>
+              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.rooms_without_voice_source || 0}</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {(deployment?.sources || []).slice(0, 5).map((source: any) => (
+              <div key={source.id} className="rounded border border-slate-700 bg-slate-950/40 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{source.name}</div>
+                    <div className="text-sm text-slate-400">{source.room} · {source.trust_level} · {source.default_reply}</div>
+                  </div>
+                  <Pill tone={source.setup_status === "ready" ? "green" : "amber"}>{source.setup_status}</Pill>
+                </div>
+                {source.missing?.length > 0 && <div className="mt-2 text-sm text-amber-200">{source.next_step}</div>}
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">

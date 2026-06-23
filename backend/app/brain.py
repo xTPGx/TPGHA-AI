@@ -9,9 +9,11 @@ from __future__ import annotations
 from typing import Any
 
 from .ai.client import get_ai_client
+from .config_loader import get_config
 from .db.database import get_session
 from .db.models import CommandLog, ConversationState, MemoryItem, Suggestion
 from .discovery import capabilities
+from .house_state import build_mode_brain, build_wake_word_deployment
 from .router.action_policy import CONFIDENCE_REVIEW_THRESHOLD
 from .settings import get_settings
 
@@ -38,6 +40,9 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     unavailable = int(graph.get("unavailable_devices") or 0)
     controllable = _controllable_count(graph)
     diagnostic = _diagnostic_count(graph)
+    config = get_config()
+    mode_brain = build_mode_brain(config)
+    wake_word = build_wake_word_deployment(config)
 
     layers = [
         {
@@ -74,8 +79,9 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Critical confirmations can require a configured security PIN.",
                 "User permission checks still run before confirmation tokens are created.",
                 f"Security PIN configured: {bool(settings.security_pin)}.",
+                f"{len(mode_brain.get('source_policy', []))} voice source trust policies generated.",
             ],
-            "next": "Add trusted-device and outside/guest voice policies.",
+            "next": "Add per-user location/trusted-device scoring for outside voice requests.",
         },
         {
             "id": "capability_graph",
@@ -115,7 +121,20 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Home Assistant Assist can forward conversation to TPG HomeAI.",
                 f"OpenAI TTS configured: {settings.openai_configured}.",
             ],
-            "next": "Connect real wake-word satellites and assign each a source_device_id.",
+            "next": "Install HA Assist satellites and paste their real source IDs into voice_sources.",
+        },
+        {
+            "id": "wake_word_deployment",
+            "title": "Wake Word Deployment",
+            "status": "ready" if wake_word.get("counts", {}).get("ready", 0) else "partial",
+            "score": 86 if wake_word.get("counts", {}).get("ready", 0) else 66,
+            "evidence": [
+                f"{wake_word.get('counts', {}).get('total', 0)} voice source profiles configured.",
+                f"{wake_word.get('counts', {}).get('ready', 0)} voice sources ready for room-aware routing.",
+                f"{wake_word.get('counts', {}).get('missing_source_identity', 0)} sources still need source_device_id/source_entity_id.",
+                f"{wake_word.get('counts', {}).get('rooms_without_voice_source', 0)} rooms still need satellites/panels.",
+            ],
+            "next": "Bind each physical mic/panel/satellite to its HA source identity.",
         },
         {
             "id": "proactive_suggestions",
@@ -146,13 +165,27 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "id": "house_state",
             "title": "House State Brain",
             "status": "ready",
-            "score": 84,
+            "score": 90,
             "evidence": [
                 "House-state endpoint summarizes presence, modes, room activity, and attention items.",
                 "House Brain UI shows security, energy, media, maintenance, rooms, assistants, and tablet panels.",
+                f"{len(mode_brain.get('active_modes', []))} active mode(s) inferred now.",
                 "Recommendations are generated from live HA state without directly executing actions.",
             ],
-            "next": "Persist learned house modes and add per-mode policies.",
+            "next": "Add UI controls to manually pin/clear modes and schedule mode windows.",
+        },
+        {
+            "id": "mode_brain",
+            "title": "Mode Brain",
+            "status": "ready" if mode_brain.get("configured_modes") else "partial",
+            "score": 92 if mode_brain.get("configured_modes") else 60,
+            "evidence": [
+                f"{len(mode_brain.get('configured_modes', []))} configured house modes.",
+                f"Active reply policy: {mode_brain.get('policy', {}).get('reply_mode', 'auto')}.",
+                f"{len(mode_brain.get('policy', {}).get('confirmation_keywords', []))} confirmation keywords in the current policy.",
+                "Mode policy is exposed through /brain/modes and Home Assistant services.",
+            ],
+            "next": "Let users pin modes from Chat, HA services, and dashboard controls.",
         },
         {
             "id": "ai_hybrid",

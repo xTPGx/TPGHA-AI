@@ -258,6 +258,12 @@ get_house_state:
       selector:
         boolean:
 
+get_mode_brain:
+  name: Get mode brain
+  description: >
+    Return active house modes, reply routing policy, confirmation gates, and
+    source trust policy.
+
 get_assistant_intelligence:
   name: Get assistant intelligence
   description: Return assistant personalities, voices, permissions context, and approved memories.
@@ -409,6 +415,12 @@ get_voice_profiles:
 get_voices:
   name: Get voices
   description: Return the voice catalog exposed by the TPG HomeAI backend.
+
+get_wake_word_deployment:
+  name: Get wake word deployment
+  description: >
+    Return voice source readiness, missing satellite/source mappings, speaker
+    routes, and room deployment recommendations.
 
 speak:
   name: Speak

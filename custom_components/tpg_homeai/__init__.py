@@ -56,8 +56,10 @@ from .const import (
     SERVICE_GET_BRAIN_LAYERS,
     SERVICE_GET_DEVICE_PROFILES,
     SERVICE_GET_HOUSE_STATE,
+    SERVICE_GET_MODE_BRAIN,
     SERVICE_GET_VOICE_PROFILES,
     SERVICE_GET_VOICES,
+    SERVICE_GET_WAKE_WORD_DEPLOYMENT,
     SERVICE_MONITOR_SCAN,
     SERVICE_GET_KNOWLEDGE_GRAPH,
     SERVICE_GET_PHYSICAL_DEVICES,
@@ -160,6 +162,9 @@ class TPGHomeAIClient:
             f"/brain/house-state?include_registries={'true' if include_registries else 'false'}",
         )
 
+    async def async_mode_brain(self) -> dict[str, Any]:
+        return await self._request("GET", "/brain/modes")
+
     async def async_assistant_intelligence(self) -> dict[str, Any]:
         return await self._request("GET", "/brain/assistants")
 
@@ -186,6 +191,9 @@ class TPGHomeAIClient:
 
     async def async_voices(self) -> dict[str, Any]:
         return await self._request("GET", "/voice/voices")
+
+    async def async_wake_word_deployment(self) -> dict[str, Any]:
+        return await self._request("GET", "/voice/deployment")
 
     async def async_speak(self, assistant_id: str, text: str,
                           target_entity_id: str | None = None,
@@ -571,6 +579,9 @@ def _register_services(hass: HomeAssistant) -> None:
         return await _first_client(hass).async_house_state(
             include_registries=call.data.get("include_registries", True))
 
+    async def _get_mode_brain(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_mode_brain()
+
     async def _get_assistant_intelligence(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_assistant_intelligence()
 
@@ -593,6 +604,9 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def _get_voices(call: ServiceCall) -> ServiceResponse:
         return await _first_client(hass).async_voices()
+
+    async def _get_wake_word_deployment(call: ServiceCall) -> ServiceResponse:
+        return await _first_client(hass).async_wake_word_deployment()
 
     async def _speak(call: ServiceCall) -> ServiceResponse:
         entry = _first_entry(hass)
@@ -692,6 +706,8 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_HOUSE_STATE, _get_house_state,
         schema=KNOWLEDGE_GRAPH_SCHEMA, supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_MODE_BRAIN, _get_mode_brain,
+        supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_ASSISTANT_INTELLIGENCE, _get_assistant_intelligence,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_PHYSICAL_DEVICES, _get_physical_devices,
@@ -705,6 +721,8 @@ def _register_services(hass: HomeAssistant) -> None:
     reg(DOMAIN, SERVICE_GET_VOICE_PROFILES, _get_voice_profiles,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_GET_VOICES, _get_voices,
+        supports_response=SupportsResponse.ONLY)
+    reg(DOMAIN, SERVICE_GET_WAKE_WORD_DEPLOYMENT, _get_wake_word_deployment,
         supports_response=SupportsResponse.ONLY)
     reg(DOMAIN, SERVICE_SPEAK, _speak, schema=SPEAK_SCHEMA,
         supports_response=SupportsResponse.ONLY)
@@ -736,11 +754,13 @@ def _unregister_services(hass: HomeAssistant) -> None:
                     SERVICE_CANCEL_CONFIRMATION, SERVICE_DASHBOARD_DRAFT,
                     SERVICE_DASHBOARD_INSTALL, SERVICE_OPEN_PANEL,
                     SERVICE_GET_KNOWLEDGE_GRAPH, SERVICE_GET_BRAIN_LAYERS,
-                    SERVICE_GET_HOUSE_STATE, SERVICE_GET_ASSISTANT_INTELLIGENCE,
+                    SERVICE_GET_HOUSE_STATE, SERVICE_GET_MODE_BRAIN,
+                    SERVICE_GET_ASSISTANT_INTELLIGENCE,
                     SERVICE_GET_PHYSICAL_DEVICES, SERVICE_GET_DEVICE_PROFILES,
                     SERVICE_GET_TABLET_PROFILES,
                     SERVICE_GET_AI_PROVIDERS,
-                    SERVICE_GET_VOICE_PROFILES, SERVICE_GET_VOICES, SERVICE_SPEAK,
+                    SERVICE_GET_VOICE_PROFILES, SERVICE_GET_VOICES,
+                    SERVICE_GET_WAKE_WORD_DEPLOYMENT, SERVICE_SPEAK,
                     SERVICE_GET_LAST_COMMAND,
                     SERVICE_GET_COMMANDS, SERVICE_GENERATE_SUGGESTIONS,
                     SERVICE_MONITOR_SCAN, SERVICE_APPROVE_AUTOMATION_DRAFT,

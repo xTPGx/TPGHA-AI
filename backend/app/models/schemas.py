@@ -232,6 +232,26 @@ class VoiceSource(_CfgBase):
     aliases: list[str] = Field(default_factory=list)
 
 
+class HouseMode(_CfgBase):
+    """A runtime house behavior profile.
+
+    Modes let the assistant change reply routing, confirmation posture, and
+    auto-execution behavior without hardcoding every house situation.
+    """
+
+    id: str
+    name: str
+    priority: int = 50
+    enabled: bool = True
+    aliases: list[str] = Field(default_factory=list)
+    triggers: list[str] = Field(default_factory=list)
+    quiet_hours: bool = False
+    reply_mode: Literal["auto", "browser", "room_speaker", "media_player", "quiet", "none"] = "auto"
+    requires_confirmation_for: list[str] = Field(default_factory=list)
+    allow_auto_execute: bool = True
+    description: str = ""
+
+
 class DevicesConfig(_CfgBase):
     music_accounts: dict[str, MusicAccount] = Field(default_factory=dict)
     rooms: list[Room] = Field(default_factory=list)
@@ -244,6 +264,7 @@ class DevicesConfig(_CfgBase):
     security_sensors: list[SecuritySensor] = Field(default_factory=list)
     personal_devices: list[PersonalDevice] = Field(default_factory=list)
     voice_sources: list[VoiceSource] = Field(default_factory=list)
+    modes: list[HouseMode] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
     # Entities the user explicitly ignored via discovery (subset of avoid with
     # reasons), kept for UI display.

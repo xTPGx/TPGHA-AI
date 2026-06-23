@@ -492,6 +492,127 @@ voice_sources:
       - downstairs voice
 
 
+modes:
+  - id: home
+    name: Home
+    priority: 10
+    aliases:
+      - normal
+      - house mode
+    triggers:
+      - people_home
+    reply_mode: auto
+    allow_auto_execute: true
+    description: Normal everyday mode for known household presence.
+
+  - id: away
+    name: Away
+    priority: 90
+    aliases:
+      - nobody home
+      - gone
+    triggers:
+      - all_tracked_people_away
+    reply_mode: browser
+    requires_confirmation_for:
+      - unlock
+      - open
+      - disarm
+      - garage
+      - security
+    allow_auto_execute: true
+    description: Stricter mode when tracked people are away.
+
+  - id: sleep
+    name: Sleep
+    priority: 80
+    aliases:
+      - bedtime
+      - night mode
+      - quiet mode
+    triggers:
+      - quiet_hours
+      - bedroom_active_late
+    quiet_hours: true
+    reply_mode: quiet
+    requires_confirmation_for:
+      - unlock
+      - open
+      - disarm
+      - garage
+      - security
+    allow_auto_execute: true
+    description: Quiet replies, lower interruption, sleep-timer friendly behavior.
+
+  - id: movie
+    name: Movie
+    priority: 60
+    aliases:
+      - tv mode
+      - theater
+    triggers:
+      - living_room_media_active
+      - bedroom_media_active
+    reply_mode: quiet
+    requires_confirmation_for:
+      - unlock
+      - open
+      - disarm
+    allow_auto_execute: true
+    description: Keep replies brief and prefer non-intrusive display/browser feedback while media is active.
+
+  - id: guest
+    name: Guest
+    priority: 70
+    aliases:
+      - visitor
+      - company
+    triggers:
+      - guest_voice_source
+    reply_mode: browser
+    requires_confirmation_for:
+      - unlock
+      - open
+      - disarm
+      - garage
+      - security
+      - private
+    allow_auto_execute: true
+    description: Household controls remain useful, but private and security actions stay gated.
+
+  - id: cleaning
+    name: Cleaning
+    priority: 40
+    aliases:
+      - chores
+      - cleanup
+    triggers:
+      - cleaning_request
+    reply_mode: room_speaker
+    allow_auto_execute: true
+    description: Favor room speaker replies and routine-friendly commands while cleaning.
+
+  - id: security
+    name: Security Attention
+    priority: 100
+    aliases:
+      - alert
+      - security mode
+    triggers:
+      - unlocked_lock
+      - open_cover
+      - alarm_attention
+    reply_mode: browser
+    requires_confirmation_for:
+      - unlock
+      - open
+      - disarm
+      - garage
+      - security
+    allow_auto_execute: true
+    description: Highest-priority mode when locks, doors, covers, or alarms need attention.
+
+
 device_aliases:
   - id: office_light
     name: Office Light
