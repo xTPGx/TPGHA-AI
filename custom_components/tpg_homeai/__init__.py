@@ -483,6 +483,9 @@ def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     try:
         from homeassistant.components import frontend
 
+        # Supervisor add-on ingress may register the same path before the custom
+        # integration loads. Replace it so HA non-admin users get the panel too.
+        frontend.async_remove_panel(hass, "tpg-homeai")
         frontend.async_register_built_in_panel(
             hass,
             component_name="iframe",

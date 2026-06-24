@@ -108,6 +108,7 @@ def main() -> int:
           "panel_admin must be false so resident/shared HA users can open TPG HomeAI.")
     check("custom integration sidebar panel is visible to HA non-admin users",
           'frontend_url_path="tpg-homeai"' in ha_client
+          and 'async_remove_panel(hass, "tpg-homeai")' in ha_client
           and "require_admin=False" in ha_client
           and "sidebar_default_visible=True" in ha_client,
           "The HA iframe panel must not require administrator access.")

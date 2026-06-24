@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.26
+
+- Replaced the Supervisor add-on sidebar panel with the custom integration iframe panel at `/tpg-homeai` when the integration loads.
+- Fixed the owner-only sidebar behavior where HA admins could see TPG HomeAI but HA non-admin/mobile users could not.
+- Kept the panel title and path unchanged while forcing `require_admin=False` and default sidebar visibility from the custom integration.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.25
 
 - Preserved shared `kiosk` and guest roles when syncing Home Assistant non-admin users instead of flattening every HA non-admin into a resident profile.
