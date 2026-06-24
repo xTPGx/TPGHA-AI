@@ -238,7 +238,8 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     ui = r.json()
     check("/ui/session has roles",
-          ui.get("roles", {}).get("admin") and ui.get("roles", {}).get("resident"),
+          ui.get("roles", {}).get("admin") and ui.get("roles", {}).get("resident")
+          and ui.get("roles", {}).get("kiosk"),
           str(ui))
     check("/ui/session defaults to admin when available",
           ui.get("detected_user", {}).get("id") == "shawn"
@@ -249,6 +250,12 @@ def main() -> int:
           r.status_code == 200
           and r.json().get("detected_user", {}).get("id") == "jordie"
           and r.json().get("detected_user", {}).get("role") == "resident",
+          str(r.json()))
+    r = client.get("/ui/session", headers={"x-ha-user-name": "kiosk"})
+    check("/ui/session maps HA header to kiosk user",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "house_remote"
+          and r.json().get("detected_user", {}).get("role") == "kiosk",
           str(r.json()))
 
     r = client.get("/config")

@@ -100,6 +100,7 @@ export default function Users() {
                 <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="resident">Resident</option>
+                <option value="kiosk">Kiosk / Shared</option>
                 <option value="guest">Guest</option>
               </select>
             </label>

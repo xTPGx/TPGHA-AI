@@ -21,15 +21,15 @@ import Notebook from "./pages/Notebook";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
 
-type Role = "admin" | "manager" | "resident" | "guest";
+type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
 type NavItem = { to: string; label: string; end?: boolean; roles: Role[] };
 
 const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean }> = [
   {
     label: "Operate",
     items: [
-      { to: "/", label: "Dashboard", end: true, roles: ["admin", "manager", "resident"] },
-      { to: "/chat", label: "Chat", roles: ["admin", "manager", "resident", "guest"] },
+      { to: "/", label: "Dashboard", end: true, roles: ["admin", "manager", "resident", "kiosk"] },
+      { to: "/chat", label: "Chat", roles: ["admin", "manager", "resident", "kiosk", "guest"] },
       { to: "/notebook", label: "Notebook", roles: ["admin", "manager", "resident"] },
       { to: "/jarvis", label: "Brain", roles: ["admin", "manager", "resident"] },
       { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
@@ -135,6 +135,7 @@ export default function App() {
                   <option value="">Full admin</option>
                   <option value="manager">Manager</option>
                   <option value="resident">Resident</option>
+                  <option value="kiosk">Kiosk / Shared</option>
                   <option value="guest">Guest</option>
                 </select>
               </>

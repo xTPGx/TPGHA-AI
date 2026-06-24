@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.17
+
+- Added a first-class kiosk/shared-user role for wall tablets, shared iPads, and room remotes.
+- Seeded a House Remote user with normal house-control permissions but no admin/config access.
+- Limited kiosk navigation to the shared-control surface instead of personal notebooks or setup pages.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.16
 
 - Fixed role-aware navigation so the signed-in session role controls menu access.

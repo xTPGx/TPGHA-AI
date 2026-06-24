@@ -25,6 +25,23 @@ users:
       can_open_garage: true
       can_disarm_alarm: true
 
+  - id: house_remote
+    name: House Remote
+    role: kiosk
+    aliases: ["kiosk", "house remote", "room remote", "wall panel", "tablet", "ipad"]
+    music_account: spotify_xtpgx
+    permissions:
+      can_unlock_doors: false
+      can_open_garage: false
+      can_disarm_alarm: false
+      can_lock_doors: true
+      can_control_lights: true
+      can_control_fans: true
+      can_control_climate: true
+      can_control_music: true
+      can_control_covers: true
+      can_view_cameras: true
+
 assistants:
   - id: atlas
     name: Atlas

@@ -65,7 +65,7 @@ class UserPermissions(_CfgBase):
 class User(_CfgBase):
     id: str
     name: str
-    role: Literal["admin", "manager", "resident", "guest"] = "resident"
+    role: Literal["admin", "manager", "resident", "kiosk", "guest"] = "resident"
     aliases: list[str] = Field(default_factory=list)
     music_account: Optional[str] = None
     permissions: UserPermissions = Field(default_factory=UserPermissions)
