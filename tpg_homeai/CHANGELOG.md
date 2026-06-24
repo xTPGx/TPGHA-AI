@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.6
+
+- Added backend config-management endpoints for rooms, assistants, and voice sources.
+- Added Add/Edit UI flows for Rooms, Assistants, and Voice Sources so key setup no longer requires YAML editing.
+- Combined Jarvis Brain and House Brain into one Brain menu item with Jarvis/Home tabs.
+- Added regression coverage for web UI config upserts and runtime reload.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.5
 
 - Fixed upgraded installs where old `voice: neutral` assistant config forced Atlas/Chatty back to browser `alloy`.

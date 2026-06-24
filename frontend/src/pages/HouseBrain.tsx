@@ -14,7 +14,7 @@ function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: "slate
   return <span className={`rounded-full border px-2 py-1 text-xs ${map[tone]}`}>{children}</span>;
 }
 
-export default function HouseBrain() {
+export default function HouseBrain({ embedded = false }: { embedded?: boolean }) {
   const [state, setState] = useState<any>(null);
   const [assistants, setAssistants] = useState<any>(null);
   const [tablets, setTablets] = useState<any>(null);
@@ -53,11 +53,13 @@ export default function HouseBrain() {
   const attention = state?.attention || {};
   return (
     <div>
-      <PageHeader
-        title="House Brain"
-        subtitle="Situational awareness, assistant identity, tablet profiles, and proactive next moves"
-        actions={<button className="btn-ghost" onClick={() => void load()} disabled={busy}>Refresh</button>}
-      />
+      {!embedded && (
+        <PageHeader
+          title="House Brain"
+          subtitle="Situational awareness, assistant identity, tablet profiles, and proactive next moves"
+          actions={<button className="btn-ghost" onClick={() => void load()} disabled={busy}>Refresh</button>}
+        />
+      )}
 
       {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 

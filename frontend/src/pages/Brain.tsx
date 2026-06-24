@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import PageHeader from "../components/PageHeader";
+import HouseBrain from "./HouseBrain";
 
 const STATUS_COLORS: Record<string, string> = {
   ready: "text-emerald-300",
@@ -10,6 +11,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function Brain() {
+  const [tab, setTab] = useState<"jarvis" | "home">("jarvis");
   const [brain, setBrain] = useState<any>(null);
   const [providers, setProviders] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
@@ -38,10 +40,20 @@ export default function Brain() {
   return (
     <div>
       <PageHeader
-        title="Jarvis Brain"
-        subtitle="Live readiness map for the house intelligence layers"
+        title="Brain"
+        subtitle="Jarvis readiness and live home intelligence"
         actions={<button className="btn-ghost" onClick={() => void load()}>Refresh</button>}
       />
+
+      <div className="mb-5 flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+        <button className={tab === "jarvis" ? "btn" : "btn-ghost"} onClick={() => setTab("jarvis")}>Jarvis</button>
+        <button className={tab === "home" ? "btn" : "btn-ghost"} onClick={() => setTab("home")}>Home</button>
+      </div>
+
+      {tab === "home" ? (
+        <HouseBrain embedded />
+      ) : (
+        <>
 
       {error && (
         <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">
@@ -155,6 +167,8 @@ export default function Brain() {
       </div>
 
       {!brain && !error && <div className="card text-slate-400">Loading brain map…</div>}
+        </>
+      )}
     </div>
   );
 }

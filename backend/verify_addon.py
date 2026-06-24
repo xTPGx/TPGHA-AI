@@ -135,6 +135,44 @@ def main() -> int:
     check("/api/config/reload legacy prefix works", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
 
+    r = client.post("/config/rooms", json={
+        "id": "test_room",
+        "name": "Test Room",
+        "aliases": ["test room"],
+        "lights": ["light.test_room"],
+        "fans": [],
+    })
+    check("/config/rooms upserts room", r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+    check("/config/rooms reloads runtime",
+          any(room.get("id") == "test_room" for room in client.get("/config").json().get("devices", {}).get("rooms", [])),
+          client.get("/config").text)
+
+    r = client.post("/config/assistants", json={
+        "id": "test_assistant",
+        "name": "Test Assistant",
+        "owner": "shawn",
+        "aliases": ["test assistant"],
+        "personality": "A concise test assistant.",
+        "tone": "calm",
+        "voice": {"provider": "openai", "model": "gpt-4o-mini-tts", "voice": "coral"},
+    })
+    check("/config/assistants upserts assistant",
+          r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+
+    r = client.post("/config/voice-sources", json={
+        "id": "test_voice_source",
+        "name": "Test Voice Source",
+        "room": "test_room",
+        "trust_level": "household",
+        "default_reply": "browser",
+        "aliases": ["test mic"],
+    })
+    check("/config/voice-sources upserts source",
+          r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+
     r = client.get("/discovery/summary")
     check("/discovery/summary is JSON", is_json(r), r.headers.get("content-type", ""))
     check("/discovery/summary has pending_count", "pending_count" in r.json())

@@ -91,6 +91,12 @@ export const api = {
   health: () => http<any>("/health"),
   config: () => http<any>("/config"),
   reloadConfig: () => http<any>("/config/reload", { method: "POST" }),
+  saveRoom: (body: Record<string, any>) =>
+    http<any>("/config/rooms", { method: "POST", body: JSON.stringify(body) }),
+  saveAssistant: (body: Record<string, any>) =>
+    http<any>("/config/assistants", { method: "POST", body: JSON.stringify(body) }),
+  saveVoiceSource: (body: Record<string, any>) =>
+    http<any>("/config/voice-sources", { method: "POST", body: JSON.stringify(body) }),
   entities: () => http<HAEntity[]>("/ha/entities"),
   entity: (id: string) => http<HAEntity>(`/ha/entity/${id}`),
   command: (assistant: string, user: string, message: string) =>

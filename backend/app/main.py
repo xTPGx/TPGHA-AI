@@ -19,6 +19,7 @@ from .ai.tools import TOOL_NAMES
 from .bootstrap import bootstrap, get_app_state, periodic_scan_loop
 from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
+from .config_editor import upsert_assistant, upsert_devices_item
 from .conversation import answer_general
 from .db.database import get_session, init_db
 from .db.models import CommandLog
@@ -38,9 +39,12 @@ from .models.schemas import (
     IgnoreRequest,
     MapRequest,
     MemoryDraftRequest,
+    Assistant,
+    Room,
     ResolveRequest,
     ScanRequest,
     TestActionRequest,
+    VoiceSource,
     VoicePreviewRequest,
     VoiceSpeakRequest,
 )
@@ -77,7 +81,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.0.6"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -250,6 +254,36 @@ async def reload_config_endpoint():
         "locks": len(cfg.devices.locks),
         "speakers": len(cfg.devices.speakers),
     }}
+
+
+@app.post("/config/rooms")
+async def upsert_room_endpoint(req: Room):
+    try:
+        result = upsert_devices_item("rooms", req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"rooms": len(cfg.devices.rooms)}}
+
+
+@app.post("/config/assistants")
+async def upsert_assistant_endpoint(req: Assistant):
+    try:
+        result = upsert_assistant(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"assistants": len(cfg.assistants.assistants)}}
+
+
+@app.post("/config/voice-sources")
+async def upsert_voice_source_endpoint(req: VoiceSource):
+    try:
+        result = upsert_devices_item("voice_sources", req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"voice_sources": len(cfg.devices.voice_sources)}}
 
 
 # --------------------------------------------------------- home assistant data
