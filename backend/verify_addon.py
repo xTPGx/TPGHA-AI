@@ -262,6 +262,16 @@ def main() -> int:
     check("/voice/profiles has assistants",
           len(voice_profiles.get("profiles", [])) >= 2,
           str(voice_profiles))
+    atlas_profile = next((p for p in voice_profiles.get("profiles", [])
+                          if p.get("assistant", {}).get("id") == "atlas"), {})
+    chatty_profile = next((p for p in voice_profiles.get("profiles", [])
+                           if p.get("assistant", {}).get("id") == "chatty"), {})
+    check("/voice/profiles atlas uses OpenAI Cedar",
+          atlas_profile.get("provider") == "openai" and atlas_profile.get("voice") == "cedar",
+          str(atlas_profile))
+    check("/voice/profiles chatty uses OpenAI Coral",
+          chatty_profile.get("provider") == "openai" and chatty_profile.get("voice") == "coral",
+          str(chatty_profile))
 
     r = client.get("/voice/voices")
     check("/voice/voices returns JSON", r.status_code == 200 and is_json(r),
@@ -293,6 +303,10 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/voice/speak falls back to browser without key",
           r.json().get("mode") == "browser" and r.json().get("provider") == "browser",
+          str(r.json()))
+    check("/voice/speak fallback preserves atlas voice profile",
+          r.json().get("profile", {}).get("provider") == "openai"
+          and r.json().get("profile", {}).get("voice") == "cedar",
           str(r.json()))
 
     r = client.post("/memory/draft", json={

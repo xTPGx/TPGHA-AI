@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5
+
+- Fixed upgraded installs where old `voice: neutral` assistant config forced Atlas/Chatty back to browser `alloy`.
+- Known assistant defaults now resolve Atlas to OpenAI Cedar and Chatty to OpenAI Coral unless explicitly overridden.
+- Added voice regression checks so configured assistant profiles do not silently degrade to browser voice profiles.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.4
 
 - Routed the Home Assistant Assist conversation agent through `/chat` so voice uses the full conversational brain, not only the command parser.

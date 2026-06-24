@@ -264,7 +264,8 @@ async def speak_text(
 
 def _profile_from_assistant(assistant: Optional[Assistant], assistant_id: str) -> VoiceProfile:
     settings = get_settings()
-    default = DEFAULT_PROFILES.get((assistant_id or "").lower()) or DEFAULT_PROFILES["neutral"]
+    key = (assistant_id or "").lower()
+    default = DEFAULT_PROFILES.get(key) or DEFAULT_PROFILES["neutral"]
     if not assistant:
         return _with_runtime_defaults(default, settings.openai_tts_model, settings.openai_tts_format)
     raw = assistant.voice
@@ -272,6 +273,8 @@ def _profile_from_assistant(assistant: Optional[Assistant], assistant_id: str) -
         merged = default.model_copy(update={k: v for k, v in raw.model_dump().items() if v not in (None, "")})
         return _with_runtime_defaults(merged, settings.openai_tts_model, settings.openai_tts_format)
     alias = str(raw or "").lower()
+    if alias in {"", "neutral", "default"} and key in DEFAULT_PROFILES:
+        return _with_runtime_defaults(default, settings.openai_tts_model, settings.openai_tts_format)
     mapped = DEFAULT_PROFILES.get(alias) or default
     return _with_runtime_defaults(mapped, settings.openai_tts_model, settings.openai_tts_format)
 
