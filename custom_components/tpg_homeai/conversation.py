@@ -1,8 +1,9 @@
 """Conversation agent that forwards Home Assistant Assist input to TPG HomeAI.
 
 Registers a ConversationEntity so it can be selected as the Assist agent. Each
-utterance is POSTed to the TPG HomeAI server's /command endpoint, and the
-server's response text is spoken back to the user.
+utterance is POSTed to the TPG HomeAI server's /chat endpoint, so HA Assist gets
+the same conversational brain, guarded actions, and proposal handling as the
+web chat.
 """
 from __future__ import annotations
 
@@ -83,11 +84,13 @@ class TPGHomeAIConversationAgent(conversation.ConversationEntity):
         )
 
         try:
-            result = await self._client.async_command(
+            result = await self._client.async_chat(
                 text=user_input.text,
                 assistant_id=assistant_id,
                 user_id=user_id,
                 conversation_id=conversation_id,
+                source_device_id=_source_device_id(user_input),
+                source_entity_id=_source_entity_id(user_input),
             )
         except TPGHomeAIError as err:
             return self._error_result(
@@ -103,11 +106,12 @@ class TPGHomeAIConversationAgent(conversation.ConversationEntity):
                 "Something went wrong talking to the TPG HomeAI server.",
             )
 
-        speech = result.get("message") or "Done."
-        if result.get("requires_confirmation"):
+        command = result.get("command") if isinstance(result.get("command"), dict) else {}
+        speech = result.get("response") or result.get("message") or command.get("message") or "Done."
+        if result.get("mode") == "confirmation_required" or command.get("requires_confirmation"):
             # Surface the confirmation prompt; confirmation is completed in the
-            # TPG HomeAI UI or via the test_command service for the MVP.
-            speech = result.get("confirmation_message") or speech
+            # TPG HomeAI UI or via the confirm_action service.
+            speech = command.get("confirmation_message") or result.get("confirmation_message") or speech
 
         intent_response = intent.IntentResponse(language=user_input.language)
         intent_response.async_set_speech(speech)
@@ -128,3 +132,21 @@ class TPGHomeAIConversationAgent(conversation.ConversationEntity):
         return conversation.ConversationResult(
             response=intent_response, conversation_id=conversation_id
         )
+
+
+def _source_device_id(user_input: conversation.ConversationInput) -> str | None:
+    device_id = getattr(user_input, "device_id", None)
+    if device_id:
+        return str(device_id)
+    device_context = getattr(user_input, "device_context", None)
+    device_id = getattr(device_context, "device_id", None) if device_context else None
+    return str(device_id) if device_id else None
+
+
+def _source_entity_id(user_input: conversation.ConversationInput) -> str | None:
+    entity_id = getattr(user_input, "entity_id", None)
+    if entity_id:
+        return str(entity_id)
+    device_context = getattr(user_input, "device_context", None)
+    entity_id = getattr(device_context, "entity_id", None) if device_context else None
+    return str(entity_id) if entity_id else None

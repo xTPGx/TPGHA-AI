@@ -42,14 +42,15 @@ async def open_dashboard(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
 
     resolved = {"dashboard": label, "path": path, "target": target or None}
     msg = (
-        f"Opening the {label} dashboard"
-        + (f" ({path})" if path else "")
+        f"The {label} dashboard path is {path or 'not configured'}"
         + (f" for {target}." if target else ".")
-        + " (Browser Mod navigation is a placeholder in the MVP.)"
+        + " Use the Home Assistant panel service or Dashboard Builder to open/install it."
     )
     data = {
+        "dashboard_path": path,
         "browser_mod": {
-            "service": "browser_mod.navigate",
+            "domain": "browser_mod",
+            "service": "navigate",
             "data": {"path": path},
         }
     }

@@ -28,8 +28,10 @@ async def answer_general(
     resolver = Resolver(config, states)
     assistant = _assistant(resolver, assistant_name)
     user = _user(resolver, user_name, assistant)
+    assistant_id = assistant.id if assistant else assistant_name
+    user_id = user.id if user else (user_name or "")
     house_context = _house_context(config, states, message)
-    recent_context = _recent_context(assistant.id if assistant else assistant_name, user.id if user else user_name, conversation_id)
+    recent_context = _recent_context(assistant_id, user_id, conversation_id)
     response = get_ai_client().general_chat(
         message,
         config,
@@ -38,7 +40,7 @@ async def answer_general(
         conversation_context=recent_context,
         house_context=house_context,
     )
-    _log_general(assistant_name, user_name or "", message, response.get("message", ""), conversation_id)
+    _log_general(assistant_id, user_id, message, response.get("message", ""), conversation_id)
     return {
         "success": True,
         "mode": response.get("mode", "conversation"),

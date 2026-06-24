@@ -45,6 +45,7 @@ from .models.schemas import (
     VoiceSpeakRequest,
 )
 from .router import intent_router
+from .router.action_policy import evaluate_action_policy
 from .router.permissions import get_confirmation_store
 from .actions.dashboards import build_dashboard_draft, install_dashboard_yaml
 from .actions.automation_installer import install_automation_yaml
@@ -76,7 +77,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -323,10 +324,11 @@ async def chat(req: ChatRequest):
             "data": general.get("data", {}),
             "provider": general.get("provider"),
         }
+    policy = evaluate_action_policy(resp)
     mode = "conversation"
     if resp.requires_confirmation:
         mode = "confirmation_required"
-    elif resp.intent in ("create_simple_automation", "create_routine"):
+    elif policy.get("decision") == "proposal_required":
         mode = "proposal"
     elif resp.executed:
         mode = "action"

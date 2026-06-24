@@ -124,7 +124,12 @@ class TPGHomeAIClient:
         if resp.status == 401:
             raise TPGHomeAIError("TPG HomeAI server rejected the API key (401).")
         if resp.status >= 400:
-            raise TPGHomeAIError(f"TPG HomeAI server returned HTTP {resp.status}.")
+            body = await resp.text()
+            detail = body.strip()
+            if len(detail) > 500:
+                detail = f"{detail[:497]}..."
+            suffix = f": {detail}" if detail else "."
+            raise TPGHomeAIError(f"TPG HomeAI server returned HTTP {resp.status}{suffix}")
         try:
             return await resp.json()
         except (aiohttp.ContentTypeError, ValueError):
@@ -314,6 +319,22 @@ class TPGHomeAIClient:
             "assistant_id": assistant_id, "user_id": user_id, "text": text,
             "conversation_id": conversation_id, "room": room,
             "security_pin": security_pin})
+
+    async def async_chat(self, text: str, assistant_id: str, user_id: str | None,
+                         conversation_id: str | None, room: str | None = None,
+                         source_device_id: str | None = None,
+                         source_entity_id: str | None = None,
+                         security_pin: str | None = None) -> dict[str, Any]:
+        return await self._request("POST", "/chat", json={
+            "assistant_id": assistant_id,
+            "user_id": user_id,
+            "text": text,
+            "conversation_id": conversation_id,
+            "room": room,
+            "source_device_id": source_device_id,
+            "source_entity_id": source_entity_id,
+            "security_pin": security_pin,
+        })
 
     async def async_preview_command(self, text: str, assistant_id: str,
                                     user_id: str | None,

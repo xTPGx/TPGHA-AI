@@ -174,6 +174,7 @@ async def main():
     # camera status query
     r = await intent_router.handle_command("atlas", "shawn", "what cameras are online")
     check("P3 camera status -> security_check", r.intent == "security_check", r.intent)
+    check("P3 security_check is not physical execution", r.executed is False, str(r.executed))
 
     # ------------------------------------------------------- PART 2: discovery
     res = await scanner.scan()

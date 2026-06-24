@@ -86,6 +86,8 @@ def main() -> int:
     addon_config = (repo_root / "tpg_homeai" / "config.yaml").read_text(encoding="utf-8")
     dockerfile = (repo_root / "tpg_homeai" / "Dockerfile").read_text(encoding="utf-8")
     manifest = (repo_root / "custom_components" / "tpg_homeai" / "manifest.json").read_text(encoding="utf-8")
+    ha_client = (repo_root / "custom_components" / "tpg_homeai" / "__init__.py").read_text(encoding="utf-8")
+    ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
     docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
     manifest_version = re.search(r'"version":\s*"([^"]+)"', manifest)
@@ -100,6 +102,10 @@ def main() -> int:
     check("version metadata aligned", len(set(versions.values())) == 1, str(versions))
     check("add-on changelog exists", (repo_root / "tpg_homeai" / "CHANGELOG.md").is_file())
     check("ingress sidebar enabled", "ingress: true" in addon_config and "panel_title:" in addon_config)
+    check("HA client exposes chat endpoint", "async def async_chat" in ha_client and '"/chat"' in ha_client)
+    check("HA Assist uses chat brain, not command-only path",
+          "async_chat(" in ha_conversation and "async_command(" not in ha_conversation,
+          "Assist must use /chat for general conversation + guarded actions")
 
     print("PART 1 — API routing returns JSON, SPA never shadows API routes")
     r = client.get("/health")
@@ -347,6 +353,9 @@ def main() -> int:
     body = r.json()
     check("/chat dashboard draft creates draft intent",
           body.get("command", {}).get("intent") == "draft_dashboard",
+          str(body))
+    check("/chat dashboard draft uses proposal mode",
+          body.get("mode") == "proposal",
           str(body))
     check("/chat dashboard draft includes yaml",
           "yaml" in body.get("command", {}).get("data", {}).get("dashboard_draft", {}),

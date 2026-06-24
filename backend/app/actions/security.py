@@ -59,7 +59,7 @@ async def security_check(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
 
     message = " ".join(parts) or "Security status compiled."
     return ActionResult(
-        success=True, intent=intent, executed=True, message=message,
+        success=True, intent=intent, executed=False, message=message,
         data={
             "locks": locks_report,
             "cameras": cameras_report,

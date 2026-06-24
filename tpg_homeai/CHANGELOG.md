@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.4
+
+- Routed the Home Assistant Assist conversation agent through `/chat` so voice uses the full conversational brain, not only the command parser.
+- Improved HA integration errors so backend HTTP failures include useful server detail.
+- Fixed general conversation history logging to use resolved assistant/user IDs for better context continuity.
+- Hardened action policy so read-only status, security, query, and dashboard lookup responses do not appear as physical executions.
+- Made dashboard-open responses honest about path lookup versus actual Browser Mod navigation.
+- Added regression coverage to keep HA Assist on the chat brain and protect dashboard proposal mode.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.3
 
 - Fixed status/query commands so they no longer appear as executed physical actions.

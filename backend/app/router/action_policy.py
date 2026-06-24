@@ -23,6 +23,13 @@ PROPOSAL_INTENTS = {
     "draft_dashboard",
 }
 
+READ_ONLY_INTENTS = {
+    "security_check",
+    "query_device",
+    "explain_last_action",
+    "open_dashboard",
+}
+
 SENSITIVE_INTENTS = {
     "unlock_door",
     "open_garage",
@@ -237,10 +244,12 @@ def _would_execute(
     data: dict[str, Any],
     tool_call: dict[str, Any] | None,
 ) -> bool:
+    if (result.intent or "") in READ_ONLY_INTENTS and not result.executed:
+        return False
     preview = data.get("preview") if isinstance(data, dict) else None
     if isinstance(preview, dict) and preview.get("would_execute"):
         return True
-    return bool(result.executed or tool_call)
+    return bool(result.executed)
 
 
 def _has_target(resolved: dict[str, Any]) -> bool:
