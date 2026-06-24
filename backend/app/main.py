@@ -19,7 +19,13 @@ from .ai.tools import TOOL_NAMES
 from .bootstrap import bootstrap, get_app_state, periodic_scan_loop
 from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
-from .config_editor import upsert_assistant, upsert_devices_item
+from .config_editor import (
+    save_permissions,
+    upsert_assistant,
+    upsert_devices_item,
+    upsert_music_account,
+    upsert_user,
+)
 from .conversation import answer_general
 from .db.database import get_session, init_db
 from .db.models import CommandLog
@@ -40,10 +46,14 @@ from .models.schemas import (
     MapRequest,
     MemoryDraftRequest,
     Assistant,
+    MusicAccountUpsert,
+    PermissionsUpsert,
     Room,
     ResolveRequest,
     ScanRequest,
+    Speaker,
     TestActionRequest,
+    User,
     VoiceSource,
     VoicePreviewRequest,
     VoiceSpeakRequest,
@@ -81,7 +91,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.6"
+APP_VERSION = "1.0.7"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -274,6 +284,46 @@ async def upsert_assistant_endpoint(req: Assistant):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     cfg = reload_config()
     return {"saved": True, **result, "counts": {"assistants": len(cfg.assistants.assistants)}}
+
+
+@app.post("/config/users")
+async def upsert_user_endpoint(req: User):
+    try:
+        result = upsert_user(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"users": len(cfg.assistants.users)}}
+
+
+@app.post("/config/music-accounts")
+async def upsert_music_account_endpoint(req: MusicAccountUpsert):
+    try:
+        result = upsert_music_account(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"music_accounts": len(cfg.devices.music_accounts)}}
+
+
+@app.post("/config/speakers")
+async def upsert_speaker_endpoint(req: Speaker):
+    try:
+        result = upsert_devices_item("speakers", req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"speakers": len(cfg.devices.speakers)}}
+
+
+@app.post("/config/permissions")
+async def save_permissions_endpoint(req: PermissionsUpsert):
+    try:
+        result = save_permissions(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {"saved": True, **result, "counts": {"sensitive_actions": len(cfg.permissions.sensitive_actions)}}
 
 
 @app.post("/config/voice-sources")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.7
+
+- Added a guided Setup page for first-run readiness across HA, OpenAI, users, rooms, music, voice sources, and permissions.
+- Added validated backend config-management endpoints for users, music accounts, speakers, and permissions.
+- Added Add/Edit UI flows for Users, Music Assistant accounts, speaker mappings, and Permissions policy.
+- Kept security policy explicit: low-risk confident actions can run, while sensitive actions remain confirmation/PIN gated.
+- Added regression coverage for the new management endpoints and Setup ingress route.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.6
 
 - Added backend config-management endpoints for rooms, assistants, and voice sources.

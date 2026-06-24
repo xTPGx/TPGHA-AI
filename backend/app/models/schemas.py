@@ -112,6 +112,10 @@ class MusicAccount(_CfgBase):
     default_media: Optional[DefaultMedia] = None
 
 
+class MusicAccountUpsert(MusicAccount):
+    id: str
+
+
 class Room(_CfgBase):
     id: str
     name: str
@@ -279,6 +283,10 @@ class PermissionsConfig(_CfgBase):
     defaults: UserPermissions = Field(default_factory=UserPermissions)
     enforce_music_account_ownership: bool = True
     security_pin: Optional[str] = None
+
+
+class PermissionsUpsert(PermissionsConfig):
+    pass
 
 
 class AppConfig(BaseModel):

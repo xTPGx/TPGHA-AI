@@ -161,6 +161,49 @@ def main() -> int:
           r.status_code == 200 and r.json().get("saved") is True,
           r.text)
 
+    r = client.post("/config/users", json={
+        "id": "test_user",
+        "name": "Test User",
+        "aliases": ["tester"],
+        "music_account": "spotify_xtpgx",
+        "permissions": {"can_control_lights": True, "can_unlock_doors": False},
+    })
+    check("/config/users upserts user",
+          r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+
+    r = client.post("/config/music-accounts", json={
+        "id": "spotify_test",
+        "name": "Spotify [test]",
+        "provider": "spotify",
+        "account": "test",
+        "owner": "test_user",
+        "default_media": {"media_id": "Daily Mix", "media_type": "playlist"},
+    })
+    check("/config/music-accounts upserts account",
+          r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+
+    r = client.post("/config/speakers", json={
+        "id": "test_speaker",
+        "name": "Test Speaker",
+        "entity_id": "media_player.test_speaker",
+        "room": "test_room",
+        "aliases": ["test speaker"],
+    })
+    check("/config/speakers upserts speaker",
+          r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+
+    permissions = client.get("/config").json().get("permissions", {})
+    permissions["confirmation_ttl_seconds"] = 90
+    permissions.setdefault("sensitive_actions", ["unlock_door"])
+    permissions.setdefault("confirmation_messages", {"unlock_door": "Confirm: unlock the {target}?"})
+    r = client.post("/config/permissions", json=permissions)
+    check("/config/permissions saves policy",
+          r.status_code == 200 and r.json().get("saved") is True,
+          r.text)
+
     r = client.post("/config/voice-sources", json={
         "id": "test_voice_source",
         "name": "Test Voice Source",
@@ -524,6 +567,9 @@ def main() -> int:
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/suggestions")
     check("GET ingress suggestions route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/setup")
+    check("GET ingress setup route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/profiles")
     check("GET ingress profiles route is HTML", is_html(r),

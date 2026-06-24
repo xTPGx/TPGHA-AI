@@ -19,6 +19,7 @@ import DashboardBuilder from "./pages/DashboardBuilder";
 import VoiceSources from "./pages/VoiceSources";
 import VoiceSettings from "./pages/VoiceSettings";
 import HouseBrain from "./pages/HouseBrain";
+import Setup from "./pages/Setup";
 
 type NavItem = { to: string; label: string; end?: boolean };
 
@@ -35,6 +36,7 @@ const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean 
   {
     label: "Configure",
     items: [
+      { to: "/setup", label: "Setup" },
       { to: "/dashboard-builder", label: "Dashboard Builder" },
       { to: "/discovery", label: "Discovery" },
       { to: "/rooms", label: "Rooms" },
@@ -118,6 +120,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/jarvis" element={<Brain />} />
+          <Route path="/setup" element={<Setup />} />
           <Route path="/house-brain" element={<HouseBrain />} />
           <Route path="/profiles" element={<DeviceProfiles />} />
           <Route path="/memory-center" element={<MemoryCenter />} />

@@ -95,6 +95,14 @@ export const api = {
     http<any>("/config/rooms", { method: "POST", body: JSON.stringify(body) }),
   saveAssistant: (body: Record<string, any>) =>
     http<any>("/config/assistants", { method: "POST", body: JSON.stringify(body) }),
+  saveUser: (body: Record<string, any>) =>
+    http<any>("/config/users", { method: "POST", body: JSON.stringify(body) }),
+  saveMusicAccount: (body: Record<string, any>) =>
+    http<any>("/config/music-accounts", { method: "POST", body: JSON.stringify(body) }),
+  saveSpeaker: (body: Record<string, any>) =>
+    http<any>("/config/speakers", { method: "POST", body: JSON.stringify(body) }),
+  savePermissions: (body: Record<string, any>) =>
+    http<any>("/config/permissions", { method: "POST", body: JSON.stringify(body) }),
   saveVoiceSource: (body: Record<string, any>) =>
     http<any>("/config/voice-sources", { method: "POST", body: JSON.stringify(body) }),
   entities: () => http<HAEntity[]>("/ha/entities"),
