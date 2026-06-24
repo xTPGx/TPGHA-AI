@@ -213,6 +213,18 @@ async def main():
     check("Q12 dim parses 10 PM", "at: '22:00:00'" in r.data.get("proposed_yaml", ""),
           r.data.get("proposed_yaml", ""))
 
+    r = await intent_router.handle_command(
+        "atlas",
+        "shawn",
+        "Create scheduled task. Turn off all lights at 10 PM and turn on office light.",
+    )
+    multi_yaml = r.data.get("proposed_yaml", "")
+    check("Q12b multi-action scheduled task draft", r.intent == "create_simple_automation", r.intent)
+    check("Q12b parses scheduled time", "at: '22:00:00'" in multi_yaml, multi_yaml)
+    check("Q12b turns off lights", "service: light.turn_off" in multi_yaml, multi_yaml)
+    check("Q12b turns on target device", "service: light.turn_on" in multi_yaml and "light.office" in multi_yaml,
+          multi_yaml)
+
     r = await intent_router.handle_command("atlas", "shawn", "Make a movie mode for the living room.")
     check("Q13 movie mode -> create_routine", r.intent == "create_routine", r.intent)
     check("Q13 routine draft created", bool(r.data.get("draft_id")), str(r.data))

@@ -18,7 +18,6 @@ import Suggestions from "./pages/Suggestions";
 import Brain from "./pages/Brain";
 import DeviceProfiles from "./pages/DeviceProfiles";
 import MemoryCenter from "./pages/MemoryCenter";
-import Notebook from "./pages/Notebook";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
 
@@ -44,7 +43,6 @@ const navGroups: NavGroupDef[] = [
   {
     label: "AI",
     items: [
-      { to: "/notebook", label: "Notebook", roles: ["admin", "manager", "resident"] },
       { to: "/jarvis", label: "Brain", roles: ["admin", "manager", "resident"] },
       { to: "/assistants", label: "Assistants", roles: ["admin", "manager", "resident"] },
       { to: "/memory-center", label: "Memory", roles: ["admin", "manager", "resident"] },
@@ -112,7 +110,7 @@ export default function App() {
       <Routes>
           <Route path="/" element={canAccess("/") ? <Dashboard /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/chat" element={canAccess("/chat") ? <Chat /> : <Navigate to={fallbackPath} replace />} />
-          <Route path="/notebook" element={canAccess("/notebook") ? <Notebook /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/notebook" element={<Navigate to="/chat" replace />} />
           <Route path="/jarvis" element={canAccess("/jarvis") ? <Brain /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/setup" element={canAccess("/setup") ? <Setup /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/house-brain" element={<Navigate to="/jarvis" replace />} />

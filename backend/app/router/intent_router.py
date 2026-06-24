@@ -180,6 +180,7 @@ async def handle_command(
             tool_call=tool_dict, error="tool_not_allowed",
         )
 
+    _attach_original_request(tool_call, tool_dict, message)
     handler = _HANDLERS[tool_call.name]
     result: ActionResult = await handler(ctx, tool_call.arguments)
     correction_memory = _maybe_draft_correction_memory(ctx, message, result)
@@ -258,6 +259,7 @@ async def handle_preview(
             tool_call=tool_dict, error="tool_not_allowed",
         )
 
+    _attach_original_request(tool_call, tool_dict, message)
     recorder = RecordingHA(ctx.resolver.live_states)
     preview_confirmations = PreviewConfirmationStore()
     ctx.ha = recorder
@@ -329,6 +331,23 @@ def _select_tool(
         tool_call.arguments["conversation_id"] = conversation_id or ""
     tool_call = _apply_room_context(ctx, tool_call)
     return tool_call, (tool_call.to_dict() if tool_call else None)
+
+
+def _attach_original_request(
+    tool_call: ToolCall,
+    tool_dict: Optional[dict[str, Any]],
+    message: str,
+) -> None:
+    """Preserve the full utterance for tools that need compound instructions."""
+    if tool_call.name != "create_simple_automation":
+        return
+    args = dict(tool_call.arguments or {})
+    args.setdefault("original_request", message)
+    tool_call.arguments = args
+    if isinstance(tool_dict, dict):
+        dict_args = tool_dict.setdefault("arguments", {})
+        if isinstance(dict_args, dict):
+            dict_args.setdefault("original_request", message)
 
 
 def _apply_room_context(ctx: ActionContext, tool_call: Optional[ToolCall]) -> Optional[ToolCall]:

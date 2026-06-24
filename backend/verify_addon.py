@@ -102,7 +102,10 @@ def main() -> int:
     check("version metadata present", all(versions.values()), str(versions))
     check("version metadata aligned", len(set(versions.values())) == 1, str(versions))
     check("add-on changelog exists", (repo_root / "tpg_homeai" / "CHANGELOG.md").is_file())
-    check("ingress sidebar enabled", "ingress: true" in addon_config and "panel_title:" in addon_config)
+    check("ingress sidebar enabled for HA non-admin users",
+          "ingress: true" in addon_config and "panel_title:" in addon_config
+          and "panel_admin: false" in addon_config,
+          "panel_admin must be false so resident/shared HA users can open TPG HomeAI.")
     check("HA client exposes chat endpoint", "async def async_chat" in ha_client and '"/chat"' in ha_client)
     check("HA Assist uses chat brain, not command-only path",
           "async_chat(" in ha_conversation and "async_command(" not in ha_conversation,

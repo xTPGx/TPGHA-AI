@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.23
+
+- Set add-on `panel_admin: false` so the native Home Assistant sidebar entry is available to HA non-admin users, not only owners.
+- Rebuilt Chat as the primary ChatGPT-style Jarvis surface with automatic HA user/default assistant selection instead of visible assistant/user/room controls.
+- Moved conversation history and Notebook notes/export into the Chat page so profile history is managed where the conversation happens.
+- Defaulted spoken replies off in Chat while keeping a one-click voice toggle.
+- Added in-chat scheduled-task flow: users can request an automation, review the draft, and install it into Home Assistant from the conversation.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.22
 
 - Added Home Assistant user sync so HA Administrators become TPG Owner/Admin profiles and HA non-admin users become resident self-service profiles.
