@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.15
+
+- Added household user roles: admin, manager, resident, and guest.
+- Cleaned up the TPG HomeAI sidebar so residents see Jarvis operation pages instead of admin/config/debug tools.
+- Added a View As selector to test role-specific UI modes and made Users editable with role selection.
+- Added a UI session endpoint that can use Home Assistant/proxy user headers when available and falls back to configured users.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.14
 
 - Added a Conversation Notebook page for browsing past Chat sessions inside TPG HomeAI.

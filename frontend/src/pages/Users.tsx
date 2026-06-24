@@ -18,6 +18,7 @@ const PERMISSION_KEYS = [
 const emptyUser = {
   id: "",
   name: "",
+  role: "resident",
   aliases: "",
   music_account: "",
   permissions: {} as Record<string, boolean | "inherit">,
@@ -62,6 +63,7 @@ export default function Users() {
       await api.saveUser({
         id: slug(editor.id || editor.name),
         name: editor.name,
+        role: editor.role || "resident",
         aliases: csv(editor.aliases),
         music_account: editor.music_account || null,
         permissions,
@@ -92,6 +94,15 @@ export default function Users() {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="ID" value={editor.id} onChange={(v) => setEditor({ ...editor, id: slug(v) })} placeholder="shawn" />
             <Field label="Name" value={editor.name} onChange={(v) => setEditor({ ...editor, name: v })} placeholder="Shawn" />
+            <label>
+              <div className="mb-1 text-xs uppercase text-slate-500">Role</div>
+              <select className="input" value={editor.role || "resident"} onChange={(e) => setEditor({ ...editor, role: e.target.value })}>
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="resident">Resident</option>
+                <option value="guest">Guest</option>
+              </select>
+            </label>
             <Field label="Aliases" value={editor.aliases} onChange={(v) => setEditor({ ...editor, aliases: v })} placeholder="shawn, boss, owner" />
             <label>
               <div className="mb-1 text-xs uppercase text-slate-500">Music Account</div>
@@ -144,7 +155,7 @@ export default function Users() {
                 <div>
                   <div className="text-xl font-bold">{u.name}</div>
                   <div className="mt-1 text-sm text-slate-400">
-                    Music: {acct ? acct.name : u.music_account ?? "none"}
+                    Role: {u.role || "resident"} · Music: {acct ? acct.name : u.music_account ?? "none"}
                   </div>
                 </div>
                 <button className="btn-ghost" onClick={() => editUser(u)}>Edit</button>

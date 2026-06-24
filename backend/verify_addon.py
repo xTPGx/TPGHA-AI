@@ -233,6 +233,24 @@ def main() -> int:
     r = client.get("/state")
     check("/state is JSON", is_json(r))
 
+    r = client.get("/ui/session")
+    check("/ui/session is JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    ui = r.json()
+    check("/ui/session has roles",
+          ui.get("roles", {}).get("admin") and ui.get("roles", {}).get("resident"),
+          str(ui))
+    check("/ui/session defaults to admin when available",
+          ui.get("detected_user", {}).get("id") == "shawn"
+          and ui.get("detected_user", {}).get("role") == "admin",
+          str(ui))
+    r = client.get("/ui/session", headers={"x-ha-user-name": "Jordie"})
+    check("/ui/session maps HA header to resident user",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "jordie"
+          and r.json().get("detected_user", {}).get("role") == "resident",
+          str(r.json()))
+
     r = client.get("/config")
     check("/config is JSON", is_json(r))
 

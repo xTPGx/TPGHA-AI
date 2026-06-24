@@ -95,11 +95,11 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.14"
+APP_VERSION = "1.0.15"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
-    "api", "health", "state", "events", "config", "discovery", "command",
+    "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
     "openapi.json",
@@ -110,7 +110,7 @@ _API_PREFIXES = (
 # allowlist for direct ingress API compatibility. Do not include frontend route
 # names such as discovery/chat/suggestions/ha; those must serve index.html.
 _INGRESS_DIRECT_API_PREFIXES = (
-    "health", "state", "events", "config", "command", "confirm",
+    "health", "state", "events", "ui", "config", "command", "confirm",
     "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain",
     "ai", "voice", "test", "tools", "docs", "redoc", "openapi.json",
 )
@@ -254,6 +254,33 @@ async def health():
 async def get_config_endpoint():
     cfg = get_config()
     return cfg.model_dump()
+
+
+@app.get("/ui/session")
+async def ui_session(request: Request):
+    cfg = get_config()
+    users = cfg.assistants.users
+    detected = _detect_user_from_headers(request, users)
+    active = detected or _default_ui_user(users)
+    return {
+        "detected_user": active.model_dump() if active else None,
+        "role": active.role if active else "guest",
+        "users": [
+            {
+                "id": user.id,
+                "name": user.name,
+                "role": user.role,
+                "aliases": user.aliases,
+            }
+            for user in users
+        ],
+        "roles": {
+            "admin": "Full setup, configuration, diagnostics, and Jarvis operation.",
+            "manager": "House setup and Jarvis operation without low-level diagnostics.",
+            "resident": "Jarvis operation: chat, notebook, dashboard, brain.",
+            "guest": "Limited chat-only access.",
+        },
+    }
 
 
 @app.post("/config/reload")
@@ -1103,6 +1130,34 @@ async def root():
 def _is_api_path(full_path: str) -> bool:
     head = full_path.split("/", 1)[0].lower()
     return head in _API_PREFIXES
+
+
+def _detect_user_from_headers(request: Request, users: list[User]) -> User | None:
+    header_names = (
+        "x-ha-user",
+        "x-ha-user-name",
+        "x-hass-user",
+        "x-home-assistant-user",
+        "x-forwarded-user",
+        "remote-user",
+    )
+    values = [request.headers.get(name, "") for name in header_names]
+    candidates = {v.strip().lower() for v in values if v and v.strip()}
+    if not candidates:
+        return None
+    for user in users:
+        names = {user.id.lower(), user.name.lower(), *(alias.lower() for alias in user.aliases)}
+        if candidates & names:
+            return user
+    return None
+
+
+def _default_ui_user(users: list[User]) -> User | None:
+    for role in ("admin", "manager", "resident", "guest"):
+        for user in users:
+            if user.role == role:
+                return user
+    return users[0] if users else None
 
 
 def _strip_ingress_prefix(full_path: str) -> str:

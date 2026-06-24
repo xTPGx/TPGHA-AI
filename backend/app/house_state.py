@@ -153,6 +153,7 @@ def build_assistant_intelligence(config: AppConfig) -> dict[str, Any]:
             {
                 "id": user.id,
                 "name": user.name,
+                "role": user.role,
                 "music_account": user.music_account,
                 "permissions": user.permissions.model_dump(),
             }

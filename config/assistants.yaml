@@ -5,6 +5,7 @@
 users:
   - id: shawn
     name: Shawn
+    role: admin
     aliases: ["shawn", "boss", "owner"]
     # Music Assistant provider key (see devices.yaml -> music_accounts).
     music_account: spotify_xtpgx
@@ -16,6 +17,7 @@ users:
 
   - id: jordie
     name: Jordie
+    role: resident
     aliases: ["jordie", "jordan", "jordie rae"]
     music_account: spotify_jordierae22
     permissions:

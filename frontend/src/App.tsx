@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { api } from "./api";
 import Dashboard from "./pages/Dashboard";
 import Entities from "./pages/Entities";
 import Rooms from "./pages/Rooms";
@@ -19,48 +21,82 @@ import Notebook from "./pages/Notebook";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
 
-type NavItem = { to: string; label: string; end?: boolean };
+type Role = "admin" | "manager" | "resident" | "guest";
+type NavItem = { to: string; label: string; end?: boolean; roles: Role[] };
 
 const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean }> = [
   {
     label: "Operate",
     items: [
-      { to: "/", label: "Dashboard", end: true },
-      { to: "/chat", label: "Chat" },
-      { to: "/notebook", label: "Notebook" },
-      { to: "/jarvis", label: "Brain" },
-      { to: "/suggestions", label: "Suggestions" },
+      { to: "/", label: "Dashboard", end: true, roles: ["admin", "manager", "resident"] },
+      { to: "/chat", label: "Chat", roles: ["admin", "manager", "resident", "guest"] },
+      { to: "/notebook", label: "Notebook", roles: ["admin", "manager", "resident"] },
+      { to: "/jarvis", label: "Brain", roles: ["admin", "manager", "resident"] },
+      { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
     ],
   },
   {
     label: "Configure",
     items: [
-      { to: "/setup", label: "Setup" },
-      { to: "/dashboard-builder", label: "Dashboard Builder" },
-      { to: "/discovery", label: "Discovery" },
-      { to: "/rooms", label: "Rooms" },
-      { to: "/assistants", label: "Assistants" },
-      { to: "/users", label: "Users" },
-      { to: "/music", label: "Music" },
+      { to: "/setup", label: "Setup", roles: ["admin", "manager"] },
+      { to: "/dashboard-builder", label: "Dashboard Builder", roles: ["admin", "manager"] },
+      { to: "/discovery", label: "Discovery", roles: ["admin", "manager"] },
+      { to: "/rooms", label: "Rooms", roles: ["admin", "manager"] },
+      { to: "/assistants", label: "Assistants", roles: ["admin"] },
+      { to: "/users", label: "Users", roles: ["admin"] },
+      { to: "/music", label: "Music", roles: ["admin", "manager"] },
     ],
   },
   {
     label: "Advanced",
     collapsible: true,
     items: [
-      { to: "/ha", label: "HA Integration" },
-      { to: "/profiles", label: "Device Profiles" },
-      { to: "/memory-center", label: "Memory" },
-      { to: "/tester", label: "Command Tester" },
-      { to: "/entities", label: "Entities" },
-      { to: "/capabilities", label: "Capability Map" },
-      { to: "/permissions", label: "Permissions" },
+      { to: "/ha", label: "HA Integration", roles: ["admin"] },
+      { to: "/profiles", label: "Device Profiles", roles: ["admin"] },
+      { to: "/memory-center", label: "Memory", roles: ["admin"] },
+      { to: "/tester", label: "Command Tester", roles: ["admin"] },
+      { to: "/entities", label: "Entities", roles: ["admin"] },
+      { to: "/capabilities", label: "Capability Map", roles: ["admin"] },
+      { to: "/permissions", label: "Permissions", roles: ["admin"] },
     ],
   },
 ];
 
 export default function App() {
   const location = useLocation();
+  const [session, setSession] = useState<any>(null);
+  const [activeUser, setActiveUser] = useState(() => localStorage.getItem("tpg_homeai_user") || "");
+  const users = session?.users || [];
+  const selectedUser = users.find((u: any) => u.id === activeUser) || session?.detected_user || users[0];
+  const role: Role = selectedUser?.role || session?.role || "guest";
+
+  useEffect(() => {
+    api.uiSession().then((result) => {
+      setSession(result);
+      const saved = localStorage.getItem("tpg_homeai_user");
+      const fallback = result.detected_user?.id || result.users?.[0]?.id || "";
+      if (!saved && fallback) {
+        setActiveUser(fallback);
+        localStorage.setItem("tpg_homeai_user", fallback);
+      }
+    }).catch(() => setSession({ role: "guest", users: [] }));
+  }, []);
+
+  const accessiblePaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const group of navGroups) {
+      for (const item of group.items) {
+        if (item.roles.includes(role)) paths.add(item.to);
+      }
+    }
+    paths.add("/house-brain");
+    paths.add("/voice-settings");
+    paths.add("/voice-sources");
+    return paths;
+  }, [role]);
+
+  const canAccess = (path: string) => accessiblePaths.has(path);
+  const fallbackPath = canAccess("/") ? "/" : "/chat";
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-lg px-3 py-2 text-sm transition ${
       isActive
@@ -69,7 +105,7 @@ export default function App() {
     }`;
 
   const renderItems = (items: NavItem[]) =>
-    items.map((n) => (
+    items.filter((n) => n.roles.includes(role)).map((n) => (
       <NavLink key={n.to} to={n.to} end={n.end} className={navLinkClass}>
         {n.label}
       </NavLink>
@@ -82,9 +118,30 @@ export default function App() {
           <div className="text-lg font-bold text-brand">TPG HomeAI</div>
           <div className="text-xs text-slate-400">Orchestrator</div>
         </div>
+        {users.length > 0 && (
+          <div className="mb-5 rounded-lg border border-slate-800 bg-slate-900/50 p-2">
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              View As
+            </label>
+            <select
+              className="input py-1.5 text-sm"
+              value={selectedUser?.id || ""}
+              onChange={(e) => {
+                setActiveUser(e.target.value);
+                localStorage.setItem("tpg_homeai_user", e.target.value);
+              }}
+            >
+              {users.map((u: any) => (
+                <option key={u.id} value={u.id}>{u.name} · {u.role}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <nav className="flex flex-col gap-4">
           {navGroups.map((group) => {
-            const active = group.items.some((item) =>
+            const visible = group.items.filter((item) => item.roles.includes(role));
+            if (!visible.length) return null;
+            const active = visible.some((item) =>
               item.end ? location.pathname === item.to : location.pathname.startsWith(item.to),
             );
             if (group.collapsible) {
@@ -93,7 +150,7 @@ export default function App() {
                   <summary className="cursor-pointer list-none px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500 group-open:text-slate-400">
                     {group.label}
                   </summary>
-                  <div className="mt-2 flex flex-col gap-1">{renderItems(group.items)}</div>
+                  <div className="mt-2 flex flex-col gap-1">{renderItems(visible)}</div>
                 </details>
               );
             }
@@ -102,7 +159,7 @@ export default function App() {
                 <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                   {group.label}
                 </div>
-                <div className="flex flex-col gap-1">{renderItems(group.items)}</div>
+                <div className="flex flex-col gap-1">{renderItems(visible)}</div>
               </div>
             );
           })}
@@ -114,28 +171,29 @@ export default function App() {
 
       <main className="flex-1 overflow-auto p-6">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/notebook" element={<Notebook />} />
-          <Route path="/jarvis" element={<Brain />} />
-          <Route path="/setup" element={<Setup />} />
+          <Route path="/" element={canAccess("/") ? <Dashboard /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/chat" element={canAccess("/chat") ? <Chat /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/notebook" element={canAccess("/notebook") ? <Notebook /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/jarvis" element={canAccess("/jarvis") ? <Brain /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/setup" element={canAccess("/setup") ? <Setup /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/house-brain" element={<Navigate to="/jarvis" replace />} />
-          <Route path="/profiles" element={<DeviceProfiles />} />
-          <Route path="/memory-center" element={<MemoryCenter />} />
-          <Route path="/dashboard-builder" element={<DashboardBuilder />} />
+          <Route path="/profiles" element={canAccess("/profiles") ? <DeviceProfiles /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/memory-center" element={canAccess("/memory-center") ? <MemoryCenter /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/dashboard-builder" element={canAccess("/dashboard-builder") ? <DashboardBuilder /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/voice-settings" element={<Navigate to="/assistants" replace />} />
           <Route path="/voice-sources" element={<Navigate to="/assistants" replace />} />
-          <Route path="/suggestions" element={<Suggestions />} />
-          <Route path="/ha" element={<HAStatus />} />
-          <Route path="/discovery" element={<Discovery />} />
-          <Route path="/tester" element={<CommandTester />} />
-          <Route path="/entities" element={<Entities />} />
-          <Route path="/rooms" element={<Rooms />} />
-          <Route path="/assistants" element={<Assistants />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/music" element={<Music />} />
-          <Route path="/capabilities" element={<CapabilityMap />} />
-          <Route path="/permissions" element={<Permissions />} />
+          <Route path="/suggestions" element={canAccess("/suggestions") ? <Suggestions /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/ha" element={canAccess("/ha") ? <HAStatus /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/discovery" element={canAccess("/discovery") ? <Discovery /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/tester" element={canAccess("/tester") ? <CommandTester /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/entities" element={canAccess("/entities") ? <Entities /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/rooms" element={canAccess("/rooms") ? <Rooms /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/assistants" element={canAccess("/assistants") ? <Assistants /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/users" element={canAccess("/users") ? <Users /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/music" element={canAccess("/music") ? <Music /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/capabilities" element={canAccess("/capabilities") ? <CapabilityMap /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/permissions" element={canAccess("/permissions") ? <Permissions /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="*" element={<Navigate to={fallbackPath} replace />} />
         </Routes>
       </main>
     </div>
