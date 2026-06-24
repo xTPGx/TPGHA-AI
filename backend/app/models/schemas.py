@@ -145,6 +145,7 @@ class Speaker(_CfgBase):
     id: str
     name: str
     entity_id: str
+    music_assistant_entity_id: Optional[str] = None
     room: Optional[str] = None
     aliases: list[str] = Field(default_factory=list)
 

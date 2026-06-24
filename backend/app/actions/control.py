@@ -230,11 +230,11 @@ async def query_device(ctx: ActionContext, params: dict[str, Any]) -> ActionResu
             state = ent.get("state", "unknown")
             attrs = ent.get("attributes", {}) or {}
     except HAError as exc:
-        return ActionResult(success=True, intent=intent, executed=True,
+        return ActionResult(success=True, intent=intent, executed=False,
                             message=f"{res.name} is configured but live state is "
                                     f"unavailable: {exc.message}",
                             resolved={"entity_id": res.entity_id})
-    return ActionResult(success=True, intent=intent, executed=True,
+    return ActionResult(success=True, intent=intent, executed=False,
                         message=f"{res.name} is {state}.",
                         resolved={"entity_id": res.entity_id, "domain": res.data.get("domain")},
                         data={"state": state, "attributes": attrs})

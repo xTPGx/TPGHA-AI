@@ -351,6 +351,9 @@ def main() -> int:
     check("/chat dashboard draft includes yaml",
           "yaml" in body.get("command", {}).get("data", {}).get("dashboard_draft", {}),
           str(body))
+    check("/chat dashboard draft is proposal-gated",
+          body.get("command", {}).get("data", {}).get("policy", {}).get("decision") == "proposal_required",
+          str(body))
 
     r = client.get("/debug/last-command")
     check("/debug/last-command returns JSON", r.status_code == 200 and is_json(r),

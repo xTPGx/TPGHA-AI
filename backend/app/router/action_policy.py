@@ -20,6 +20,7 @@ from ..models.results import ActionResult, CommandResponse
 PROPOSAL_INTENTS = {
     "create_simple_automation",
     "create_routine",
+    "draft_dashboard",
 }
 
 SENSITIVE_INTENTS = {
@@ -162,6 +163,16 @@ def _service_names(data: dict[str, Any], tool_call: dict[str, Any] | None) -> li
                 if domain and service:
                     names.append(f"{domain}.{service}")
 
+    for key in ("service_call", "music_assistant", "media_player", "browser_mod"):
+        call = data.get(key) if isinstance(data, dict) else None
+        if isinstance(call, dict):
+            domain = str(call.get("domain") or "").lower()
+            service = str(call.get("service") or "").lower()
+            if domain and service:
+                names.append(f"{domain}.{service}")
+            elif service and "." in service:
+                names.append(service.lower())
+
     if tool_call:
         args = tool_call.get("arguments") or {}
         if isinstance(args, dict):
@@ -240,4 +251,6 @@ def _has_target(resolved: dict[str, Any]) -> bool:
         or resolved.get("target")
         or resolved.get("door")
         or resolved.get("routine")
+        or resolved.get("title")
+        or resolved.get("dashboard")
     )

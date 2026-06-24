@@ -43,7 +43,7 @@ async def verify_action_outcome(ctx: ActionContext, result: ActionResult) -> dic
                 "entity_id": entity_id,
                 "state": state,
                 "available": state not in {"unavailable", "unknown", "none", ""},
-                "matches_expected": expected is None or state == expected,
+                "matches_expected": expected is None or _state_matches(result.intent, state, expected),
             })
         except HAError as exc:
             readings.append({
@@ -160,6 +160,15 @@ def _expected_state(result: ActionResult) -> str | None:
     if service == "unlock":
         return "unlocked"
     return None
+
+
+def _state_matches(intent: str, state: str, expected: str) -> bool:
+    normalized = str(state or "").lower()
+    if intent == "play_music":
+        return normalized in {"playing", "buffering", "on"}
+    if intent == "stop_music":
+        return normalized in {"idle", "paused", "off", "standby"}
+    return normalized == expected
 
 
 def _draft_repair_suggestion(result: ActionResult, outcome: dict[str, Any]) -> None:

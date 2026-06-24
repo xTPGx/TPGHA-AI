@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3
+
+- Fixed status/query commands so they no longer appear as executed physical actions.
+- Treated dashboard drafts as backend proposal-required actions, matching the Chat UI.
+- Included normal `service_call` audit data in policy risk analysis, not only preview calls.
+- Added first-class speaker support for optional Music Assistant player entity IDs.
+- Relaxed media playback outcome checks to handle common Home Assistant player states.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.2
 
 - Routed explicit music requests through Music Assistant first, including playlist/album/artist/track wording.

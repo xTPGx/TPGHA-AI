@@ -165,7 +165,7 @@ async def main():
           called("climate", "set_temperature", "climate.living_room_living_room"))
 
     r = await control.query_device(ctx, {"target": "office light"})
-    check("P3 query_device returns state", r.executed is True and "state" in r.data)
+    check("P3 query_device returns state", r.executed is False and "state" in r.data)
 
     # sensitive via control_device must gate
     r = await control.control_device(ctx, {"target": "front door lock", "action": "unlock"})
