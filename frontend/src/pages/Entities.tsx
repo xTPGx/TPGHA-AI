@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, HAEntity } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
+import ToggleRow from "../components/ToggleRow";
 
 export default function Entities() {
   const [entities, setEntities] = useState<HAEntity[]>([]);
@@ -42,14 +45,14 @@ export default function Entities() {
   }, [entities, q, domain, onlyAvailable]);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Entities"
         subtitle="Live entities pulled from Home Assistant"
         actions={
-          <button className="btn-ghost" onClick={load}>
+          <Button variant="ghost" onClick={load}>
             Refresh
-          </button>
+          </Button>
         }
       />
 
@@ -59,31 +62,29 @@ export default function Entities() {
         </div>
       )}
 
-      <div className="card mb-4 flex flex-wrap items-center gap-3">
+      <div className="card grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_18rem_auto] lg:items-end">
         <input
-          className="input max-w-xs"
-          placeholder="Search id or name…"
+          className="input"
+          placeholder="Search id or name..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input max-w-[12rem]" value={domain} onChange={(e) => setDomain(e.target.value)}>
+        <select className="input" value={domain} onChange={(e) => setDomain(e.target.value)}>
           {domains.map((d) => (
             <option key={d} value={d}>
               {d}
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} />
-          Available only
-        </label>
-        <span className="ml-auto text-sm text-slate-500">
-          {loading ? "Loading…" : `${filtered.length} / ${entities.length}`}
+        <ToggleRow label="Available only" checked={onlyAvailable} onChange={setOnlyAvailable} />
+        <span className="rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2 text-sm text-slate-400">
+          {loading ? "Loading..." : `${filtered.length} / ${entities.length}`}
         </span>
       </div>
 
-      <div className="card overflow-auto p-0">
-        <table className="w-full text-left text-sm">
+      <div className="card p-0">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="border-b border-slate-700 text-slate-400">
             <tr>
               <th className="px-4 py-2">Entity ID</th>
@@ -99,18 +100,13 @@ export default function Entities() {
                 <td className="px-4 py-2">{e.friendly_name ?? "—"}</td>
                 <td className="px-4 py-2 text-slate-400">{e.domain}</td>
                 <td className="px-4 py-2">
-                  <span
-                    className={`badge ${
-                      e.available ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"
-                    }`}
-                  >
-                    {e.state}
-                  </span>
+                  <Badge tone={e.available ? "good" : "danger"}>{e.state}</Badge>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

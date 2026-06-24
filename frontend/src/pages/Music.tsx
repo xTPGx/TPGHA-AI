@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
 
 const emptyAccount = {
@@ -108,11 +110,11 @@ export default function Music() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Music"
         subtitle="Manage Music Assistant provider profiles, user ownership, defaults, and speaker room mapping."
-        actions={<div className="flex gap-2"><button className="btn-ghost" onClick={() => editSpeaker()}>Add Speaker</button><button className="btn" onClick={() => editAccount()}>Add Account</button></div>}
+        actions={<div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => editSpeaker()}>Add Speaker</Button><Button onClick={() => editAccount()}>Add Account</Button></div>}
       />
 
       {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
@@ -130,8 +132,8 @@ export default function Music() {
             <Field label="Default Media Type" value={accountEditor.default_media_type} onChange={(v) => setAccountEditor({ ...accountEditor, default_media_type: v })} placeholder="playlist" />
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="btn" onClick={saveAccount} disabled={saving || !accountEditor.name || !accountEditor.owner || !accountEditor.account}>Save Account</button>
-            <button className="btn-ghost" onClick={() => setAccountEditor(null)}>Cancel</button>
+            <Button onClick={saveAccount} disabled={saving || !accountEditor.name || !accountEditor.owner || !accountEditor.account}>Save Account</Button>
+            <Button variant="ghost" onClick={() => setAccountEditor(null)}>Cancel</Button>
           </div>
         </div>
       )}
@@ -148,25 +150,29 @@ export default function Music() {
             <Field label="Aliases" value={speakerEditor.aliases} onChange={(v) => setSpeakerEditor({ ...speakerEditor, aliases: v })} placeholder="office speaker, office audio" />
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="btn" onClick={saveSpeaker} disabled={saving || !speakerEditor.name || !speakerEditor.entity_id}>Save Speaker</button>
-            <button className="btn-ghost" onClick={() => setSpeakerEditor(null)}>Cancel</button>
+            <Button onClick={saveSpeaker} disabled={saving || !speakerEditor.name || !speakerEditor.entity_id}>Save Speaker</Button>
+            <Button variant="ghost" onClick={() => setSpeakerEditor(null)}>Cancel</Button>
           </div>
         </div>
       )}
 
       <div className="card mb-6">
-        <div className="mb-3 text-sm font-medium text-slate-300">Music Assistant accounts</div>
+        <div className="mb-3 text-lg font-semibold text-slate-100">Music Assistant accounts</div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {Object.entries(accounts).map(([key, a]) => (
-            <div key={key} className="rounded-lg border border-slate-700 bg-slate-900/40 p-3">
+            <div key={key} className="rounded-2xl border border-slate-700 bg-slate-950/40 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="font-semibold text-brand">{a.name}</div>
-                  <div className="mt-1 text-xs text-slate-400">provider: {a.provider} · account: {a.account} · owner: {a.owner}</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge>{a.provider}</Badge>
+                    <Badge>owner: {a.owner}</Badge>
+                  </div>
+                  <div className="mt-2 break-all text-xs text-slate-400">account: {a.account}</div>
                   {a.default_media?.media_id && <div className="mt-1 text-xs text-slate-400">default: {a.default_media.media_type} · {a.default_media.media_id}</div>}
-                  <div className="mt-1 font-mono text-[10px] text-slate-500">{key}</div>
+                  <div className="mt-1 break-all font-mono text-[10px] text-slate-500">{key}</div>
                 </div>
-                <button className="btn-ghost" onClick={() => editAccount(key, a)}>Edit</button>
+                <Button variant="ghost" onClick={() => editAccount(key, a)}>Edit</Button>
               </div>
             </div>
           ))}
@@ -174,9 +180,9 @@ export default function Music() {
       </div>
 
       <div className="card mb-6">
-        <div className="mb-3 text-sm font-medium text-slate-300">Speakers to rooms</div>
-        <div className="overflow-auto">
-          <table className="w-full text-left text-sm">
+        <div className="mb-3 text-lg font-semibold text-slate-100">Speakers to rooms</div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[42rem] text-left text-sm">
             <thead className="border-b border-slate-700 text-slate-400">
               <tr>
                 <th className="py-2">Speaker</th>
@@ -189,9 +195,9 @@ export default function Music() {
               {speakers.map((s: any) => (
                 <tr key={s.id} className="border-b border-slate-800/70">
                   <td className="py-2">{s.name}</td>
-                  <td className="py-2 font-mono text-xs text-brand">{s.music_assistant_entity_id || s.entity_id}</td>
+                  <td className="break-all py-2 font-mono text-xs text-brand">{s.music_assistant_entity_id || s.entity_id}</td>
                   <td className="py-2 text-slate-400">{s.room ?? "none"}</td>
-                  <td className="py-2"><button className="btn-ghost" onClick={() => editSpeaker(s)}>Edit</button></td>
+                  <td className="py-2"><Button variant="ghost" onClick={() => editSpeaker(s)}>Edit</Button></td>
                 </tr>
               ))}
             </tbody>
@@ -203,7 +209,7 @@ export default function Music() {
         <div className="card">
           <div className="mb-2 text-sm font-medium text-rose-300">Avoided dead or duplicate players</div>
           <div className="flex flex-wrap gap-2">
-            {avoid.map((e) => <span key={e} className="badge bg-rose-500/15 font-mono text-rose-300">{e}</span>)}
+            {avoid.map((e) => <Badge key={e} tone="danger" className="font-mono">{e}</Badge>)}
           </div>
         </div>
       )}

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 
 export default function HAStatus() {
@@ -23,16 +25,16 @@ export default function HAStatus() {
   }, []);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Home Assistant Integration"
         subtitle="The operational state the custom integration mirrors into Home Assistant"
-        actions={<button className="btn" onClick={load}>Refresh</button>}
+        actions={<Button onClick={load}>Refresh</Button>}
       />
-      {error && <div className="mb-4 text-rose-300">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
       {state && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat label="Status" value={health?.status} bad={health?.status !== "ok"} />
           <Stat label="Config" value={state.config_ok ? "ok" : "error"} bad={!state.config_ok} />
           <Stat label="Pending approvals" value={state.pending_approvals} bad={state.pending_approvals > 0} />
@@ -63,13 +65,11 @@ export default function HAStatus() {
 
         <div className="card">
           <div className="mb-2 text-sm font-medium text-slate-300">Last command</div>
-          <pre className="overflow-auto rounded-lg bg-slate-950/70 p-3 text-xs text-slate-300">
-            {JSON.stringify(state?.last_command ?? null, null, 2)}
-          </pre>
+          <DeveloperDetails title="Last command details" data={state?.last_command ?? null} />
         </div>
       </div>
 
-      <div className="card mt-6">
+      <div className="card">
         <div className="mb-2 text-sm font-medium text-slate-300">Exposed in Home Assistant</div>
         <ul className="list-disc pl-5 text-sm text-slate-400">
           <li>sensor.tpg_homeai_status, pending_approvals, unavailable_devices, last_command</li>

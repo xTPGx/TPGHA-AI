@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 
 interface Discovered {
@@ -141,21 +144,21 @@ export default function Discovery() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Discovery"
-        subtitle="Classifies entities Home Assistant already knows about"
+        subtitle="Review, categorize, and approve Home Assistant entities into the smart-home brain."
         actions={
-          <button className="btn" onClick={scan} disabled={loading}>
+          <Button onClick={scan} disabled={loading}>
             {loading ? "Scanning…" : "Scan now"}
-          </button>
+          </Button>
         }
       />
 
-      {error && <div className="mb-4 text-rose-300">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
       {summary && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat label="Pending" value={summary.pending_count ?? summary?.new_entities?.count} />
           <Stat label="Known" value={summary.known_count} />
           <Stat label="Unavailable" value={summary.unavailable_count} />
@@ -163,59 +166,124 @@ export default function Discovery() {
         </div>
       )}
 
-      <div className="card">
-        <div className="mb-3 text-sm font-medium text-slate-300">Pending approvals ({pending.length})</div>
-        <div className="mb-4 text-xs text-slate-500">
-          Source: Home Assistant entity states. This is not a direct LAN scan.
+      <section className="card">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-lg font-semibold text-slate-100">Needs approval</div>
+            <div className="mt-1 text-sm text-slate-500">Source: Home Assistant entity registry and states. This is not a raw LAN scan.</div>
+          </div>
+          <Badge tone={pending.length ? "warn" : "good"}>{pending.length} pending</Badge>
         </div>
-        {pending.length === 0 && <div className="text-slate-500">No new entities. Run a scan to discover devices.</div>}
-        <div className="space-y-3">
-          {pending.map((d) => (
-            <div key={d.entity_id} className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm text-brand">{d.entity_id}</span>
-                <span className={`badge ${RISK_COLORS[d.risk_level] || ""}`}>{d.risk_level}</span>
-                <span className="badge bg-slate-700/50 text-slate-300">{prettyCategory(categoryOf(d))}</span>
-                {!d.is_available && <span className="badge bg-slate-700/50 text-slate-400">unavailable</span>}
-                {d.is_duplicate_candidate && (
-                  <span className="badge bg-orange-500/20 text-orange-300">duplicate?</span>
-                )}
-              </div>
-              <div className="mt-1 text-sm text-slate-300">{d.friendly_name}</div>
-              <div className="mt-1 text-xs text-slate-500">
-                Device: {d.device_name || "—"} · Source: {d.source_detail || d.source || "Home Assistant"}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Room: {roomOf(d) || "—"} · Domain: {d.domain} · Mapping: {d.suggested_mapping || "device_aliases"}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Aliases: {(d.suggested_aliases || []).join(", ") || "—"}
-              </div>
-              <div className="mt-1 text-xs text-slate-600">{d.reason}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {mapTargets(d).map((t) => (
-                  <button
-                    key={t}
-                    className="btn-ghost text-xs"
-                    disabled={busy === d.entity_id}
-                    onClick={() => approve(d, t)}
-                  >
-                    {TARGET_LABELS[t] || `Map as ${t.replace("_", " ")}`}
-                  </button>
-                ))}
-                <button
-                  className="btn-ghost text-xs text-rose-300"
-                  disabled={busy === d.entity_id}
-                  onClick={() => ignore(d)}
-                >
-                  Ignore
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+        {pending.length === 0 && <div className="mt-4 text-slate-500">No new entities. Run a scan to discover devices.</div>}
+        <EntityGrid items={pending} busy={busy} approve={approve} ignore={ignore} />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <ReviewSection title="Unavailable" tone="warn" items={pending.filter((d) => !d.is_available)} busy={busy} approve={approve} ignore={ignore} />
+        <ReviewSection title="Risky devices" tone="danger" items={pending.filter((d) => ["high", "critical"].includes(d.risk_level))} busy={busy} approve={approve} ignore={ignore} />
+      </section>
     </div>
+  );
+}
+
+function ReviewSection({
+  title,
+  items,
+  busy,
+  approve,
+  ignore,
+  tone,
+}: {
+  title: string;
+  items: Discovered[];
+  busy: string | null;
+  approve: (d: Discovered, target: string) => void;
+  ignore: (d: Discovered) => void;
+  tone: "warn" | "danger";
+}) {
+  return (
+    <section className="card">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-lg font-semibold text-slate-100">{title}</div>
+        <Badge tone={tone}>{items.length}</Badge>
+      </div>
+      {items.length ? (
+        <EntityGrid items={items} busy={busy} approve={approve} ignore={ignore} compact />
+      ) : (
+        <div className="text-sm text-slate-500">Nothing to review here.</div>
+      )}
+    </section>
+  );
+}
+
+function EntityGrid({
+  items,
+  busy,
+  approve,
+  ignore,
+  compact = false,
+}: {
+  items: Discovered[];
+  busy: string | null;
+  approve: (d: Discovered, target: string) => void;
+  ignore: (d: Discovered) => void;
+  compact?: boolean;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className={`mt-4 grid grid-cols-1 gap-3 ${compact ? "" : "2xl:grid-cols-2"}`}>
+      {items.map((d) => (
+        <EntityCard key={d.entity_id} d={d} busy={busy} approve={approve} ignore={ignore} />
+      ))}
+    </div>
+  );
+}
+
+function EntityCard({
+  d,
+  busy,
+  approve,
+  ignore,
+}: {
+  d: Discovered;
+  busy: string | null;
+  approve: (d: Discovered, target: string) => void;
+  ignore: (d: Discovered) => void;
+}) {
+  return (
+    <article className="min-w-0 rounded-2xl border border-slate-800 bg-slate-950/45 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="break-all font-mono text-sm text-brand">{d.entity_id}</span>
+        <span className={`badge ${RISK_COLORS[d.risk_level] || ""}`}>{d.risk_level}</span>
+        <Badge>{prettyCategory(categoryOf(d))}</Badge>
+        {!d.is_available && <Badge tone="warn">unavailable</Badge>}
+        {d.is_duplicate_candidate && <Badge tone="warn">duplicate?</Badge>}
+      </div>
+      <div className="mt-2 text-base font-semibold text-slate-100">{d.friendly_name}</div>
+      <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
+        <div>Device: <span className="text-slate-300">{d.device_name || "-"}</span></div>
+        <div>Room: <span className="text-slate-300">{roomOf(d) || "-"}</span></div>
+        <div>Domain: <span className="text-slate-300">{d.domain}</span></div>
+        <div>Mapping: <span className="text-slate-300">{d.suggested_mapping || "device_aliases"}</span></div>
+      </div>
+      <div className="mt-2 text-xs text-slate-500">
+        Aliases: {(d.suggested_aliases || []).join(", ") || "-"}
+      </div>
+      <div className="mt-2 text-xs leading-relaxed text-slate-500">{d.reason}</div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {mapTargets(d).map((t) => (
+          <Button key={t} variant="ghost" className="px-3 py-1.5 text-xs" disabled={busy === d.entity_id} onClick={() => approve(d, t)}>
+            {TARGET_LABELS[t] || `Map as ${t.replace("_", " ")}`}
+          </Button>
+        ))}
+        <Button variant="ghost" className="px-3 py-1.5 text-xs text-rose-200" disabled={busy === d.entity_id} onClick={() => ignore(d)}>
+          Ignore
+        </Button>
+      </div>
+      <div className="mt-3">
+        <DeveloperDetails title="Raw classification" data={d} />
+      </div>
+    </article>
   );
 }
 

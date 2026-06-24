@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
+import ToggleRow from "../components/ToggleRow";
 import VoiceSources from "./VoiceSources";
 
 const emptyAssistant = {
@@ -157,17 +161,17 @@ export default function Assistants() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Assistants"
         subtitle="Create and tune assistant identity, ownership, personality, and voice."
-        actions={<button className="btn" onClick={() => editAssistant()}>Add Assistant</button>}
+        actions={<Button onClick={() => editAssistant()}>Add Assistant</Button>}
       />
 
-      {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+      {message && <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
 
       {editor && (
-        <div className="card mb-6">
+        <div className="card">
           <div className="mb-3 text-lg font-semibold">{editor.id ? "Edit Assistant" : "Add Assistant"}</div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="ID" value={editor.id} onChange={(v) => setEditor({ ...editor, id: slug(v) })} placeholder="atlas" />
@@ -188,10 +192,12 @@ export default function Assistants() {
                 {(voices.length ? voices : DEFAULT_VOICES).map((v: any) => <option key={v.id || v} value={v.id || v}>{v.label || v.id || v}</option>)}
               </select>
             </label>
-            <label className="flex items-center gap-2 rounded border border-slate-800 bg-slate-950/30 px-3 py-2">
-              <input type="checkbox" checked={editor.listen_enabled} onChange={(e) => setEditor({ ...editor, listen_enabled: e.target.checked })} />
-              <span>Enable wake-word listening for this assistant</span>
-            </label>
+            <ToggleRow
+              label="Wake-word listening"
+              description="Allow mapped voice sources to route wake phrases to this assistant."
+              checked={editor.listen_enabled}
+              onChange={(checked) => setEditor({ ...editor, listen_enabled: checked })}
+            />
             <label className="md:col-span-2">
               <div className="mb-1 text-xs uppercase text-slate-500">Personality</div>
               <textarea className="input min-h-24" value={editor.personality} onChange={(e) => setEditor({ ...editor, personality: e.target.value })} />
@@ -211,18 +217,18 @@ export default function Assistants() {
                     {editor.voice_provider} / {editor.voice} {"->"} browser playback
                   </div>
                 </div>
-                <span className={`badge ${voiceSettings.openai_configured ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+                <Badge tone={voiceSettings.openai_configured ? "good" : "warn"}>
                   OpenAI TTS {voiceSettings.openai_configured ? "ready" : "not configured"}
-                </span>
+                </Badge>
               </div>
               <textarea className="input min-h-24" value={voiceText} onChange={(e) => setVoiceText(e.target.value)} />
               <div className="mt-3 flex flex-wrap gap-2">
-                <button className="btn" onClick={() => void testVoice()} disabled={voiceBusy || !voiceText.trim()}>
+                <Button onClick={() => void testVoice()} disabled={voiceBusy || !voiceText.trim()}>
                   {voiceBusy ? "Working..." : "Test Voice"}
-                </button>
-                <button className="btn-ghost" onClick={() => void previewVoice()} disabled={voiceBusy || !voiceText.trim()}>
+                </Button>
+                <Button variant="ghost" onClick={() => void previewVoice()} disabled={voiceBusy || !voiceText.trim()}>
                   Preview Voice
-                </button>
+                </Button>
               </div>
               {voiceError && <div className="mt-3 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{voiceError}</div>}
               {voiceResult && (
@@ -230,16 +236,17 @@ export default function Assistants() {
                   <Row label="TTS provider" value={voiceResult.provider === "browser" ? `browser fallback${voiceResult.fallback_reason ? `: ${voiceResult.fallback_reason}` : ""}` : voiceResult.provider} />
                   <Row label="Voice profile" value={`${voiceResult.profile?.provider || editor.voice_provider} / ${voiceResult.profile?.voice || editor.voice}`} />
                   <Row label="Playback" value={voiceResult.profile?.route?.output || voiceResult.profile?.output || "browser"} />
-                  <pre className="max-h-56 overflow-auto rounded bg-slate-950 p-3 text-xs text-slate-300">
-                    {JSON.stringify({ ...voiceResult, audio_base64: voiceResult.audio_base64 ? "[audio bytes]" : undefined }, null, 2)}
-                  </pre>
+                  <DeveloperDetails
+                    title="Voice debug"
+                    data={{ ...voiceResult, audio_base64: voiceResult.audio_base64 ? "[audio bytes]" : undefined }}
+                  />
                 </div>
               )}
             </div>
 
             <div className="rounded border border-slate-800 bg-slate-950/30 p-4">
               <div className="mb-3 text-lg font-semibold">Voice Catalog</div>
-              <div className="max-h-80 space-y-2 overflow-auto">
+              <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
                 {(voices.length ? voices : DEFAULT_VOICES.map((id) => ({ id, label: id }))).map((voice: any) => (
                   <button
                     key={voice.id}
@@ -256,8 +263,8 @@ export default function Assistants() {
           </div>
 
           <div className="mt-4 flex gap-2">
-            <button className="btn" onClick={saveAssistant} disabled={saving || !editor.name || !editor.owner}>Save Assistant</button>
-            <button className="btn-ghost" onClick={() => setEditor(null)}>Cancel</button>
+            <Button onClick={saveAssistant} disabled={saving || !editor.name || !editor.owner}>Save Assistant</Button>
+            <Button variant="ghost" onClick={() => setEditor(null)}>Cancel</Button>
           </div>
         </div>
       )}
@@ -276,7 +283,7 @@ export default function Assistants() {
                   <div className="text-xl font-bold text-brand">{a.name}</div>
                   <span className="badge bg-slate-700 text-slate-300">{a.tone}</span>
                 </div>
-                <button className="btn-ghost" onClick={() => editAssistant(a)}>Edit</button>
+                <Button variant="ghost" onClick={() => editAssistant(a)}>Edit</Button>
               </div>
               <p className="mt-2 text-sm text-slate-300">{a.personality}</p>
               <dl className="mt-4 space-y-1 text-sm">
@@ -290,7 +297,7 @@ export default function Assistants() {
               {sources.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {sources.map((source: any) => (
-                    <span key={source.id} className="badge bg-cyan-500/10 text-cyan-200">{source.name} · {source.room}</span>
+                    <Badge key={source.id} tone="brand">{source.name} · {source.room}</Badge>
                   ))}
                 </div>
               )}

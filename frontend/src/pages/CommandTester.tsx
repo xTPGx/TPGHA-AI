@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, CommandResponse } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 
 const SAMPLES = [
@@ -86,12 +89,12 @@ export default function CommandTester() {
   };
 
   return (
-    <div>
-      <PageHeader title="Command Tester" subtitle="Send natural language → see the tool call, resolution, and result" />
+    <div className="page-stack">
+      <PageHeader title="Command Tester" subtitle="Send natural language and inspect the friendly result, policy, and optional developer payload." />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]">
         <div className="card">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="text-sm">
               <span className="mb-1 block text-slate-400">Assistant</span>
               <select className="input" value={assistant} onChange={(e) => setAssistant(e.target.value)}>
@@ -126,18 +129,18 @@ export default function CommandTester() {
             />
           </label>
 
-          <div className="mt-3 flex gap-2">
-            <button className="btn" onClick={send} disabled={loading}>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button onClick={send} disabled={loading}>
               {loading ? "Working…" : "Send command"}
-            </button>
+            </Button>
             {resp?.requires_confirmation && resp.confirmation_token && (
               <>
-                <button className="btn bg-amber-600 hover:bg-amber-500" onClick={confirm} disabled={loading}>
+                <Button variant="warning" onClick={confirm} disabled={loading}>
                   Confirm
-                </button>
-                <button className="btn-ghost" onClick={cancel} disabled={loading}>
+                </Button>
+                <Button variant="ghost" onClick={cancel} disabled={loading}>
                   Cancel
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -146,7 +149,7 @@ export default function CommandTester() {
             <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Samples</div>
             <div className="flex flex-wrap gap-2">
               {SAMPLES.map((s) => (
-                <button key={s} className="btn-ghost text-xs" onClick={() => setMessage(s)}>
+                <button key={s} className="btn-ghost min-h-9 px-3 py-1.5 text-xs" onClick={() => setMessage(s)}>
                   {s}
                 </button>
               ))}
@@ -155,20 +158,12 @@ export default function CommandTester() {
         </div>
 
         <div className="card">
-          <div className="mb-2 text-sm font-medium text-slate-300">Result</div>
+          <div className="mb-3 text-lg font-semibold text-slate-100">Result</div>
           {error && <div className="text-rose-300">{error}</div>}
           {!resp && !error && <div className="text-slate-500">Send a command to see results.</div>}
           {resp && (
             <div className="space-y-3 text-sm">
-              <div
-                className={`badge ${
-                  resp.requires_confirmation
-                    ? "bg-amber-500/20 text-amber-300"
-                    : resp.success
-                    ? "bg-emerald-500/20 text-emerald-300"
-                    : "bg-rose-500/20 text-rose-300"
-                }`}
-              >
+              <Badge tone={resp.requires_confirmation ? "warn" : resp.success ? "good" : "danger"}>
                 {resp.requires_confirmation
                   ? "needs confirmation"
                   : resp.success
@@ -176,27 +171,30 @@ export default function CommandTester() {
                     ? "executed"
                     : "ok (not executed)"
                   : "failed"}
-              </div>
+              </Badge>
 
-              <div className="text-slate-200">{resp.message}</div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/45 p-4 text-slate-100">{resp.message}</div>
 
               {resp.requires_confirmation && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-200">
-                  {resp.confirmation_message || "This action requires confirmation."}
+                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-100">
+                  <div className="font-semibold">Confirm action</div>
+                  <div className="mt-1 text-sm">{resp.confirmation_message || "This action requires confirmation."}</div>
                 </div>
               )}
 
               <Field label="Intent" value={resp.intent} />
               <Field label="Resolved entity" value={resp.resolved?.entity_id} />
-              <Block label="AI tool call" value={resp.tool_call} />
-              <Block label="Resolved" value={resp.resolved} />
+              <Field label="Resolved target" value={resp.resolved?.label || resp.resolved?.target} />
+              <Field label="Service" value={resp.data?.service_call ? `${resp.data.service_call.domain}.${resp.data.service_call.service}` : undefined} />
+              <DeveloperDetails title="AI tool call" data={resp.tool_call} />
+              <DeveloperDetails title="Resolved" data={resp.resolved} />
               {resp.data?.service_call && (
-                <Block label="Home Assistant service call" value={resp.data.service_call} />
+                <DeveloperDetails title="Home Assistant service call" data={resp.data.service_call} />
               )}
               {resp.data?.verification && (
-                <Block label="Post-action verification" value={resp.data.verification} />
+                <DeveloperDetails title="Post-action verification" data={resp.data.verification} />
               )}
-              {Object.keys(resp.data || {}).length > 0 && <Block label="Data" value={resp.data} />}
+              {Object.keys(resp.data || {}).length > 0 && <DeveloperDetails title="Raw response data" data={resp.data} />}
             </div>
           )}
         </div>
@@ -208,21 +206,9 @@ export default function CommandTester() {
 function Field({ label, value }: { label: string; value: any }) {
   if (value === undefined || value === null || value === "") return null;
   return (
-    <div>
+    <div className="rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2">
       <span className="text-slate-500">{label}: </span>
-      <span className="font-mono text-brand">{String(value)}</span>
-    </div>
-  );
-}
-
-function Block({ label, value }: { label: string; value: any }) {
-  if (!value || (typeof value === "object" && Object.keys(value).length === 0)) return null;
-  return (
-    <div>
-      <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <pre className="overflow-auto rounded-lg bg-slate-950/70 p-3 text-xs text-slate-300">
-        {JSON.stringify(value, null, 2)}
-      </pre>
+      <span className="break-all font-mono text-brand">{String(value)}</span>
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 
 export default function Suggestions() {
@@ -59,12 +62,12 @@ export default function Suggestions() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader title="Suggestions" subtitle="Review timers, routines, and automation drafts before anything permanent happens" />
 
-      {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
-      <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Stat label="Automation drafts" value={drafts.length} />
         <Stat label="Proactive/repair" value={proactive.length} />
         <Stat label="Approval model" value="human gated" />
@@ -79,25 +82,23 @@ export default function Suggestions() {
               <div key={s.id} className="card">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="font-mono text-brand">suggestion #{s.id}</span>
-                  <span className="badge bg-slate-700/50 text-slate-300">{s.status}</span>
-                  <span className={`badge ${s.priority === "high" ? "bg-rose-500/20 text-rose-200" : "bg-slate-700/50 text-slate-300"}`}>
+                  <Badge>{s.status}</Badge>
+                  <Badge tone={s.priority === "high" ? "danger" : "slate"}>
                     {s.priority || "normal"}
-                  </span>
-                  <span className="badge bg-cyan-500/10 text-cyan-200">{s.category}</span>
+                  </Badge>
+                  <Badge tone="brand">{s.category}</Badge>
                 </div>
                 <div className="text-sm font-semibold text-slate-100">{s.title}</div>
                 <div className="mt-1 text-sm text-slate-300">{s.message}</div>
                 <div className="mt-2 text-xs text-slate-500">Action: {s.action_type || "review"}</div>
-                <pre className="mt-3 max-h-56 overflow-auto rounded bg-slate-950 p-3 text-xs text-slate-300">
-                  {JSON.stringify(s.payload || {}, null, 2)}
-                </pre>
+                <DeveloperDetails title="Suggestion payload" data={s.payload || {}} />
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="btn" disabled={busy === `proactive:${s.id}`} onClick={() => actProactive(s.id, "approve")}>
+                  <Button disabled={busy === `proactive:${s.id}`} onClick={() => actProactive(s.id, "approve")}>
                     Approve
-                  </button>
-                  <button className="btn-ghost text-rose-300" disabled={busy === `proactive:${s.id}`} onClick={() => actProactive(s.id, "ignore")}>
+                  </Button>
+                  <Button variant="ghost" className="text-rose-300" disabled={busy === `proactive:${s.id}`} onClick={() => actProactive(s.id, "ignore")}>
                     Ignore
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -108,20 +109,20 @@ export default function Suggestions() {
           <div key={d.id} className="card">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="font-mono text-brand">#{d.id}</span>
-              <span className="badge bg-slate-700/50 text-slate-300">{d.status}</span>
+              <Badge>{d.status}</Badge>
               <span className="text-xs text-slate-500">{d.created_at || ""}</span>
             </div>
             <div className="text-sm text-slate-200">{d.action_description || d.trigger_description}</div>
-            <pre className="mt-3 max-h-80 overflow-auto rounded bg-slate-950 p-3 text-xs text-slate-300">
-              {d.proposed_yaml}
-            </pre>
+            <DeveloperDetails title="Proposed YAML">
+              <pre className="code-scroll max-h-80 whitespace-pre-wrap">{d.proposed_yaml}</pre>
+            </DeveloperDetails>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="btn" disabled={busy === `draft:${d.id}`} onClick={() => actDraft(d.id, "approve")}>
+              <Button disabled={busy === `draft:${d.id}`} onClick={() => actDraft(d.id, "approve")}>
                 Approve
-              </button>
-              <button className="btn-ghost text-rose-300" disabled={busy === `draft:${d.id}`} onClick={() => actDraft(d.id, "ignore")}>
+              </Button>
+              <Button variant="ghost" className="text-rose-300" disabled={busy === `draft:${d.id}`} onClick={() => actDraft(d.id, "ignore")}>
                 Ignore
-              </button>
+              </Button>
             </div>
           </div>
         ))}

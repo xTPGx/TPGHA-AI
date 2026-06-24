@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { api } from "../api";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
+import ToggleRow from "../components/ToggleRow";
 
 export default function DashboardBuilder() {
   const [form, setForm] = useState({
@@ -50,64 +53,36 @@ export default function DashboardBuilder() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader title="Dashboard Builder" subtitle="Generate Home Assistant dashboards from the approved house graph" />
 
-      {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
-      <div className="card mb-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-7">
+      <div className="card">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
           <select className="input" value={form.style} onChange={(e) => setForm({ ...form, style: e.target.value })}>
             <option value="native">Native</option>
             <option value="mushroom">Mushroom</option>
           </select>
           <input className="input" value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} placeholder="Optional room" />
-          <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={form.include_browser_mod}
-              onChange={(e) => setForm({ ...form, include_browser_mod: e.target.checked })}
-            />
-            Browser Mod
-          </label>
-          <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={form.include_unavailable}
-              onChange={(e) => setForm({ ...form, include_unavailable: e.target.checked })}
-            />
-            Unavailable
-          </label>
-          <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={form.tablet_mode}
-              onChange={(e) => setForm({ ...form, tablet_mode: e.target.checked })}
-            />
-            Tablets
-          </label>
-          <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={form.voice_panel}
-              onChange={(e) => setForm({ ...form, voice_panel: e.target.checked })}
-            />
-            Voice Panel
-          </label>
+          <ToggleRow label="Browser Mod" checked={form.include_browser_mod} onChange={(checked) => setForm({ ...form, include_browser_mod: checked })} />
+          <ToggleRow label="Unavailable devices" checked={form.include_unavailable} onChange={(checked) => setForm({ ...form, include_unavailable: checked })} />
+          <ToggleRow label="Tablet mode" checked={form.tablet_mode} onChange={(checked) => setForm({ ...form, tablet_mode: checked })} />
+          <ToggleRow label="Voice panel" checked={form.voice_panel} onChange={(checked) => setForm({ ...form, voice_panel: checked })} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn" disabled={busy || !form.title} onClick={() => void generate()}>
+          <Button disabled={busy || !form.title} onClick={() => void generate()}>
             Generate Draft
-          </button>
-          <button className="btn-ghost" disabled={busy || !form.title} onClick={() => void installDraft()}>
+          </Button>
+          <Button variant="ghost" disabled={busy || !form.title} onClick={() => void installDraft()}>
             Install YAML
-          </button>
+          </Button>
         </div>
       </div>
 
       {install && (
-        <div className="mb-4 rounded border border-emerald-500/40 bg-emerald-500/10 p-3 text-emerald-100">
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-emerald-100">
           Installed: {install.path || "dashboard YAML written"} {install.dashboard_key ? `(${install.dashboard_key})` : ""}
         </div>
       )}
@@ -129,9 +104,14 @@ export default function DashboardBuilder() {
               ))}
             </div>
           </div>
-          <pre className="card max-h-[42rem] overflow-auto whitespace-pre-wrap font-mono text-xs text-slate-300">
-            {draft.yaml}
-          </pre>
+          <div className="card">
+            <div className="mb-3 text-lg font-semibold text-slate-100">Generated YAML</div>
+            <DeveloperDetails title="View generated YAML">
+              <pre className="code-scroll max-h-[42rem] whitespace-pre-wrap font-mono">
+                {draft.yaml}
+              </pre>
+            </DeveloperDetails>
+          </div>
         </div>
       )}
     </div>

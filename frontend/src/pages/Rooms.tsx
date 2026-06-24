@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 
 const emptyRoom = {
@@ -66,11 +68,11 @@ export default function Rooms() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Rooms"
         subtitle="Room aliases and their assigned speaker, camera, display, lock, lights, fans, and climate."
-        actions={<button className="btn" onClick={() => editRoom()}>Add Room</button>}
+        actions={<Button onClick={() => editRoom()}>Add Room</Button>}
       />
 
       {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
@@ -91,19 +93,19 @@ export default function Rooms() {
             <Field label="Fans" value={editor.fans} onChange={(v) => setEditor({ ...editor, fans: v })} placeholder="fan.office" />
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="btn" onClick={saveRoom} disabled={saving || !editor.name}>Save Room</button>
-            <button className="btn-ghost" onClick={() => setEditor(null)}>Cancel</button>
+            <Button onClick={saveRoom} disabled={saving || !editor.name}>Save Room</Button>
+            <Button variant="ghost" onClick={() => setEditor(null)}>Cancel</Button>
           </div>
         </div>
       )}
 
       <div className="card mb-6">
         <div className="mb-2 text-sm font-medium text-slate-300">Resolve a room</div>
-        <div className="flex gap-2">
-          <input className="input max-w-xs" value={test} onChange={(e) => setTest(e.target.value)} />
-          <button className="btn" onClick={runResolve}>Resolve</button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input className="input sm:max-w-xs" value={test} onChange={(e) => setTest(e.target.value)} />
+          <Button onClick={runResolve}>Resolve</Button>
         </div>
-        {result && <pre className="mt-3 overflow-auto rounded-lg bg-slate-950/70 p-3 text-xs text-slate-300">{JSON.stringify(result, null, 2)}</pre>}
+        {result && <div className="mt-3"><DeveloperDetails title="Resolve details" data={result} /></div>}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -114,7 +116,7 @@ export default function Rooms() {
                 <div className="text-lg font-semibold">{r.name}</div>
                 <span className="badge bg-slate-700 text-slate-300">{r.id}</span>
               </div>
-              <button className="btn-ghost" onClick={() => editRoom(r)}>Edit</button>
+              <Button variant="ghost" onClick={() => editRoom(r)}>Edit</Button>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {(r.aliases ?? []).map((a: string) => <span key={a} className="badge bg-brand-dark/20 text-brand">{a}</span>)}
@@ -147,9 +149,9 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
 function Row({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
-    <div className="flex justify-between gap-2">
+    <div className="flex min-w-0 justify-between gap-2">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="font-mono text-xs text-slate-300">{value}</dd>
+      <dd className="min-w-0 break-all text-right font-mono text-xs text-slate-300">{value}</dd>
     </div>
   );
 }

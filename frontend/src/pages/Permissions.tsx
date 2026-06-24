@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
+import ToggleRow from "../components/ToggleRow";
 
 const PERMISSION_KEYS = [
   "can_unlock_doors",
@@ -84,17 +86,17 @@ export default function Permissions() {
   const editorActions = csv(editor?.sensitive_actions || "");
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Permissions"
         subtitle="Control what can execute immediately, what needs confirmation, and which security actions require extra trust."
-        actions={<button className="btn" onClick={editPermissions}>Edit Policy</button>}
+        actions={<Button onClick={editPermissions}>Edit Policy</Button>}
       />
 
-      {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+      {message && <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
 
       {editor && (
-        <div className="card mb-6">
+        <div className="card">
           <div className="mb-3 text-lg font-semibold">Edit Permissions Policy</div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="md:col-span-2">
@@ -106,20 +108,24 @@ export default function Permissions() {
               <div className="mb-1 text-xs uppercase text-slate-500">Security PIN</div>
               <input className="input" type="password" value={editor.security_pin} onChange={(e) => setEditor({ ...editor, security_pin: e.target.value })} placeholder={p.security_pin ? "configured; leave blank to keep" : "optional"} />
             </label>
-            <label className="flex items-center gap-2 rounded border border-slate-800 bg-slate-950/30 px-3 py-2">
-              <input type="checkbox" checked={editor.enforce_music_account_ownership} onChange={(e) => setEditor({ ...editor, enforce_music_account_ownership: e.target.checked })} />
-              <span>Enforce music account ownership</span>
-            </label>
+            <ToggleRow
+              label="Music account ownership"
+              description="Keep each assistant tied to its assigned music profile."
+              checked={editor.enforce_music_account_ownership}
+              onChange={(checked) => setEditor({ ...editor, enforce_music_account_ownership: checked })}
+            />
           </div>
 
           <div className="mt-5">
             <div className="mb-2 text-sm font-semibold text-slate-200">Default Permissions</div>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {PERMISSION_KEYS.map((key) => (
-                <label key={key} className="flex items-center justify-between gap-3 rounded border border-slate-800 bg-slate-950/30 px-3 py-2">
-                  <span className="text-sm text-slate-300">{label(key)}</span>
-                  <input type="checkbox" checked={Boolean(editor.defaults[key])} onChange={(e) => setEditor({ ...editor, defaults: { ...editor.defaults, [key]: e.target.checked } })} />
-                </label>
+                <ToggleRow
+                  key={key}
+                  label={label(key)}
+                  checked={Boolean(editor.defaults[key])}
+                  onChange={(checked) => setEditor({ ...editor, defaults: { ...editor.defaults, [key]: checked } })}
+                />
               ))}
             </div>
           </div>
@@ -141,13 +147,13 @@ export default function Permissions() {
           </div>
 
           <div className="mt-4 flex gap-2">
-            <button className="btn" onClick={save} disabled={saving}>Save Policy</button>
-            <button className="btn-ghost" onClick={() => setEditor(null)}>Cancel</button>
+            <Button onClick={save} disabled={saving}>Save Policy</Button>
+            <Button variant="ghost" onClick={() => setEditor(null)}>Cancel</Button>
           </div>
         </div>
       )}
 
-      <div className="card mb-6">
+      <div className="card">
         <div className="mb-2 text-sm font-medium text-slate-300">Sensitive actions requiring confirmation</div>
         <div className="space-y-2">
           {sensitive.map((a) => (

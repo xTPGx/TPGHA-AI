@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.19
+
+- Refactored the frontend into a responsive Home Assistant-friendly app shell with compact drawer navigation and wide-screen sidebar navigation.
+- Reworked Chat into the primary Jarvis experience with premium conversation cards, clearer confirmations, and collapsed developer details.
+- Cleaned up Dashboard, Discovery, Command Tester, Entities, Rooms, Music, Assistants, Permissions, Suggestions, Dashboard Builder, and HA Integration pages for mobile/tablet/desktop layouts.
+- Replaced raw checkboxes with consistent toggles and moved raw JSON/YAML into collapsed developer panels.
+- Kept backend behavior, APIs, add-on metadata, Docker label, and custom integration versions aligned.
+
 ## 1.0.18
 
 - Added Jarvis as the shared AI profile for kiosk, wall panel, iPad, and house remote sessions.

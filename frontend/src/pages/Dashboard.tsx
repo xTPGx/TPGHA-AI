@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 import StatusDot from "../components/StatusDot";
 
@@ -61,36 +64,36 @@ export default function Dashboard() {
   const scanRunning = disc.scan_in_progress || phase === "initializing";
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Dashboard"
-        subtitle="System status for the HomeAI Orchestrator"
+        subtitle="Live overview for the smart-home AI brain, Home Assistant connection, and discovery pipeline."
         actions={
-          <button className="btn-ghost" onClick={runScan} disabled={scanning}>
+          <Button variant="ghost" onClick={runScan} disabled={scanning}>
             {scanning ? "Scanning…" : "Run scan now"}
-          </button>
+          </Button>
         }
       />
 
       {phase === "connecting" && (
-        <div className="card mb-4 text-slate-300">Connecting to backend…</div>
+        <div className="card text-slate-300">Connecting to backend...</div>
       )}
 
       {phase === "misconfigured" && (
-        <div className="card mb-4 border-rose-700/60 bg-rose-900/20 text-rose-200">
+        <div className="card border-rose-700/60 bg-rose-900/20 text-rose-200">
           API routing is misconfigured: the backend returned HTML for an API
           call. Make sure the add-on is up to date and reachable on port 8088.
         </div>
       )}
 
       {phase === "offline" && (
-        <div className="card mb-4 border-rose-700/60 bg-rose-900/20 text-rose-200">
+        <div className="card border-rose-700/60 bg-rose-900/20 text-rose-200">
           Could not reach backend: {error}
         </div>
       )}
 
       {phase === "degraded" && health?.reasons?.length > 0 && (
-        <div className="card mb-4 border-amber-700/60 bg-amber-900/20 text-amber-200">
+        <div className="card border-amber-700/60 bg-amber-900/20 text-amber-200">
           <div className="font-medium">Backend is running but needs attention:</div>
           <ul className="mt-1 list-disc pl-5 text-sm">
             {health.reasons.map((r: string) => <li key={r}>{r}</li>)}
@@ -99,14 +102,17 @@ export default function Dashboard() {
       )}
 
       {scanRunning && (
-        <div className="card mb-4 border-sky-700/60 bg-sky-900/20 text-sky-200">
-          Initial discovery scan is still running… device counts will populate shortly.
+        <div className="card border-sky-700/60 bg-sky-900/20 text-sky-200">
+          Initial discovery scan is still running... device counts will populate shortly.
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card">
-          <div className="mb-2 text-sm text-slate-400">Backend</div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-slate-300">Backend</div>
+            <Badge tone={health ? "good" : "danger"}>{phase}</Badge>
+          </div>
           <StatusDot
             ok={!!health}
             label={health ? `Online (v${health.backend?.version})` : "Offline"}
@@ -117,7 +123,12 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <div className="mb-2 text-sm text-slate-400">Home Assistant</div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-slate-300">Home Assistant</div>
+            <Badge tone={ha?.reachable ? "good" : ha?.configured ? "warn" : "danger"}>
+              {ha?.reachable ? "connected" : ha?.configured ? "check" : "setup"}
+            </Badge>
+          </div>
           <StatusDot
             ok={ha?.reachable}
             label={ha?.reachable ? "Connected" : ha?.configured ? "Not reachable" : "Not configured"}
@@ -129,7 +140,12 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <div className="mb-2 text-sm text-slate-400">OpenAI</div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-slate-300">AI Brain</div>
+            <Badge tone={health?.openai?.configured ? "good" : "warn"}>
+              {health?.openai?.configured ? "openai" : "fallback"}
+            </Badge>
+          </div>
           <StatusDot
             ok={health?.openai?.configured}
             label={health?.openai?.configured ? "Configured" : "Fallback parser"}
@@ -138,7 +154,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Known devices" value={disc.known_count} />
         <Stat label="Pending approvals" value={disc.pending_count} warn={disc.pending_count > 0} />
         <Stat label="Unavailable" value={disc.unavailable_count} warn={disc.unavailable_count > 0} />
@@ -146,15 +162,10 @@ export default function Dashboard() {
       </div>
 
       {summary?.message && (
-        <div className="card mt-4 text-sm text-slate-400">{summary.message}</div>
+        <div className="card text-sm text-slate-400">{summary.message}</div>
       )}
 
-      <div className="card mt-6">
-        <div className="mb-2 text-sm font-medium text-slate-300">Raw health</div>
-        <pre className="overflow-auto rounded-lg bg-slate-950/70 p-3 text-xs text-slate-300">
-          {JSON.stringify(health, null, 2)}
-        </pre>
-      </div>
+      <DeveloperDetails title="Raw health" data={health} />
     </div>
   );
 }

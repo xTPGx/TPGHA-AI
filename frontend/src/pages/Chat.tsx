@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, CommandResponse } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
+import ToggleRow from "../components/ToggleRow";
 
 interface Msg {
   id: string;
@@ -393,88 +397,106 @@ export default function Chat() {
   };
 
   return (
-    <div>
-      <PageHeader title="Chat" subtitle="Ask anything, brainstorm, or control the house through guarded actions" />
+    <div className="page-stack max-w-[72rem]">
+      <PageHeader
+        title={selectedAssistant?.name || "Chat"}
+        subtitle="Ask anything, brainstorm, or control the house through guarded smart-home actions."
+      />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <select className="input max-w-[12rem]" value={assistant} onChange={(e) => setAssistant(e.target.value)} disabled={Boolean(session) && !canSwitchProfiles}>
-          {assistants.length === 0 && <option value="atlas">Atlas</option>}
-          {assistants.map((a: any) => (
-            <option key={a.id} value={a.id}>{a.name}</option>
-          ))}
-        </select>
-        <select className="input max-w-[12rem]" value={user} onChange={(e) => setUser(e.target.value)} disabled={Boolean(session) && !canSwitchProfiles}>
-          {users.length === 0 && <option value="shawn">Shawn</option>}
-          {users.map((u: any) => (
-            <option key={u.id} value={u.id}>{u.name}</option>
-          ))}
-        </select>
+      <section className="card">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_auto]">
+          <label className="min-w-0">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Assistant</span>
+            <select className="input" value={assistant} onChange={(e) => setAssistant(e.target.value)} disabled={Boolean(session) && !canSwitchProfiles}>
+              {assistants.length === 0 && <option value="atlas">Atlas</option>}
+              {assistants.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">User</span>
+            <select className="input" value={user} onChange={(e) => setUser(e.target.value)} disabled={Boolean(session) && !canSwitchProfiles}>
+              {users.length === 0 && <option value="shawn">Shawn</option>}
+              {users.map((u: any) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Room context</span>
+            <input className="input" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Optional room" />
+          </label>
+          <div className="flex items-end">
+            <button
+              className={`btn-ghost w-full md:w-12 ${listening ? "border-rose-400 bg-rose-500/20 text-rose-100" : ""}`}
+              onClick={toggleListening}
+              disabled={busy || !speechSupported}
+              title={speechSupported ? "Use microphone" : "Voice input is not supported in this browser"}
+              aria-label={listening ? "Stop listening" : "Start voice input"}
+            >
+              <span aria-hidden="true">{listening ? "Stop" : "Mic"}</span>
+            </button>
+          </div>
+        </div>
         {(selectedAssistant || selectedUser) && (
-          <div className="rounded-lg border border-slate-700 bg-slate-950/30 px-3 py-2 text-xs text-slate-400">
-            Profile: <span className="text-slate-200">{selectedAssistant?.name || assistant}</span>
-            {" "}· Owner: <span className="text-slate-200">{selectedUser?.name || user}</span>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <Badge tone="brand">Profile: {selectedAssistant?.name || assistant}</Badge>
+            <Badge>Owner: {selectedUser?.name || user}</Badge>
+            {session?.role && <Badge>{session.role}</Badge>}
           </div>
         )}
-        <input
-          className="input max-w-[12rem]"
-          value={room}
-          onChange={(e) => setRoom(e.target.value)}
-          placeholder="Room context"
-        />
-        <button
-          className={`btn-ghost min-h-[2.75rem] min-w-[2.75rem] ${listening ? "border-rose-400 bg-rose-500/20 text-rose-100" : ""}`}
-          onClick={toggleListening}
-          disabled={busy || !speechSupported}
-          title={speechSupported ? "Use microphone" : "Voice input is not supported in this browser"}
-          aria-label={listening ? "Stop listening" : "Start voice input"}
-        >
-          <span aria-hidden="true">{listening ? "■" : "●"}</span>
-        </button>
-        <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
-          <input
-            type="checkbox"
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ToggleRow
+            label="Review risky or uncertain"
+            description="Only pauses when confidence, security, or future automation needs a check."
             checked={safePreview}
-            onChange={(e) => setSafePreview(e.target.checked)}
+            onChange={setSafePreview}
           />
-          Review risky or uncertain
-        </label>
-        <label className="flex min-h-[2.75rem] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-200">
-          <input
-            type="checkbox"
+          <ToggleRow
+            label="Speak replies"
+            description="Uses configured assistant voice when available."
             checked={speakResponses}
-            onChange={(e) => setSpeakResponses(e.target.checked)}
+            onChange={setSpeakResponses}
           />
-          Speak replies
-        </label>
-      </div>
+        </div>
+      </section>
 
-      {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
-      {voiceError && <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100">{voiceError}</div>}
+      {error && <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
+      {voiceError && <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100">{voiceError}</div>}
 
-      <div className="card mb-4 min-h-[28rem] space-y-3">
+      <section className="card min-h-[min(34rem,calc(100vh-22rem))] space-y-4">
         {messages.length === 0 && (
-          <div className="text-slate-500">
-            Known safe actions run immediately. Risky or uncertain requests pause for review.
+          <div className="mx-auto max-w-2xl py-10 text-center">
+            <div className="text-xl font-semibold text-slate-100">What should the house do?</div>
+            <div className="mt-2 text-sm leading-relaxed text-slate-400">
+              Chat naturally. Safe known actions run immediately; critical, uncertain, or future-changing actions pause for review.
+            </div>
           </div>
         )}
         {messages.map((m) => (
-          <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>
-            <div className={`inline-block max-w-[86%] rounded-lg border px-3 py-2 text-sm ${
+          <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[min(48rem,92%)] rounded-2xl border px-4 py-3 text-sm shadow-lg ${
               m.role === "user"
-                ? "border-brand-dark bg-brand-dark/20 text-slate-100"
+                ? "border-sky-400/30 bg-sky-500/20 text-slate-50"
                 : m.kind === "preview"
-                  ? "border-cyan-500/60 bg-cyan-950/40 text-slate-100"
-                  : "border-slate-700 bg-slate-950/60 text-slate-200"
+                  ? "border-cyan-400/50 bg-cyan-950/45 text-slate-100"
+                  : "border-slate-700 bg-slate-950/62 text-slate-200"
             }`}>
-              {m.mode && <div className="mb-1 text-xs uppercase text-brand">{m.mode}</div>}
-              <div className="whitespace-pre-wrap">{m.text}</div>
+              {m.mode && <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-300">{m.mode}</div>}
+              <div className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</div>
 
               {m.command && (
-                <div className="mt-2 grid gap-1 rounded border border-slate-700/70 bg-slate-950/50 p-2 text-xs text-slate-300">
-                  {m.command.intent && <div><span className="text-slate-500">Intent:</span> {m.command.intent}</div>}
-                  {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
-                  {serviceSummary(m.command) && <div><span className="text-slate-500">Would call:</span> {serviceSummary(m.command)}</div>}
-                  {m.command.data?.policy?.decision && <div><span className="text-slate-500">Policy:</span> {m.command.data.policy.decision}</div>}
+                <div className="mt-3 space-y-2 rounded-xl border border-slate-700/70 bg-slate-950/50 p-3 text-xs text-slate-300">
+                  <div className="flex flex-wrap gap-2">
+                    {m.command.intent && <Badge tone="brand">{m.command.intent}</Badge>}
+                    {m.command.data?.policy?.decision && <Badge>{m.command.data.policy.decision}</Badge>}
+                    {m.command.requires_confirmation && <Badge tone="warn">confirmation</Badge>}
+                  </div>
+                  <div className="grid gap-1">
+                    {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
+                    {serviceSummary(m.command) && <div><span className="text-slate-500">Service:</span> {serviceSummary(m.command)}</div>}
+                  </div>
                   {m.command.data?.dashboard_draft?.view_count && (
                     <div className="text-cyan-200">
                       <span className="text-slate-500">Dashboard draft:</span> {m.command.data.dashboard_draft.view_count} view(s)
@@ -498,39 +520,50 @@ export default function Chat() {
                     </div>
                   )}
                   {m.command.data?.security?.pin_required && <div className="text-amber-200">Security PIN required</div>}
-                  {m.command.requires_confirmation && <div className="text-amber-200">Confirmation required</div>}
+                  <DeveloperDetails data={{
+                    tool_call: m.command.tool_call,
+                    resolved: m.command.resolved,
+                    data: m.command.data,
+                  }} />
                 </div>
               )}
 
               {m.kind === "preview" && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="btn px-3 py-1.5 text-xs" onClick={() => void executePreview(m)} disabled={busy}>
+                  <Button className="px-3 py-1.5 text-xs" onClick={() => void executePreview(m)} disabled={busy}>
                     {m.command?.requires_confirmation ? "Request confirmation" : "Execute"}
-                  </button>
-                  <button className="btn-ghost px-3 py-1.5 text-xs" onClick={() => appendAssistant({ text: "Cancelled.", mode: "cancelled" })} disabled={busy}>
+                  </Button>
+                  <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => appendAssistant({ text: "Cancelled.", mode: "cancelled" })} disabled={busy}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               )}
 
               {m.kind === "confirmation" && m.command?.confirmation_token && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="btn px-3 py-1.5 text-xs" onClick={() => void confirm(m.command!.confirmation_token!)} disabled={busy}>
+                <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+                  <div className="font-semibold text-amber-100">Confirm action</div>
+                  <div className="mt-1 text-xs text-amber-100/80">
+                    {selectedAssistant?.name || "Assistant"} wants to run this action. Review the target and confirm only if it is correct.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="warning" className="px-3 py-1.5 text-xs" onClick={() => void confirm(m.command!.confirmation_token!)} disabled={busy}>
                     Confirm
-                  </button>
-                  <button className="btn-ghost px-3 py-1.5 text-xs" onClick={() => void cancel(m.command!.confirmation_token!)} disabled={busy}>
+                  </Button>
+                  <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void cancel(m.command!.confirmation_token!)} disabled={busy}>
                     Cancel
-                  </button>
+                  </Button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="flex gap-3">
+      <div className="sticky bottom-0 -mx-3 border-t border-slate-800/80 bg-[#07111f]/95 px-3 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border sm:bg-slate-950/70">
+        <div className="flex gap-2">
         <textarea
-          className="input min-h-[4rem] flex-1"
+          className="input min-h-[3.75rem] flex-1 resize-none rounded-2xl"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -539,11 +572,12 @@ export default function Chat() {
               void send();
             }
           }}
-          placeholder={listening ? "Listening..." : "Ask anything, brainstorm, or talk to the house..."}
+          placeholder={listening ? "Listening..." : "Message TPG HomeAI..."}
         />
-        <button className="btn self-stretch" onClick={() => void send()} disabled={busy}>
+        <Button className="self-stretch rounded-2xl px-5" onClick={() => void send()} disabled={busy}>
           {busy ? "Thinking..." : "Send"}
-        </button>
+        </Button>
+        </div>
       </div>
     </div>
   );
