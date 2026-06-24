@@ -325,11 +325,38 @@ def main() -> int:
     body = r.json()
     check("/chat creates proposal mode", body.get("mode") == "proposal", str(body))
 
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "What is the weather like?",
+    })
+    check("/chat general weather returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    body = r.json()
+    check("/chat general weather uses conversation mode",
+          body.get("mode") == "conversation" and body.get("success") is True,
+          str(body))
+
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "Build a dashboard for the office with voice controls.",
+    })
+    check("/chat dashboard draft returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    body = r.json()
+    check("/chat dashboard draft creates draft intent",
+          body.get("command", {}).get("intent") == "draft_dashboard",
+          str(body))
+    check("/chat dashboard draft includes yaml",
+          "yaml" in body.get("command", {}).get("data", {}).get("dashboard_draft", {}),
+          str(body))
+
     r = client.get("/debug/last-command")
     check("/debug/last-command returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/debug/last-command has command audit",
-          r.json().get("command", {}).get("intent") == "create_simple_automation",
+          r.json().get("command", {}).get("intent") in {"create_simple_automation", "draft_dashboard", "conversation"},
           str(r.json()))
 
     r = client.get("/debug/commands?limit=5")

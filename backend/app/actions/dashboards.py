@@ -57,6 +57,57 @@ async def open_dashboard(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
                         message=msg, resolved=resolved, data=data)
 
 
+async def draft_dashboard(ctx: ActionContext, params: dict[str, Any]) -> ActionResult:
+    intent = "draft_dashboard"
+    raw_room = str(params.get("room") or "").strip()
+    target = str(params.get("target") or "").strip()
+    room = raw_room or _room_from_target(ctx.config, target)
+    title = str(params.get("title") or "").strip() or (
+        f"TPG {room.title()} Dashboard" if room else "TPG Home Dashboard"
+    )
+    style = str(params.get("style") or "native").strip().lower()
+    if style not in {"native", "mushroom"}:
+        style = "native"
+    draft = build_dashboard_draft(
+        ctx.config,
+        title=title,
+        style=style,
+        room=room or None,
+        include_browser_mod=True,
+        include_unavailable=False,
+        tablet_mode=bool(params.get("include_tablets")),
+        voice_panel=bool(params.get("include_voice")),
+    )
+    focus = room or target or "the approved house graph"
+    message = (
+        f"I drafted {title} from {focus}. It has {draft['view_count']} view(s). "
+        "Review it in Dashboard Builder before installing."
+    )
+    return ActionResult(
+        success=True,
+        intent=intent,
+        executed=False,
+        message=message,
+        resolved={
+            "title": title,
+            "room": room,
+            "target": target,
+            "style": style,
+            "view_count": draft["view_count"],
+        },
+        data={
+            "dashboard_draft": draft,
+            "policy": {
+                "decision": "proposal_required",
+                "risk": "medium",
+                "requires_review": True,
+                "can_auto_execute": False,
+                "reasons": ["creates_or_changes_dashboard_layout"],
+            },
+        },
+    )
+
+
 def _entity_card(entity_id: str, name: str | None = None) -> dict[str, Any]:
     card: dict[str, Any] = {"type": "tile", "entity": entity_id}
     if name:
@@ -79,6 +130,18 @@ def _room_entities(room) -> list[str]:
         if entity_id:
             entities.append(entity_id)
     return list(dict.fromkeys(entities))
+
+
+def _room_from_target(config: AppConfig, target: str) -> str:
+    needle = target.lower().replace("_", " ")
+    if not needle:
+        return ""
+    for room in config.devices.rooms:
+        names = [room.id, room.name, *(room.aliases or [])]
+        for name in names:
+            if str(name).lower().replace("_", " ") in needle:
+                return room.id
+    return ""
 
 
 def _room_card(room, style: str) -> dict[str, Any] | None:

@@ -22,6 +22,7 @@ TOOL_NAMES = [
     "set_climate",
     "security_check",
     "open_dashboard",
+    "draft_dashboard",
     "create_simple_automation",
     "create_routine",
     "explain_last_action",
@@ -197,6 +198,23 @@ TOOLS = [
             },
         },
         [],
+    ),
+    _fn(
+        "draft_dashboard",
+        "Draft a Home Assistant Lovelace dashboard from the approved TPG HomeAI "
+        "house graph. Use for requests like 'build a dashboard for the office', "
+        "'create a tablet dashboard', 'make a dashboard for these lights', or "
+        "'edit/redesign a dashboard for this room'. This returns a reviewable "
+        "draft; it does not overwrite a live dashboard.",
+        {
+            "title": {"type": "string", "description": "Dashboard title."},
+            "room": {"type": "string", "description": "Optional room/area to focus."},
+            "style": {"type": "string", "description": "native or mushroom."},
+            "target": {"type": "string", "description": "Free-text dashboard target or edit request."},
+            "include_tablets": {"type": "boolean", "description": "Include tablet/display view."},
+            "include_voice": {"type": "boolean", "description": "Include voice/source view."},
+        },
+        ["title"],
     ),
     _fn(
         "control_device",

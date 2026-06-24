@@ -35,6 +35,7 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
 const PROPOSAL_INTENTS = new Set([
   "create_simple_automation",
   "create_routine",
+  "draft_dashboard",
 ]);
 
 const SENSITIVE_INTENTS = new Set([
@@ -366,7 +367,7 @@ export default function Chat() {
 
   return (
     <div>
-      <PageHeader title="Chat" subtitle="Conversational house brain with guarded actions and proposals" />
+      <PageHeader title="Chat" subtitle="Ask anything, brainstorm, or control the house through guarded actions" />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <select className="input max-w-[12rem]" value={assistant} onChange={(e) => setAssistant(e.target.value)}>
@@ -437,6 +438,11 @@ export default function Chat() {
                   {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
                   {serviceSummary(m.command) && <div><span className="text-slate-500">Would call:</span> {serviceSummary(m.command)}</div>}
                   {m.command.data?.policy?.decision && <div><span className="text-slate-500">Policy:</span> {m.command.data.policy.decision}</div>}
+                  {m.command.data?.dashboard_draft?.view_count && (
+                    <div className="text-cyan-200">
+                      <span className="text-slate-500">Dashboard draft:</span> {m.command.data.dashboard_draft.view_count} view(s)
+                    </div>
+                  )}
                   {outcomeLabel(m.command) && (
                     <div className={m.command.data?.outcome?.verified === false ? "text-amber-200" : "text-emerald-200"}>
                       <span className="text-slate-500">Outcome:</span> {outcomeLabel(m.command)}
@@ -496,7 +502,7 @@ export default function Chat() {
               void send();
             }
           }}
-          placeholder={listening ? "Listening..." : "Talk to the house..."}
+          placeholder={listening ? "Listening..." : "Ask anything, brainstorm, or talk to the house..."}
         />
         <button className="btn self-stretch" onClick={() => void send()} disabled={busy}>
           {busy ? "Thinking..." : "Send"}

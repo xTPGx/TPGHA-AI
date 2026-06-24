@@ -102,6 +102,41 @@ class AIClient:
                 logger.warning("Ollama call failed (%s); using deterministic fallback.", type(exc).__name__)
         return fallback_parse(message, user)
 
+    def general_chat(
+        self,
+        message: str,
+        config: AppConfig,
+        assistant: Optional[Assistant],
+        user: Optional[User],
+        *,
+        conversation_context: str = "",
+        house_context: str = "",
+    ) -> dict[str, Any]:
+        """General conversational assistant response.
+
+        This is intentionally separate from select_tool: home actions stay in
+        the guarded tool router, while advice, brainstorming, explanations, and
+        general Q&A can use the model normally.
+        """
+
+        if self._client is not None:
+            try:
+                return self._general_via_openai(
+                    message,
+                    config,
+                    assistant,
+                    user,
+                    conversation_context=conversation_context,
+                    house_context=house_context,
+                )
+            except Exception as exc:  # pragma: no cover - network/runtime
+                logger.warning("OpenAI general chat failed (%s); using fallback.", type(exc).__name__)
+        return {
+            "mode": "conversation",
+            "provider": "fallback_parser",
+            "message": _fallback_general_reply(message, house_context),
+        }
+
     def _select_via_openai(
         self,
         message: str,
@@ -138,6 +173,52 @@ class AIClient:
                             assistant_text=msg.content or "")
         # No tool selected: conversational reply.
         return ToolCall("", {}, source="openai", assistant_text=msg.content or "")
+
+    def _general_via_openai(
+        self,
+        message: str,
+        config: AppConfig,
+        assistant: Optional[Assistant],
+        user: Optional[User],
+        *,
+        conversation_context: str = "",
+        house_context: str = "",
+    ) -> dict[str, Any]:
+        household = config.household.default_household()
+        house_name = household.name if household else "the home"
+        tz = household.timezone if household else "local time"
+        name = assistant.name if assistant else "TPG HomeAI"
+        owner = user.name if user else "the user"
+        personality = (assistant.personality.strip() if assistant else "") or (
+            "Warm, sharp, practical, conversational, and concise."
+        )
+        system = (
+            f"You are {name}, the conversational AI brain for {house_name} ({tz}). "
+            f"You are speaking with {owner}. Personality: {personality}\n\n"
+            "You are not only a Home Assistant command parser. You can answer normal "
+            "questions, brainstorm, advise, explain, plan, and help with smart-home design. "
+            "When the user asks for physical home changes, do not claim you changed the "
+            "house unless a backend tool result says so. Suggest safe next steps or ask "
+            "for missing specifics. If the user asks for dashboards, rooms, zones, entity "
+            "mapping, blueprints, or floor plans, explain how TPG HomeAI can use approved "
+            "entities/config and what data is still needed. Be natural, useful, and direct.\n\n"
+            f"House context:\n{house_context or 'No live house context available.'}\n\n"
+            f"Recent conversation/action context:\n{conversation_context or 'None.'}"
+        )
+        resp = self._client.chat.completions.create(  # type: ignore[union-attr]
+            model=self.settings.openai_model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": message},
+            ],
+            temperature=0.5,
+        )
+        content = resp.choices[0].message.content or ""
+        return {
+            "mode": "conversation",
+            "provider": "openai",
+            "message": content.strip() or "I’m here. What do you want to work through?",
+        }
 
     def _select_via_ollama(
         self,
@@ -267,7 +348,17 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
     if any(k in text for k in ["security", "what cameras", "cameras online", "doors unlocked", "is everything", "all locked"]):
         return ToolCall("security_check", {}, source="fallback")
 
-    # Dashboard.
+    # Dashboard drafts and navigation.
+    if _looks_like_dashboard_draft(text):
+        return ToolCall("draft_dashboard", {
+            "title": _dashboard_title(message),
+            "room": _extract_after(text, ["for the", "for", "in the", "in"]) or "",
+            "style": "mushroom" if "mushroom" in text else "native",
+            "target": message,
+            "include_tablets": any(k in text for k in ["tablet", "wall panel", "display"]),
+            "include_voice": any(k in text for k in ["voice", "assistant", "mic", "microphone"]),
+        }, source="fallback")
+
     if "dashboard" in text or "open" in text:
         return ToolCall("open_dashboard", {"target": text}, source="fallback")
 
@@ -372,6 +463,26 @@ def pre_route(message: str) -> Optional["ToolCall"]:
         return generic_power
 
     return None
+
+
+def _looks_like_dashboard_draft(text: str) -> bool:
+    return (
+        "dashboard" in text
+        and any(k in text for k in ["create", "build", "make", "generate", "draft", "design", "edit", "redesign"])
+    )
+
+
+def _dashboard_title(message: str) -> str:
+    text = message.strip()
+    m = re.search(r"(?:called|named|title[d]?)\s+['\"]?([^'\"]+)['\"]?", text, re.I)
+    if m:
+        return m.group(1).strip()[:80]
+    room = _extract_after(text.lower(), ["for the", "for", "in the", "in"])
+    if room:
+        room = re.sub(r"\bdashboard\b.*$", "", room, flags=re.I).strip()
+        if room:
+            return f"TPG {room.title()} Dashboard"
+    return "TPG Home Dashboard"
 
 
 _SCHEDULE_RE = re.compile(
@@ -519,6 +630,25 @@ def _parse_tool_json(content: str) -> dict[str, Any]:
         return parsed if isinstance(parsed, dict) else {}
     except json.JSONDecodeError:
         return {}
+
+
+def _fallback_general_reply(message: str, house_context: str) -> str:
+    text = message.lower()
+    if "weather" in text:
+        if house_context:
+            return house_context
+        return "I do not have a live weather source yet. Add a Home Assistant weather entity or ask through OpenAI with location context."
+    if any(k in text for k in ["dashboard", "room", "zone", "blueprint", "floor plan", "floorplan"]):
+        return (
+            "Yes. TPG HomeAI can use approved Home Assistant entities, rooms, voice sources, "
+            "and dashboard profiles to draft dashboards and room/zone maps. For floor plans, "
+            "the next layer is an upload/review workflow that stores a house layout as approved "
+            "context before using it for automations or dashboards."
+        )
+    return (
+        "I can talk through that, but OpenAI is not configured right now, so I’m in fallback mode. "
+        "Configure OpenAI for full brainstorming, advice, and normal conversation."
+    )
 
 
 _ai: Optional[AIClient] = None

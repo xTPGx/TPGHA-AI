@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1
+
+- Added a true general conversation brain for advice, brainstorming, normal Q&A, and non-HA chat.
+- Updated `/chat` so non-action messages fall through to OpenAI/general conversation instead of failing as unmapped commands.
+- Added Home Assistant weather-context support for weather questions when HA exposes weather entities.
+- Added `draft_dashboard` as a guarded AI tool for natural requests like “build a dashboard for the office.”
+- Updated Chat UI language to support “ask anything” use, not only device commands.
+- Added acceptance coverage for general chat and dashboard drafting.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 0.1.32
 
 - Added `/brain/completion` with Jarvis v1 software readiness, live-house deployment gates, blockers, and stop criteria.

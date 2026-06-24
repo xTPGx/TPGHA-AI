@@ -19,6 +19,7 @@ from .ai.tools import TOOL_NAMES
 from .bootstrap import bootstrap, get_app_state, periodic_scan_loop
 from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
+from .conversation import answer_general
 from .db.database import get_session, init_db
 from .db.models import CommandLog
 from .discovery import registry as discovery_registry
@@ -75,7 +76,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "0.1.32"
+APP_VERSION = "1.0.1"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -307,6 +308,21 @@ async def chat(req: ChatRequest):
         command_context=_command_context(req),
     )
     resp.conversation_id = req.conversation_id
+    if resp.error == "no_tool_selected":
+        general = await answer_general(
+            req.assistant,
+            req.user,
+            req.message,
+            conversation_id=req.conversation_id,
+        )
+        return {
+            "success": True,
+            "mode": general.get("mode", "conversation"),
+            "response": general.get("response") or resp.message,
+            "command": resp.model_dump(),
+            "data": general.get("data", {}),
+            "provider": general.get("provider"),
+        }
     mode = "conversation"
     if resp.requires_confirmation:
         mode = "confirmation_required"
@@ -316,7 +332,7 @@ async def chat(req: ChatRequest):
         mode = "action"
     elif resp.intent:
         mode = "action_result"
-    success = True if resp.error == "no_tool_selected" else resp.success
+    success = resp.success
     return {
         "success": success,
         "mode": mode,

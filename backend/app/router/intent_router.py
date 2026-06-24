@@ -67,6 +67,7 @@ _HANDLERS = {
     "set_climate": climate_action.set_climate,
     "security_check": security_action.security_check,
     "open_dashboard": dashboards_action.open_dashboard,
+    "draft_dashboard": dashboards_action.draft_dashboard,
     "create_simple_automation": automations_action.create_simple_automation,
     "create_routine": automations_action.create_routine,
     "explain_last_action": debug_action.explain_last_action,
