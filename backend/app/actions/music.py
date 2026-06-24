@@ -2,11 +2,12 @@
 
 Atlas (Shawn) may only use Shawn's Spotify provider; Chatty (Jordie) may only
 use Jordie's. We resolve assistant -> owner -> music account, then resolve the
-room -> speaker, and play via Home Assistant media_player services. A
-placeholder shows where Music Assistant-specific service calls plug in.
+room -> speaker, and prefer Music Assistant playback so Spotify/library search
+works instead of sending raw text to a generic media_player.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from ..homeassistant.rest import HAError
@@ -45,7 +46,7 @@ def _effective_user(ctx: ActionContext, requested_user: Optional[str]):
 async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult:
     intent = "play_music"
     room = (params.get("room") or "").strip()
-    query = (params.get("query") or "").strip()
+    query = _clean_media_query(params.get("query") or params.get("media") or "")
     if not room:
         return ActionResult.fail(intent, "Where should I play music? (e.g. office, everywhere)")
 
@@ -71,8 +72,9 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
     if acct_cfg and acct_cfg.default_media:
         default_media = acct_cfg.default_media
     media_id: Optional[str] = query or (default_media.media_id if default_media else None)
-    media_type = "music" if query else (
+    media_type = _media_type(params, query) if query else (
         default_media.media_type if default_media else "music")
+    ma_entity_id = str(spk.data.get("music_assistant_entity_id") or "").strip() or spk.entity_id
 
     resolved = {
         "user": user.id,
@@ -81,6 +83,7 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
         "account": acct.data.get("account"),
         "room": room,
         "speaker": spk.entity_id,
+        "music_assistant_player": ma_entity_id,
         "query": query or None,
         "media_id": media_id,
         "media_type": media_type,
@@ -102,39 +105,113 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
                             data={"needs_media_id": True})
 
     ma_call = {
-        "service": "music_assistant.play_media",
+        "domain": "music_assistant",
+        "service": "play_media",
         "data": {
-            "entity_id": spk.entity_id,
+            "entity_id": ma_entity_id,
             "media_id": media_id,
             "media_type": media_type,
-            "provider": acct.data.get("provider"),
-            "account": acct.data.get("account"),
+            "enqueue": params.get("enqueue") or "replace",
         },
+    }
+    if params.get("radio_mode"):
+        ma_call["data"]["radio_mode"] = True
+    data: dict[str, Any] = {
+        "music_assistant": ma_call,
+        "service_call": ma_call,
+        "playback_backend": "music_assistant",
     }
 
     try:
-        await ctx.ha.play_media(
-            spk.entity_id,
-            media_content_id=media_id,
-            media_content_type=media_type,
+        await ctx.ha.music_assistant_play_media(
+            ma_entity_id,
+            media_id=media_id,
+            media_type=media_type,
+            enqueue=str(params.get("enqueue") or "replace"),
+            radio_mode=bool(params.get("radio_mode")),
         )
     except HAError as exc:
-        # Be honest: the call failed, so we did NOT start playback.
-        msg = (f"Resolved {acct.name} -> {spk.name}, but playback failed: "
-               f"{exc.message}")
-        if privacy_note:
-            msg = f"{privacy_note} {msg}"
-        return ActionResult(success=False, intent=intent, executed=False,
-                            message=msg, resolved=resolved,
-                            data={"music_assistant": ma_call}, error="ha_call_failed")
+        if exc.status == 404:
+            fallback_call = {
+                "domain": "media_player",
+                "service": "play_media",
+                "data": {
+                    "entity_id": spk.entity_id,
+                    "media_content_id": media_id,
+                    "media_content_type": media_type,
+                },
+            }
+            try:
+                await ctx.ha.play_media(
+                    spk.entity_id,
+                    media_content_id=media_id,
+                    media_content_type=media_type,
+                )
+                data.update({
+                    "service_call": fallback_call,
+                    "media_player": fallback_call,
+                    "playback_backend": "media_player_fallback",
+                    "fallback_reason": exc.message,
+                })
+            except HAError as fallback_exc:
+                msg = (f"Resolved {acct.name} -> {spk.name}, but Music Assistant "
+                       f"and media_player playback both failed: {fallback_exc.message}")
+                if privacy_note:
+                    msg = f"{privacy_note} {msg}"
+                return ActionResult(success=False, intent=intent, executed=False,
+                                    message=msg, resolved=resolved,
+                                    data=data, error="ha_call_failed")
+        else:
+            # Be honest: the call failed, so we did NOT start playback.
+            msg = (f"Resolved {acct.name} -> {spk.name}, but Music Assistant playback failed: "
+                   f"{exc.message}")
+            if privacy_note:
+                msg = f"{privacy_note} {msg}"
+            return ActionResult(success=False, intent=intent, executed=False,
+                                message=msg, resolved=resolved,
+                                data=data, error="ha_call_failed")
 
     what = f'"{query}"' if query else f'"{media_id}"'
-    message = f"Playing {what} on {spk.name} using {acct.name} for {user.name}."
+    backend = "Music Assistant"
+    if data.get("playback_backend") == "media_player_fallback":
+        backend = "Home Assistant media player fallback"
+    message = (
+        f"Playing {what} on {spk.name} using {acct.name} for {user.name} "
+        f"via {backend}."
+    )
     if privacy_note:
         message = f"{privacy_note} {message}"
     return ActionResult(success=True, intent=intent, executed=True,
                         message=message, resolved=resolved,
-                        data={"music_assistant": ma_call})
+                        data=data)
+
+
+def _clean_media_query(value: Any) -> str:
+    text = str(value or "").strip().strip("\"'")
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"^(?:some|my)\s+music\s*$", "", text, flags=re.I)
+    text = re.sub(r"\s+(?:playlist|song|track|album|artist)$", "", text, flags=re.I)
+    return text.strip()
+
+
+def _media_type(params: dict[str, Any], query: str) -> str:
+    explicit = str(params.get("media_type") or "").strip().lower()
+    allowed = {"music", "track", "album", "artist", "playlist", "radio"}
+    if explicit in allowed:
+        return explicit
+    hint = " ".join(str(params.get(k) or "") for k in ("query", "media", "target", "raw"))
+    text = f"{hint} {query}".lower()
+    if "playlist" in text:
+        return "playlist"
+    if "album" in text:
+        return "album"
+    if "artist" in text:
+        return "artist"
+    if "radio" in text or "station" in text:
+        return "radio"
+    if "song" in text or "track" in text:
+        return "track"
+    return "music"
 
 
 async def stop_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult:

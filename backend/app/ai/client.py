@@ -314,9 +314,9 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
     if "stop" in text and ("music" in text or "playing" in text):
         room = _extract_after(text, ["in the", "in"]) or "everywhere"
         return ToolCall("stop_music", {"room": room.strip()}, source="fallback")
-    if "play" in text and ("music" in text or "song" in text or "spotify" in text):
-        room = _extract_after(text, ["in the", "in", "on the", "on"]) or "everywhere"
-        return ToolCall("play_music", {"room": room.strip(), "user": uid}, source="fallback")
+    if "play" in text and any(p in text for p in ["music", "song", "spotify", "playlist", "album", "artist", "track"]):
+        args = _music_request_args(message, user=uid)
+        return ToolCall("play_music", args, source="fallback")
     if "volume" in text:
         m = re.search(r"(\d{1,3})", text)
         level = int(m.group(1)) if m else 50
@@ -452,9 +452,8 @@ def pre_route(message: str) -> Optional["ToolCall"]:
         return ToolCall("unlock_door", {"door": door.strip()}, source=src)
 
     # Play music.
-    if "play" in text and any(p in text for p in ["music", "song", "spotify", "playlist"]):
-        room = _extract_after(text, ["in the", "in", "on the", "on"]) or "everywhere"
-        return ToolCall("play_music", {"room": room.strip(), "user": None}, source=src)
+    if "play" in text and any(p in text for p in ["music", "song", "spotify", "playlist", "album", "artist", "track"]):
+        return ToolCall("play_music", _music_request_args(message, user=None), source=src)
 
     # Generic device power control for TVs, displays, switches, media players,
     # and other mapped devices that do not have a more specific tool.
@@ -470,6 +469,52 @@ def _looks_like_dashboard_draft(text: str) -> bool:
         "dashboard" in text
         and any(k in text for k in ["create", "build", "make", "generate", "draft", "design", "edit", "redesign"])
     )
+
+
+def _music_request_args(message: str, user: Optional[str]) -> dict[str, Any]:
+    raw = message.strip()
+    text = raw.lower().strip()
+    body = re.sub(r"^\s*(please\s+)?play\s+", "", raw, flags=re.I).strip()
+    room = "everywhere"
+    query = body
+
+    marker = re.search(r"\s(?:on|in|through|to)\s+(?:the\s+)?(.+)$", body, flags=re.I)
+    if marker:
+        room = marker.group(1).strip()
+        query = body[:marker.start()].strip()
+
+    room = re.sub(r"\s+(?:speaker|speakers|display|screen|music)$", "", room, flags=re.I).strip() or "everywhere"
+    query = _clean_music_query(query)
+    media_type = _music_media_type(text)
+    args: dict[str, Any] = {"room": room, "user": user}
+    if query:
+        args["query"] = query
+        args["media_type"] = media_type
+        args["raw"] = raw
+    return args
+
+
+def _clean_music_query(query: str) -> str:
+    q = query.strip().strip("\"'")
+    q = re.sub(r"\s+", " ", q)
+    q = re.sub(r"^(?:my|some)\s+music$", "", q, flags=re.I)
+    q = re.sub(r"^(?:the\s+)?", "", q, flags=re.I)
+    q = re.sub(r"\s+(?:playlist|song|track|album|artist)$", "", q, flags=re.I)
+    return q.strip()
+
+
+def _music_media_type(text: str) -> str:
+    if "playlist" in text:
+        return "playlist"
+    if "album" in text:
+        return "album"
+    if "artist" in text:
+        return "artist"
+    if "radio" in text or "station" in text:
+        return "radio"
+    if "song" in text or "track" in text:
+        return "track"
+    return "music"
 
 
 def _dashboard_title(message: str) -> str:

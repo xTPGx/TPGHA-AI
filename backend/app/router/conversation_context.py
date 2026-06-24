@@ -76,6 +76,8 @@ def context_tool_call(message: str, ctx: Optional[ConversationState]) -> Optiona
         return None
 
     text = message.lower().strip()
+    if _is_explicit_music_request(text):
+        return None
     has_pronoun = bool(_PRONOUN_RE.search(text))
     correction = bool(_CORRECTION_RE.search(text))
     fan_speed_followup = (
@@ -122,6 +124,13 @@ def context_tool_call(message: str, ctx: Optional[ConversationState]) -> Optiona
                         source="conversation_context")
 
     return None
+
+
+def _is_explicit_music_request(text: str) -> bool:
+    return text.startswith("play ") and any(
+        word in text
+        for word in ("music", "song", "track", "album", "artist", "playlist", "spotify")
+    )
 
 
 def _target_from_result(result: ActionResult) -> str:

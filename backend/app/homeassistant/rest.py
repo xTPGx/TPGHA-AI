@@ -121,11 +121,17 @@ class HomeAssistantREST:
 
     # ---------------------------------------------------------------- writes
     async def call_service(
-        self, domain: str, service: str, data: Optional[dict] = None
+        self,
+        domain: str,
+        service: str,
+        data: Optional[dict] = None,
+        *,
+        return_response: bool = False,
     ) -> Any:
         logger.info("HA service call %s.%s", domain, service)
+        suffix = "?return_response" if return_response else ""
         return await self._request(
-            "POST", f"/services/{domain}/{service}", json=data or {}
+            "POST", f"/services/{domain}/{service}{suffix}", json=data or {}
         )
 
     async def turn_on(self, entity_id: str, **extra: Any) -> Any:
@@ -166,6 +172,39 @@ class HomeAssistantREST:
                 "media_content_id": media_content_id,
                 "media_content_type": media_content_type,
             },
+        )
+
+    async def music_assistant_play_media(
+        self,
+        entity_id: str,
+        media_id: str | list[str],
+        media_type: Optional[str] = None,
+        enqueue: str = "replace",
+        radio_mode: bool = False,
+    ) -> Any:
+        data: dict[str, Any] = {
+            "entity_id": entity_id,
+            "media_id": media_id,
+            "enqueue": enqueue,
+        }
+        if media_type:
+            data["media_type"] = media_type
+        if radio_mode:
+            data["radio_mode"] = True
+        return await self.call_service("music_assistant", "play_media", data)
+
+    async def music_assistant_search(
+        self,
+        name: str,
+        *,
+        limit: int = 8,
+        media_type: Optional[str] = None,
+    ) -> Any:
+        data: dict[str, Any] = {"name": name, "limit": max(1, min(int(limit), 25))}
+        if media_type:
+            data["media_type"] = [media_type]
+        return await self.call_service(
+            "music_assistant", "search", data, return_response=True
         )
 
     async def set_climate_temperature(

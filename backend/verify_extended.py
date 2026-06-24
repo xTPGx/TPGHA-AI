@@ -74,7 +74,7 @@ FAKE_FRIENDLY = {
 async def main():
     init_db()
 
-    async def rec_call_service(self, domain, service, data=None):
+    async def rec_call_service(self, domain, service, data=None, *, return_response=False):
         SERVICE_CALLS.append((domain, service, data or {}))
         return {"ok": True}
     rest.HomeAssistantREST.call_service = rec_call_service

@@ -526,7 +526,12 @@ class RecordingHA:
         return bool(ent.available)
 
     async def call_service(
-        self, domain: str, service: str, data: Optional[dict] = None
+        self,
+        domain: str,
+        service: str,
+        data: Optional[dict] = None,
+        *,
+        return_response: bool = False,
     ) -> dict[str, Any]:
         call = {"domain": domain, "service": service, "data": data or {}}
         self.calls.append(call)
@@ -567,6 +572,39 @@ class RecordingHA:
                 "media_content_id": media_content_id,
                 "media_content_type": media_content_type,
             },
+        )
+
+    async def music_assistant_play_media(
+        self,
+        entity_id: str,
+        media_id: str | list[str],
+        media_type: Optional[str] = None,
+        enqueue: str = "replace",
+        radio_mode: bool = False,
+    ) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "entity_id": entity_id,
+            "media_id": media_id,
+            "enqueue": enqueue,
+        }
+        if media_type:
+            data["media_type"] = media_type
+        if radio_mode:
+            data["radio_mode"] = True
+        return await self.call_service("music_assistant", "play_media", data)
+
+    async def music_assistant_search(
+        self,
+        name: str,
+        *,
+        limit: int = 8,
+        media_type: Optional[str] = None,
+    ) -> dict[str, Any]:
+        data: dict[str, Any] = {"name": name, "limit": limit}
+        if media_type:
+            data["media_type"] = [media_type]
+        return await self.call_service(
+            "music_assistant", "search", data, return_response=True
         )
 
     async def set_climate_temperature(

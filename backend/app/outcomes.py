@@ -145,6 +145,10 @@ def _expected_state(result: ActionResult) -> str | None:
         return "locked"
     if intent == "unlock_door":
         return "unlocked"
+    if intent == "play_music":
+        return "playing"
+    if intent == "stop_music":
+        return "idle"
     call = (result.data or {}).get("service_call") or {}
     service = call.get("service")
     if service == "turn_on":

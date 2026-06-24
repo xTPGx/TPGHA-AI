@@ -73,7 +73,7 @@ async def main():
     # Record every service call so we can assert exact domain/service/data.
     # turn_on/turn_off/lock/unlock/set_volume/etc. all funnel through
     # call_service in the REST client, so recording it captures everything.
-    async def rec_call_service(self, domain, service, data=None):
+    async def rec_call_service(self, domain, service, data=None, *, return_response=False):
         SERVICE_CALLS.append((domain, service, data or {}))
         return {"ok": True}
     rest.HomeAssistantREST.call_service = rec_call_service
@@ -117,6 +117,19 @@ async def main():
           r.resolved.get("music_account"))
     check("Q4 office speaker", r.resolved.get("speaker") == "media_player.office_speaker",
           r.resolved.get("speaker"))
+
+    SERVICE_CALLS.clear()
+    r = await intent_router.handle_command(
+        "atlas", "shawn", "Play This Is Mitchell Tenpenny playlist on office speaker."
+    )
+    check("Q4b playlist -> play_music", r.intent == "play_music", r.intent)
+    check("Q4b query extracted", r.resolved.get("query") == "This Is Mitchell Tenpenny",
+          r.resolved.get("query"))
+    check("Q4b media_type playlist", r.resolved.get("media_type") == "playlist",
+          r.resolved.get("media_type"))
+    check("Q4b calls Music Assistant play_media",
+          called("music_assistant", "play_media", "media_player.office_speaker"),
+          SERVICE_CALLS)
 
     # 5. Chatty "Play my music in the kitchen." -> jordie / spotify_jordierae22 / kitchen display
     r = await intent_router.handle_command("chatty", "jordie", "Play my music in the kitchen.")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+- Routed explicit music requests through Music Assistant first, including playlist/album/artist/track wording.
+- Fixed playlist names like “This Is Mitchell Tenpenny” being mistaken for a follow-up pronoun command.
+- Added standard service-call audit data for music playback so the outcome verifier can check the target speaker.
+- Added Music Assistant REST helpers with media-player fallback when the Music Assistant integration is unavailable.
+- Added acceptance coverage for natural Spotify playlist playback on the office speaker.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.1
 
 - Added a true general conversation brain for advice, brainstorming, normal Q&A, and non-HA chat.
