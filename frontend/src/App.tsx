@@ -46,7 +46,8 @@ const navGroups: NavGroupDef[] = [
     items: [
       { to: "/notebook", label: "Notebook", roles: ["admin", "manager", "resident"] },
       { to: "/jarvis", label: "Brain", roles: ["admin", "manager", "resident"] },
-      { to: "/assistants", label: "Assistants", roles: ["admin"] },
+      { to: "/assistants", label: "Assistants", roles: ["admin", "manager", "resident"] },
+      { to: "/memory-center", label: "Memory", roles: ["admin", "manager", "resident"] },
       { to: "/users", label: "Users", roles: ["admin"] },
       { to: "/permissions", label: "Permissions", roles: ["admin"] },
       { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
@@ -60,7 +61,6 @@ const navGroups: NavGroupDef[] = [
       { to: "/dashboard-builder", label: "Dashboard Builder", roles: ["admin", "manager"] },
       { to: "/ha", label: "HA Integration", roles: ["admin"] },
       { to: "/profiles", label: "Device Profiles", roles: ["admin"] },
-      { to: "/memory-center", label: "Memory", roles: ["admin"] },
       { to: "/tester", label: "Command Tester", roles: ["admin"] },
       { to: "/capabilities", label: "Capability Map", roles: ["admin"] },
     ],

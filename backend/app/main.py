@@ -21,6 +21,7 @@ from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
 from .config_editor import (
     save_permissions,
+    sync_ha_users,
     upsert_assistant,
     upsert_devices_item,
     upsert_music_account,
@@ -34,6 +35,7 @@ from .discovery import scanner as discovery_scanner
 from .events import get_event_bus
 from .homeassistant.rest import HAError, get_ha_client
 from .homeassistant.services import get_states_cache, normalize_entity
+from .homeassistant.websocket import HomeAssistantWebSocket
 from .models.results import CommandResponse
 from .models.schemas import (
     ApproveRequest,
@@ -95,7 +97,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.21"
+APP_VERSION = "1.0.22"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -286,6 +288,10 @@ async def ui_session(request: Request):
                 "name": user.name,
                 "role": user.role,
                 "aliases": user.aliases,
+                "ha_user_id": user.ha_user_id,
+                "ha_username": user.ha_username,
+                "ha_is_admin": user.ha_is_admin,
+                "access_source": user.access_source,
             }
             for user in users
         ],
@@ -304,6 +310,24 @@ async def ui_session(request: Request):
             "resident": "Jarvis operation: chat, notebook, dashboard, brain.",
             "kiosk": "Shared wall panel or house remote: dashboard and chat only.",
             "guest": "Limited chat-only access.",
+        },
+    }
+
+
+@app.post("/ha/users/sync")
+async def sync_home_assistant_users():
+    try:
+        auth_users = await HomeAssistantWebSocket().fetch_auth_users()
+        result = sync_ha_users(auth_users)
+    except Exception as exc:  # noqa: BLE001 - surface HA/token limitations
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    cfg = reload_config()
+    return {
+        "synced": True,
+        **result,
+        "counts": {
+            "users": len(cfg.assistants.users),
+            "assistants": len(cfg.assistants.assistants),
         },
     }
 
@@ -856,8 +880,8 @@ async def voice_audio(audio_id: str):
 
 # ------------------------------------------------------------------ memory
 @app.get("/memory")
-async def memory_list(status: str | None = None):
-    return {"memories": memory_store.list_memories(status=status)}
+async def memory_list(status: str | None = None, owner: str | None = None):
+    return {"memories": memory_store.list_memories(status=status, owner=owner)}
 
 
 @app.post("/memory/draft")
@@ -1206,7 +1230,7 @@ def _ha_admin_from_headers(request: Request) -> bool:
 
 
 def _user_identity_values(user: User) -> set[str]:
-    values = {user.id, user.name, *user.aliases}
+    values = {user.id, user.name, user.ha_user_id, user.ha_username, *user.aliases}
     result: set[str] = set()
     for value in values:
         raw = str(value or "").strip().lower()

@@ -122,6 +122,81 @@ def upsert_user(item: dict[str, Any]) -> dict[str, Any]:
     return {"section": "users", "item": item, "created": not replaced}
 
 
+def sync_ha_users(auth_users: list[dict[str, Any]]) -> dict[str, Any]:
+    """Sync Home Assistant people into TPG profiles.
+
+    HA owns access level: admin/owner -> TPG admin, everyone else -> resident.
+    TPG keeps profile-only settings such as music account, aliases, assistant
+    personality, and per-user smart-home safety overrides.
+    """
+    data = _read("assistants.yaml")
+    users = list(data.get("users") or [])
+    assistants = list(data.get("assistants") or [])
+    changed = False
+    created = 0
+    updated = 0
+    skipped = 0
+
+    for auth_user in auth_users:
+        parsed = _parse_ha_user(auth_user)
+        if not parsed["name"]:
+            skipped += 1
+            continue
+        idx = _find_synced_user_index(users, parsed)
+        if idx is None:
+            user_id = _unique_id(_slug(parsed["username"] or parsed["name"]), users)
+            user = {
+                "id": user_id,
+                "name": parsed["name"],
+                "role": "admin" if parsed["is_admin"] else "resident",
+                "aliases": sorted({parsed["name"], parsed["username"]} - {""}),
+                "ha_user_id": parsed["ha_user_id"],
+                "ha_username": parsed["username"],
+                "ha_is_admin": parsed["is_admin"],
+                "access_source": "home_assistant",
+            }
+            users.append(user)
+            assistants.append(_unique_assistant(_default_assistant_for_synced_user(user), assistants))
+            created += 1
+            changed = True
+            continue
+
+        user = dict(users[idx])
+        aliases = set(user.get("aliases") or [])
+        aliases.update(v for v in (parsed["name"], parsed["username"]) if v)
+        desired = {
+            **user,
+            "name": user.get("name") or parsed["name"],
+            "role": "admin" if parsed["is_admin"] else "resident",
+            "aliases": sorted(aliases),
+            "ha_user_id": parsed["ha_user_id"] or user.get("ha_user_id"),
+            "ha_username": parsed["username"] or user.get("ha_username"),
+            "ha_is_admin": parsed["is_admin"],
+            "access_source": "home_assistant",
+        }
+        if desired != user:
+            users[idx] = desired
+            updated += 1
+            changed = True
+        if not _assistant_for_owner(assistants, desired["id"]):
+            assistants.append(_unique_assistant(_default_assistant_for_synced_user(desired), assistants))
+            changed = True
+
+    data["users"] = users
+    data["assistants"] = assistants
+    _ensure_admin_not_removed(users, "ha_sync")
+    _validate("assistants.yaml", data)
+    if changed:
+        _write("assistants.yaml", data)
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "total_ha_users": len(auth_users),
+        "changed": changed,
+    }
+
+
 def _ensure_admin_not_removed(users: list[Any], edited_id: str) -> None:
     admin_users = [
         user for user in users
@@ -133,6 +208,131 @@ def _ensure_admin_not_removed(users: list[Any], edited_id: str) -> None:
         f"Cannot save user '{edited_id}' because it would leave TPG HomeAI "
         "with no Owner/Admin account."
     )
+
+
+def _parse_ha_user(user: dict[str, Any]) -> dict[str, Any]:
+    name = str(user.get("name") or user.get("username") or user.get("id") or "").strip()
+    username = str(user.get("username") or user.get("name") or "").strip()
+    groups = user.get("groups") or user.get("group_ids") or []
+    group_ids = {
+        str(group.get("id") if isinstance(group, dict) else group).lower()
+        for group in groups
+    }
+    is_admin = bool(
+        user.get("is_admin")
+        or user.get("is_owner")
+        or user.get("owner")
+        or "system-admin" in group_ids
+        or "admin" in group_ids
+        or "administrators" in group_ids
+    )
+    return {
+        "ha_user_id": str(user.get("id") or user.get("user_id") or "").strip(),
+        "name": name,
+        "username": username,
+        "is_admin": is_admin,
+    }
+
+
+def _find_synced_user_index(users: list[Any], parsed: dict[str, Any]) -> int | None:
+    targets = {
+        _normalize(parsed.get("ha_user_id")),
+        _normalize(parsed.get("username")),
+        _normalize(parsed.get("name")),
+    } - {""}
+    for idx, user in enumerate(users):
+        if not isinstance(user, dict):
+            continue
+        identities = {
+            _normalize(user.get("ha_user_id")),
+            _normalize(user.get("ha_username")),
+            _normalize(user.get("id")),
+            _normalize(user.get("name")),
+            *(_normalize(alias) for alias in user.get("aliases") or []),
+        } - {""}
+        if identities & targets:
+            return idx
+    return None
+
+
+def _default_assistant_for_synced_user(user: dict[str, Any]) -> dict[str, Any]:
+    user_id = user["id"]
+    assistant_id = _slug(user.get("name") or user_id)
+    if user_id == "shawn" or assistant_id == "shawn":
+        assistant_id = "atlas"
+        name = "Atlas"
+        tone = "confident"
+        voice = "cedar"
+    else:
+        name = f"{user.get('name') or user_id} AI"
+        tone = "helpful"
+        voice = "coral"
+    return {
+        "id": assistant_id,
+        "name": name,
+        "owner": user_id,
+        "aliases": [assistant_id],
+        "wake_words": [assistant_id],
+        "listen_enabled": True,
+        "tone": tone,
+        "personality": f"{name} is {user.get('name') or user_id}'s personal home AI profile.",
+        "voice": {
+            "provider": "openai",
+            "model": "gpt-4o-mini-tts",
+            "voice": voice,
+            "response_format": "mp3",
+            "output": "browser",
+            "fallback_provider": "browser",
+        },
+    }
+
+
+def _unique_assistant(assistant: dict[str, Any], assistants: list[Any]) -> dict[str, Any]:
+    existing = {
+        item.get("id") for item in assistants
+        if isinstance(item, dict) and item.get("id")
+    }
+    if assistant["id"] not in existing:
+        return assistant
+    base = assistant["id"]
+    index = 2
+    while f"{base}_{index}" in existing:
+        index += 1
+    assistant = dict(assistant)
+    assistant["id"] = f"{base}_{index}"
+    assistant["aliases"] = sorted({*assistant.get("aliases", []), assistant["id"]})
+    assistant["wake_words"] = sorted({*assistant.get("wake_words", []), assistant["id"]})
+    return assistant
+
+
+def _assistant_for_owner(assistants: list[Any], owner: str) -> dict[str, Any] | None:
+    for assistant in assistants:
+        if isinstance(assistant, dict) and assistant.get("owner") == owner:
+            return assistant
+    return None
+
+
+def _unique_id(base: str, users: list[Any]) -> str:
+    base = base or "ha_user"
+    existing = {
+        user.get("id") for user in users
+        if isinstance(user, dict) and user.get("id")
+    }
+    if base not in existing:
+        return base
+    index = 2
+    while f"{base}_{index}" in existing:
+        index += 1
+    return f"{base}_{index}"
+
+
+def _slug(value: Any) -> str:
+    text = "".join(ch if ch.isalnum() else "_" for ch in str(value or "").lower())
+    return "_".join(part for part in text.split("_") if part)
+
+
+def _normalize(value: Any) -> str:
+    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
 
 
 def upsert_music_account(item: dict[str, Any]) -> dict[str, Any]:

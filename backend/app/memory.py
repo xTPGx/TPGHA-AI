@@ -42,11 +42,13 @@ def _suggestion_dict(row: Suggestion) -> dict[str, Any]:
     }
 
 
-def list_memories(status: str | None = None) -> list[dict[str, Any]]:
+def list_memories(status: str | None = None, owner: str | None = None) -> list[dict[str, Any]]:
     with get_session() as session:
         q = session.query(MemoryItem).order_by(MemoryItem.created_at.desc())
         if status:
             q = q.filter(MemoryItem.status == status)
+        if owner is not None:
+            q = q.filter(MemoryItem.owner == owner)
         return [_memory_dict(row) for row in q.all()]
 
 

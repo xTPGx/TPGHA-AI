@@ -301,6 +301,50 @@ def main() -> int:
               for s in r.json().get("suggestions", [])),
           str(r.json()))
 
+    async def fake_auth_users(_self):
+        return [
+            {
+                "id": "ha-admin-1",
+                "name": "That Palmer Guy",
+                "username": "thatpalmerguy",
+                "is_admin": True,
+            },
+            {
+                "id": "ha-resident-1",
+                "name": "Resident Person",
+                "username": "residentperson",
+                "is_admin": False,
+            },
+        ]
+
+    with patch("app.main.HomeAssistantWebSocket.fetch_auth_users", fake_auth_users):
+        r = client.post("/ha/users/sync")
+    check("/ha/users/sync returns JSON",
+          r.status_code == 200 and is_json(r) and r.json().get("synced") is True,
+          f"status={r.status_code} body={r.text}")
+    synced = r.json()
+    check("/ha/users/sync creates HA-owned profiles",
+          synced.get("created", 0) >= 2 and synced.get("counts", {}).get("users", 0) >= 4,
+          str(synced))
+    r = client.get("/config")
+    synced_cfg = r.json().get("assistants", {})
+    synced_users = synced_cfg.get("users", [])
+    admin_profile = next((u for u in synced_users if u.get("ha_username") == "thatpalmerguy"), {})
+    resident_profile = next((u for u in synced_users if u.get("ha_username") == "residentperson"), {})
+    check("HA admin sync grants TPG admin access",
+          admin_profile.get("role") == "admin"
+          and admin_profile.get("access_source") == "home_assistant"
+          and admin_profile.get("ha_is_admin") is True,
+          str(admin_profile))
+    check("HA non-admin sync grants resident self-service access",
+          resident_profile.get("role") == "resident"
+          and resident_profile.get("access_source") == "home_assistant"
+          and resident_profile.get("ha_is_admin") is False,
+          str(resident_profile))
+    check("HA sync creates a personal assistant for resident users",
+          any(a.get("owner") == resident_profile.get("id") for a in synced_cfg.get("assistants", [])),
+          str(synced_cfg.get("assistants", [])))
+
     r = client.get("/config")
     check("/config is JSON", is_json(r))
 

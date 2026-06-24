@@ -67,6 +67,10 @@ class User(_CfgBase):
     name: str
     role: Literal["admin", "manager", "resident", "kiosk", "guest"] = "resident"
     aliases: list[str] = Field(default_factory=list)
+    ha_user_id: Optional[str] = None
+    ha_username: Optional[str] = None
+    ha_is_admin: Optional[bool] = None
+    access_source: Literal["home_assistant", "manual"] = "manual"
     music_account: Optional[str] = None
     permissions: UserPermissions = Field(default_factory=UserPermissions)
 

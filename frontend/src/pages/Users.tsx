@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
 
 const PERMISSION_KEYS = [
@@ -28,6 +30,7 @@ export default function Users() {
   const [cfg, setCfg] = useState<any>(null);
   const [editor, setEditor] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
 
   const load = async () => setCfg(await api.config());
@@ -65,6 +68,10 @@ export default function Users() {
         name: editor.name,
         role: editor.role || "resident",
         aliases: csv(editor.aliases),
+        ha_user_id: editor.ha_user_id || null,
+        ha_username: editor.ha_username || null,
+        ha_is_admin: editor.ha_is_admin ?? null,
+        access_source: editor.access_source || "manual",
         music_account: editor.music_account || null,
         permissions,
       });
@@ -78,13 +85,38 @@ export default function Users() {
     }
   };
 
+  const syncUsers = async () => {
+    setSyncing(true);
+    setMessage("");
+    try {
+      const result = await api.syncHaUsers();
+      await load();
+      setMessage(`Synced ${result.total_ha_users || 0} HA users. Created ${result.created || 0}, updated ${result.updated || 0}.`);
+    } catch (e: any) {
+      setMessage(e.message || String(e));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Users"
-        subtitle="Manage household people, aliases, music accounts, and per-user control permissions."
-        actions={<button className="btn" onClick={() => editUser()}>Add User</button>}
+        subtitle="Sync Home Assistant users and manage TPG profile settings, music ownership, and safety overrides."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={() => void syncUsers()} disabled={syncing}>
+              {syncing ? "Syncing..." : "Sync from HA"}
+            </Button>
+            <Button onClick={() => editUser()}>Add Manual Profile</Button>
+          </div>
+        }
       />
+
+      <div className="mb-4 rounded-xl border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-100">
+        Home Assistant is the access authority. HA Administrators become TPG Owners/Admins; HA non-admins get their own assistant, chat history, notebook, and memory preferences.
+      </div>
 
       {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
 
@@ -95,14 +127,17 @@ export default function Users() {
             <Field label="ID" value={editor.id} onChange={(v) => setEditor({ ...editor, id: slug(v) })} placeholder="shawn" />
             <Field label="Name" value={editor.name} onChange={(v) => setEditor({ ...editor, name: v })} placeholder="Shawn" />
             <label>
-              <div className="mb-1 text-xs uppercase text-slate-500">Role</div>
-              <select className="input" value={editor.role || "resident"} onChange={(e) => setEditor({ ...editor, role: e.target.value })}>
+              <div className="mb-1 text-xs uppercase text-slate-500">Access</div>
+              <select className="input" value={editor.role || "resident"} disabled={editor.access_source === "home_assistant"} onChange={(e) => setEditor({ ...editor, role: e.target.value })}>
                 <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="resident">Resident</option>
                 <option value="kiosk">Kiosk / Shared</option>
                 <option value="guest">Guest</option>
               </select>
+              {editor.access_source === "home_assistant" && (
+                <div className="mt-1 text-xs text-slate-500">Synced from Home Assistant.</div>
+              )}
             </label>
             <Field label="Aliases" value={editor.aliases} onChange={(v) => setEditor({ ...editor, aliases: v })} placeholder="shawn, boss, owner" />
             <label>
@@ -140,8 +175,8 @@ export default function Users() {
           </div>
 
           <div className="mt-4 flex gap-2">
-            <button className="btn" onClick={saveUser} disabled={saving || !editor.name}>Save User</button>
-            <button className="btn-ghost" onClick={() => setEditor(null)}>Cancel</button>
+            <Button onClick={saveUser} disabled={saving || !editor.name}>Save Profile</Button>
+            <Button variant="ghost" onClick={() => setEditor(null)}>Cancel</Button>
           </div>
         </div>
       )}
@@ -155,14 +190,19 @@ export default function Users() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-xl font-bold">{u.name}</div>
-                  <div className="mt-1 text-sm text-slate-400">
-                    Role: {u.role || "resident"} · Music: {acct ? acct.name : u.music_account ?? "none"}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge tone={u.role === "admin" ? "good" : "slate"}>{u.role === "admin" ? "Owner/Admin" : "HA user"}</Badge>
+                    <Badge tone={u.access_source === "home_assistant" ? "brand" : "warn"}>{u.access_source === "home_assistant" ? "Synced from HA" : "Manual"}</Badge>
+                  </div>
+                  <div className="mt-2 text-sm text-slate-400">
+                    Music: {acct ? acct.name : u.music_account ?? "none"}
+                    {u.ha_username ? ` · HA: ${u.ha_username}` : ""}
                   </div>
                 </div>
-                <button className="btn-ghost" onClick={() => editUser(u)}>Edit</button>
+                <Button variant="ghost" onClick={() => editUser(u)}>Edit</Button>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
-                {(u.aliases ?? []).map((a: string) => <span key={a} className="badge bg-slate-700 text-slate-300">{a}</span>)}
+                {(u.aliases ?? []).map((a: string) => <Badge key={a}>{a}</Badge>)}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                 {Object.entries(perms)

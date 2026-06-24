@@ -15,12 +15,17 @@ export default function Notebook() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canBrowseProfiles = ["admin", "manager"].includes(session?.role);
+  const activeUserId = session?.detected_user?.id || "";
+  const activeAssistantId = session?.default_assistant?.id || "";
 
   const loadSessions = async () => {
+    if (!session) return;
     try {
+      const assistant = canBrowseProfiles ? assistantFilter : activeAssistantId;
+      const user = canBrowseProfiles ? userFilter : activeUserId;
       const response = await api.conversations(80, {
-        assistant: assistantFilter || undefined,
-        user: userFilter || undefined,
+        assistant: assistant || undefined,
+        user: user || undefined,
       });
       const list = response.conversations || [];
       setSessions(list);
@@ -55,7 +60,7 @@ export default function Notebook() {
       setUserFilter(defaultUser);
       setAssistantFilter(defaultAssistant);
     }).catch(() => {
-      void loadSessions();
+      setSession({ role: "guest" });
     });
   }, []);
 
@@ -65,7 +70,7 @@ export default function Notebook() {
 
   useEffect(() => {
     void loadSessions();
-  }, [assistantFilter, userFilter]);
+  }, [session, assistantFilter, userFilter]);
 
   const addNote = async () => {
     if (!selected || !note.body.trim()) return;

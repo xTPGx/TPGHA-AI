@@ -30,26 +30,34 @@ export default function Assistants() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [editor, setEditor] = useState<any | null>(null);
+  const [session, setSession] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const load = async () => {
-    const [config, voiceCatalog, profiles] = await Promise.all([
+    const [config, voiceCatalog, profiles, uiSession] = await Promise.all([
       api.config(),
       api.voiceVoices(),
       api.voiceProfiles(),
+      api.uiSession(),
     ]);
     setCfg(config);
     setVoices(voiceCatalog.voices || []);
     setVoiceSettings(profiles.settings || {});
+    setSession(uiSession);
   };
   useEffect(() => {
     void load();
     return () => audioRef.current?.pause();
   }, []);
 
-  const assistants = cfg?.assistants?.assistants ?? [];
+  const sessionRole = session?.role || "guest";
+  const activeUserId = session?.detected_user?.id || "";
+  const canManageAll = ["admin", "manager"].includes(sessionRole);
+  const allAssistants = cfg?.assistants?.assistants ?? [];
+  const assistants = canManageAll ? allAssistants : allAssistants.filter((a: any) => a.owner === activeUserId);
+  const canCreateOwn = !canManageAll && Boolean(activeUserId) && assistants.length === 0;
   const users = cfg?.assistants?.users ?? [];
   const accounts = cfg?.devices?.music_accounts ?? {};
   const voiceSources = cfg?.devices?.voice_sources ?? [];
@@ -70,7 +78,7 @@ export default function Assistants() {
       voice_provider: effectiveVoice.provider || voice.provider || "openai",
       voice: effectiveVoice.voice || voice.voice || "cedar",
       voice_instructions: voice.instructions || "",
-    } : emptyAssistant);
+    } : { ...emptyAssistant, owner: canManageAll ? "" : activeUserId });
   };
 
   const editorVoiceProfile = () => ({
@@ -133,7 +141,7 @@ export default function Assistants() {
       const payload = {
         id: slug(editor.id || editor.name),
         name: editor.name,
-        owner: editor.owner,
+        owner: canManageAll ? editor.owner : activeUserId,
         aliases: csv(editor.aliases),
         wake_words: csv(editor.wake_words),
         listen_enabled: Boolean(editor.listen_enabled),
@@ -164,9 +172,17 @@ export default function Assistants() {
     <div className="page-stack">
       <PageHeader
         title="Assistants"
-        subtitle="Create and tune assistant identity, ownership, personality, and voice."
-        actions={<Button onClick={() => editAssistant()}>Add Assistant</Button>}
+        subtitle={canManageAll ? "Create and tune assistant identity, ownership, personality, and voice." : "Tune your own AI profile, voice, wake words, and personality."}
+        actions={(canManageAll || canCreateOwn) ? (
+          <Button onClick={() => editAssistant()}>{canManageAll ? "Add Assistant" : "Create My Assistant"}</Button>
+        ) : undefined}
       />
+
+      {!canManageAll && (
+        <div className="rounded-xl border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-100">
+          Home Assistant controls your access level. This page only edits your own TPG AI assistant profile.
+        </div>
+      )}
 
       {message && <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
 
@@ -178,7 +194,7 @@ export default function Assistants() {
             <Field label="Name" value={editor.name} onChange={(v) => setEditor({ ...editor, name: v })} placeholder="Atlas" />
             <label>
               <div className="mb-1 text-xs uppercase text-slate-500">Owner</div>
-              <select className="input" value={editor.owner} onChange={(e) => setEditor({ ...editor, owner: e.target.value })}>
+              <select className="input" value={canManageAll ? editor.owner : activeUserId} disabled={!canManageAll} onChange={(e) => setEditor({ ...editor, owner: e.target.value })}>
                 <option value="">Select owner</option>
                 {users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
@@ -263,7 +279,7 @@ export default function Assistants() {
           </div>
 
           <div className="mt-4 flex gap-2">
-            <Button onClick={saveAssistant} disabled={saving || !editor.name || !editor.owner}>Save Assistant</Button>
+            <Button onClick={saveAssistant} disabled={saving || !editor.name || !(canManageAll ? editor.owner : activeUserId)}>Save Assistant</Button>
             <Button variant="ghost" onClick={() => setEditor(null)}>Cancel</Button>
           </div>
         </div>
@@ -307,7 +323,7 @@ export default function Assistants() {
       </div>
 
       <section className="mt-8">
-        <VoiceSources embedded />
+        {canManageAll && <VoiceSources embedded />}
       </section>
     </div>
   );

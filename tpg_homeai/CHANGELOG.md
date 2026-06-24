@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.22
+
+- Added Home Assistant user sync so HA Administrators become TPG Owner/Admin profiles and HA non-admin users become resident self-service profiles.
+- Kept Home Assistant as the access authority while TPG profiles retain assistant identity, chat history, memory, voice, music account, and preference ownership.
+- Added a Users-page sync action and disabled manual role editing for HA-synced profiles so access changes happen in Home Assistant.
+- Allowed residents to edit only their own assistant and memory, with a fallback to create their own assistant if sync has not created one yet.
+- Scoped resident Notebook loading to the detected HA user and assistant profile instead of briefly loading all conversations before session detection finishes.
+- Matched UI sessions against HA username and HA user ID, not just friendly names and aliases.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.21
 
 - Added normalized HA username matching so punctuation/spacing differences in HA login names are less likely to create the wrong TPG session.

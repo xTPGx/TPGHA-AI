@@ -79,6 +79,28 @@ class HomeAssistantWebSocket:
         entities = await self.call("config/entity_registry/list")
         return {"areas": areas or [], "devices": devices or [], "entities": entities or []}
 
+    async def fetch_auth_users(self) -> list[dict[str, Any]]:
+        """Fetch Home Assistant auth users when the active token may access it.
+
+        HA auth-user commands have changed names across releases and may be
+        restricted by token type. Try known commands and let callers degrade if
+        none are available.
+        """
+        errors: list[str] = []
+        for command_type in ("config/auth/list", "auth/list"):
+            try:
+                result = await self.call(command_type)
+            except Exception as exc:  # noqa: BLE001 - try next HA command
+                errors.append(f"{command_type}: {exc}")
+                continue
+            if isinstance(result, dict):
+                users = result.get("users") or result.get("data") or []
+            else:
+                users = result or []
+            if isinstance(users, list):
+                return [u for u in users if isinstance(u, dict)]
+        raise RuntimeError("Could not fetch Home Assistant users. " + "; ".join(errors))
+
     async def stream_state_changes(self) -> AsyncIterator[dict[str, Any]]:
         """Connect, authenticate, subscribe to state_changed, yield events.
 

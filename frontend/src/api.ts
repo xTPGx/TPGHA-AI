@@ -98,6 +98,7 @@ export const api = {
     http<any>("/config/assistants", { method: "POST", body: JSON.stringify(body) }),
   saveUser: (body: Record<string, any>) =>
     http<any>("/config/users", { method: "POST", body: JSON.stringify(body) }),
+  syncHaUsers: () => http<any>("/ha/users/sync", { method: "POST" }),
   saveMusicAccount: (body: Record<string, any>) =>
     http<any>("/config/music-accounts", { method: "POST", body: JSON.stringify(body) }),
   saveSpeaker: (body: Record<string, any>) =>
@@ -184,8 +185,13 @@ export const api = {
   voiceSpeak: (body: Record<string, any>) =>
     http<any>("/voice/speak", { method: "POST", body: JSON.stringify(body) }),
   aiProviders: () => http<any>("/ai/providers"),
-  memories: (status?: string) =>
-    http<any>(`/memory${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  memories: (status?: string, owner?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (owner) params.set("owner", owner);
+    const qs = params.toString();
+    return http<any>(`/memory${qs ? `?${qs}` : ""}`);
+  },
   draftMemory: (body: Record<string, any>) =>
     http<any>("/memory/draft", { method: "POST", body: JSON.stringify(body) }),
   approveMemory: (id: number) =>
