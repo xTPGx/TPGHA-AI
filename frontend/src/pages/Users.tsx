@@ -185,18 +185,23 @@ export default function Users() {
         {users.map((u: any) => {
           const acct = u.music_account ? accounts[u.music_account] : null;
           const perms = { ...defaults, ...u.permissions };
+          const linkedHaName = haDisplayName(u);
+          const visibleName = linkedHaName && normalize(linkedHaName) !== normalize(u.name)
+            ? `${linkedHaName} (${u.name})`
+            : u.name;
           return (
             <div key={u.id} className="card">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xl font-bold">{u.name}</div>
+                  <div className="text-xl font-bold">{visibleName}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <Badge tone={u.role === "admin" ? "good" : "slate"}>{u.role === "admin" ? "Owner/Admin" : "HA user"}</Badge>
+                    <Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge>
                     <Badge tone={u.access_source === "home_assistant" ? "brand" : "warn"}>{u.access_source === "home_assistant" ? "Synced from HA" : "Manual"}</Badge>
+                    {linkedHaName && <Badge tone="brand">HA: {linkedHaName}</Badge>}
                   </div>
                   <div className="mt-2 text-sm text-slate-400">
                     Music: {acct ? acct.name : u.music_account ?? "none"}
-                    {u.ha_username ? ` · HA: ${u.ha_username}` : ""}
+                    {u.ha_username ? ` · Login: ${u.ha_username}` : ""}
                   </div>
                 </div>
                 <Button variant="ghost" onClick={() => editUser(u)}>Edit</Button>
@@ -237,6 +242,29 @@ function csv(value: string) {
 
 function slug(value: string) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function normalize(value: string) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function haDisplayName(user: any) {
+  return String(user?.ha_username || user?.ha_user_id || "").trim();
+}
+
+function roleLabel(role: string) {
+  if (role === "admin") return "Owner/Admin";
+  if (role === "manager") return "Manager";
+  if (role === "kiosk") return "Kiosk / Shared";
+  if (role === "guest") return "Guest";
+  return "Resident";
+}
+
+function roleTone(role: string): "good" | "brand" | "warn" | "slate" {
+  if (role === "admin") return "good";
+  if (role === "kiosk") return "brand";
+  if (role === "guest") return "warn";
+  return "slate";
 }
 
 function label(value: string) {

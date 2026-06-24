@@ -106,6 +106,11 @@ def main() -> int:
           "ingress: true" in addon_config and "panel_title:" in addon_config
           and "panel_admin: false" in addon_config,
           "panel_admin must be false so resident/shared HA users can open TPG HomeAI.")
+    check("custom integration sidebar panel is visible to HA non-admin users",
+          'frontend_url_path="tpg-homeai"' in ha_client
+          and "require_admin=False" in ha_client
+          and "sidebar_default_visible=True" in ha_client,
+          "The HA iframe panel must not require administrator access.")
     check("HA client exposes chat endpoint", "async def async_chat" in ha_client and '"/chat"' in ha_client)
     check("HA Assist uses chat brain, not command-only path",
           "async_chat(" in ha_conversation and "async_command(" not in ha_conversation,
@@ -318,6 +323,12 @@ def main() -> int:
                 "username": "residentperson",
                 "is_admin": False,
             },
+            {
+                "id": "ha-kiosk-1",
+                "name": "Kiosk",
+                "username": "kiosk",
+                "is_admin": False,
+            },
         ]
 
     with patch("app.main.HomeAssistantWebSocket.fetch_auth_users", fake_auth_users):
@@ -334,6 +345,7 @@ def main() -> int:
     synced_users = synced_cfg.get("users", [])
     admin_profile = next((u for u in synced_users if u.get("ha_username") == "thatpalmerguy"), {})
     resident_profile = next((u for u in synced_users if u.get("ha_username") == "residentperson"), {})
+    kiosk_profile = next((u for u in synced_users if u.get("ha_username") == "kiosk"), {})
     check("HA admin sync grants TPG admin access",
           admin_profile.get("role") == "admin"
           and admin_profile.get("access_source") == "home_assistant"
@@ -344,6 +356,12 @@ def main() -> int:
           and resident_profile.get("access_source") == "home_assistant"
           and resident_profile.get("ha_is_admin") is False,
           str(resident_profile))
+    check("HA kiosk sync preserves shared kiosk profile",
+          kiosk_profile.get("id") == "house_remote"
+          and kiosk_profile.get("role") == "kiosk"
+          and kiosk_profile.get("access_source") == "home_assistant"
+          and kiosk_profile.get("ha_is_admin") is False,
+          str(kiosk_profile))
     check("HA sync creates a personal assistant for resident users",
           any(a.get("owner") == resident_profile.get("id") for a in synced_cfg.get("assistants", [])),
           str(synced_cfg.get("assistants", [])))

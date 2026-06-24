@@ -145,10 +145,11 @@ def sync_ha_users(auth_users: list[dict[str, Any]]) -> dict[str, Any]:
         idx = _find_synced_user_index(users, parsed)
         if idx is None:
             user_id = _unique_id(_slug(parsed["username"] or parsed["name"]), users)
+            role = "admin" if parsed["is_admin"] else _default_non_admin_role(parsed)
             user = {
                 "id": user_id,
                 "name": parsed["name"],
-                "role": "admin" if parsed["is_admin"] else "resident",
+                "role": role,
                 "aliases": sorted({parsed["name"], parsed["username"]} - {""}),
                 "ha_user_id": parsed["ha_user_id"],
                 "ha_username": parsed["username"],
@@ -164,10 +165,11 @@ def sync_ha_users(auth_users: list[dict[str, Any]]) -> dict[str, Any]:
         user = dict(users[idx])
         aliases = set(user.get("aliases") or [])
         aliases.update(v for v in (parsed["name"], parsed["username"]) if v)
+        role = "admin" if parsed["is_admin"] else _preserved_non_admin_role(user)
         desired = {
             **user,
             "name": user.get("name") or parsed["name"],
-            "role": "admin" if parsed["is_admin"] else "resident",
+            "role": role,
             "aliases": sorted(aliases),
             "ha_user_id": parsed["ha_user_id"] or user.get("ha_user_id"),
             "ha_username": parsed["username"] or user.get("ha_username"),
@@ -195,6 +197,22 @@ def sync_ha_users(auth_users: list[dict[str, Any]]) -> dict[str, Any]:
         "total_ha_users": len(auth_users),
         "changed": changed,
     }
+
+
+def _default_non_admin_role(parsed: dict[str, Any]) -> str:
+    identity = _normalize(" ".join([parsed.get("name") or "", parsed.get("username") or ""]))
+    if any(token in identity for token in ("kiosk", "houseremote", "roomremote", "wallpanel", "tablet")):
+        return "kiosk"
+    if "guest" in identity:
+        return "guest"
+    return "resident"
+
+
+def _preserved_non_admin_role(user: dict[str, Any]) -> str:
+    role = str(user.get("role") or "").strip().lower()
+    if role in {"resident", "kiosk", "guest"}:
+        return role
+    return "resident"
 
 
 def _ensure_admin_not_removed(users: list[Any], edited_id: str) -> None:

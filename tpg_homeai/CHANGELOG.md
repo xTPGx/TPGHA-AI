@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.25
+
+- Preserved shared `kiosk` and guest roles when syncing Home Assistant non-admin users instead of flattening every HA non-admin into a resident profile.
+- Made HA-linked shared profiles easier to understand on the Users page by showing the HA login and first-class `Kiosk / Shared` role badge.
+- Hardened the custom integration sidebar panel registration so the TPG HomeAI iframe panel is explicitly visible to non-admin HA users.
+- Added regression checks for non-admin sidebar metadata and HA `kiosk` sync behavior.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.24
 
 - Rebuilt the Chat workspace into a full-height ChatGPT-style surface with a persistent conversation rail on tablet/desktop and a drawer on mobile.

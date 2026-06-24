@@ -489,8 +489,9 @@ def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
             sidebar_title="TPG HomeAI",
             sidebar_icon="mdi:robot-happy",
             frontend_url_path="tpg-homeai",
-            config={"url": entry.data[CONF_URL], "require_admin": False},
+            config={"url": entry.data[CONF_URL]},
             require_admin=False,
+            sidebar_default_visible=True,
         )
     except Exception as err:  # noqa: BLE001 - sidebar is best-effort
         _LOGGER.debug("Could not register TPG HomeAI sidebar panel: %s", err)
