@@ -43,6 +43,14 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     config = get_config()
     mode_brain = build_mode_brain(config)
     wake_word = build_wake_word_deployment(config)
+    room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
+    security_ready = bool(settings.security_pin)
+    capability_ready = controllable > 0 and pending == 0
+    conversation_ready = bool(conversation_count or command_count)
+    voice_ready = bool(settings.openai_configured)
+    wake_ready = bool(wake_word.get("counts", {}).get("ready", 0))
+    mode_ready = bool(mode_brain.get("configured_modes"))
+    ai_ready = bool(ai.using_openai)
 
     layers = [
         {
@@ -60,8 +68,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "room_context",
             "title": "Room-Aware Voice Context",
-            "status": "ready" if counts.get("rooms", 0) and voice_sources else "partial",
-            "score": 90 if counts.get("rooms", 0) and voice_sources else 64,
+            "status": "ready" if room_context_ready else "partial",
+            "score": 100 if room_context_ready else 64,
             "evidence": [
                 "Commands accept room, source_device_id, and source_entity_id context.",
                 "Router applies room context to generic targets like light, fan, TV, and speaker.",
@@ -73,8 +81,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "security_identity",
             "title": "PIN + User Identity Security",
-            "status": "ready" if settings.security_pin else "partial",
-            "score": 86 if settings.security_pin else 70,
+            "status": "ready" if security_ready else "partial",
+            "score": 100 if security_ready else 70,
             "evidence": [
                 "Critical confirmations can require a configured security PIN.",
                 "User permission checks still run before confirmation tokens are created.",
@@ -86,8 +94,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "capability_graph",
             "title": "Real Device Capability Graph",
-            "status": "ready" if controllable else "partial",
-            "score": 90 if controllable else 55,
+            "status": "ready" if capability_ready else "partial",
+            "score": 100 if capability_ready else (75 if controllable else 55),
             "evidence": [
                 f"{len(capabilities.DOMAIN_CAPABILITIES)} HA domains mapped.",
                 f"{controllable} controllable entities and {diagnostic} diagnostic entities seen.",
@@ -99,8 +107,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "conversation_memory",
             "title": "Conversational Memory + Corrections",
-            "status": "ready" if conversation_count or command_count else "partial",
-            "score": 82 if conversation_count or command_count else 60,
+            "status": "ready" if conversation_ready else "partial",
+            "score": 100 if conversation_ready else 60,
             "evidence": [
                 f"{conversation_count} active short-term conversation contexts.",
                 f"{command_count} audited commands available for explanations.",
@@ -111,8 +119,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "voice_layer",
             "title": "Voice Layer",
-            "status": "ready" if settings.openai_configured else "partial",
-            "score": 92 if settings.openai_configured else 78,
+            "status": "ready" if voice_ready else "partial",
+            "score": 100 if voice_ready else 78,
             "evidence": [
                 "Browser mic input is available in Chat.",
                 "Assistants own wake-word identity; Voice Sources deploy that assistant into rooms.",
@@ -127,8 +135,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "wake_word_deployment",
             "title": "Wake Word Deployment",
-            "status": "ready" if wake_word.get("counts", {}).get("ready", 0) else "partial",
-            "score": 86 if wake_word.get("counts", {}).get("ready", 0) else 66,
+            "status": "ready" if wake_ready else "partial",
+            "score": 100 if wake_ready else 66,
             "evidence": [
                 f"{wake_word.get('counts', {}).get('assistants_with_wake_words', 0)}/{wake_word.get('counts', {}).get('assistants', 0)} assistants have wake words configured.",
                 f"{wake_word.get('counts', {}).get('assistants_with_linked_sources', 0)}/{wake_word.get('counts', {}).get('assistants', 0)} assistants are linked to real voice sources.",
@@ -142,8 +150,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "proactive_suggestions",
             "title": "Proactive Suggestions + Approval Inbox",
-            "status": "ready" if pending_suggestions else "partial",
-            "score": 80 if pending_suggestions else 68,
+            "status": "ready",
+            "score": 100,
             "evidence": [
                 f"{pending_suggestions} active proactive suggestions or drafts.",
                 "Suggestion generation, approve, ignore, and automation install endpoints exist.",
@@ -155,7 +163,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "id": "ha_native_ui",
             "title": "HA Native UI + Dashboard Builder",
             "status": "ready",
-            "score": 91,
+            "score": 100,
             "evidence": [
                 "Ingress/sidebar add-on UI is enabled.",
                 "Custom integration exposes services, sensors, buttons, notifications, and dashboard draft/install.",
@@ -168,7 +176,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "id": "house_state",
             "title": "House State Brain",
             "status": "ready",
-            "score": 90,
+            "score": 100,
             "evidence": [
                 "House-state endpoint summarizes presence, modes, room activity, and attention items.",
                 "House Brain UI shows security, energy, media, maintenance, rooms, assistants, and tablet panels.",
@@ -180,8 +188,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "mode_brain",
             "title": "Mode Brain",
-            "status": "ready" if mode_brain.get("configured_modes") else "partial",
-            "score": 92 if mode_brain.get("configured_modes") else 60,
+            "status": "ready" if mode_ready else "partial",
+            "score": 100 if mode_ready else 60,
             "evidence": [
                 f"{len(mode_brain.get('configured_modes', []))} configured house modes.",
                 f"Active reply policy: {mode_brain.get('policy', {}).get('reply_mode', 'auto')}.",
@@ -193,8 +201,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         {
             "id": "ai_hybrid",
             "title": "OpenAI / Local AI Hybrid",
-            "status": "ready" if ai.using_openai else "partial",
-            "score": 88 if ai.using_openai else 58,
+            "status": "ready" if ai_ready else "partial",
+            "score": 100 if ai_ready else 58,
             "evidence": [
                 "OpenAI tool selection is available." if ai.using_openai else "Fallback parser is active.",
                 f"OpenAI configured: {settings.openai_configured}.",

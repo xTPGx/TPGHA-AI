@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.13
+
+- Fixed the Brain Overall score so completed layers can actually reach 100% instead of being permanently capped below full readiness.
+- Made pending proactive suggestions stop lowering readiness when the proactive suggestion engine itself is already implemented.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.12
 
 - Split wake-word readiness into two clear concepts: assistant wake phrases configured versus real voice sources deployed.
