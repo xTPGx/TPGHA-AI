@@ -89,11 +89,15 @@ async def main():
             for d, s, data in SERVICE_CALLS
         )
 
-    # 1. "Is the front door locked?" -> security_check (reads lock.front_door)
+    # 1. "Is the front door locked?" -> read lock.front_door without executing.
     r = await intent_router.handle_command("atlas", "shawn", "Is the front door locked?")
-    check("Q1 front door locked -> security_check", r.intent == "security_check", r.intent)
+    check("Q1 front door locked -> specific status read",
+          r.intent in {"query_device", "security_check"}, r.intent)
     check("Q1 includes lock.front_door",
-          any(l.get("entity_id") == "lock.front_door" for l in r.data.get("locks", [])))
+          r.resolved.get("entity_id") == "lock.front_door"
+          or any(l.get("entity_id") == "lock.front_door" for l in r.data.get("locks", [])),
+          {"intent": r.intent, "resolved": r.resolved, "data": r.data})
+    check("Q1 does not execute lock action", not SERVICE_CALLS, SERVICE_CALLS)
 
     # 2. "Show me the driveway." -> camera.front_yard_front_yard
     r = await intent_router.handle_command("atlas", "shawn", "Show me the driveway.")

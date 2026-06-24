@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.11
+
+- Upgraded the OpenAI Python SDK to support `gpt-4o-mini-tts` voice instructions.
+- Fixed OpenAI TTS falling back to browser because the old SDK rejected the `instructions` parameter with `TypeError`.
+- Added a compatibility retry that strips `instructions` if an older SDK is accidentally installed.
+- Improved voice fallback diagnostics so the UI reports the real sanitized OpenAI/SDK error instead of only the exception type.
+- Added regression coverage for the SDK `instructions` mismatch.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.10
 
 - Moved wake-word and voice-source deployment management into the Assistant page.

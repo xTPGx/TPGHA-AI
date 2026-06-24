@@ -16,6 +16,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 # ---- Environment MUST be set before importing the app (settings/db cache it).
 _TMP = tempfile.mkdtemp(prefix="tpg_addon_test_")
@@ -431,6 +432,40 @@ def main() -> int:
           and r.json().get("profile", {}).get("provider") == "openai"
           and r.json().get("profile", {}).get("voice") == "onyx",
           str(r.json()))
+    from app.voice import _openai_speech_bytes, _safe_error_detail  # noqa: E402
+
+    class FakeSpeech:
+        def __init__(self):
+            self.calls: list[dict[str, object]] = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            if "instructions" in kwargs:
+                raise TypeError("Speech.create() got an unexpected keyword argument 'instructions'")
+            return type("FakeAudio", (), {"read": lambda self: b"audio-bytes"})()
+
+    fake_speech = FakeSpeech()
+    fake_client = type("FakeClient", (), {
+        "audio": type("FakeAudioRoot", (), {
+            "speech": fake_speech,
+        })(),
+    })()
+    with patch("openai.OpenAI", return_value=fake_client):
+        audio = _openai_speech_bytes({
+            "model": "gpt-4o-mini-tts",
+            "voice": "cedar",
+            "response_format": "mp3",
+            "instructions": "sound natural",
+        }, "hello")
+    check("OpenAI TTS retries old SDK without instructions",
+          audio == b"audio-bytes"
+          and len(fake_speech.calls) == 2
+          and "instructions" in fake_speech.calls[0]
+          and "instructions" not in fake_speech.calls[1],
+          str(fake_speech.calls))
+    check("OpenAI TTS error detail redacts API keys",
+          "sk-***" in _safe_error_detail(Exception("bad key sk-abc123SECRET")),
+          _safe_error_detail(Exception("bad key sk-abc123SECRET")))
 
     r = client.post("/memory/draft", json={
         "scope": "user",

@@ -9,6 +9,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -243,8 +244,9 @@ async def speak_text(
     try:
         audio_bytes = await asyncio.to_thread(_openai_speech_bytes, profile, text)
     except Exception as exc:  # pragma: no cover - network/sdk dependent
-        logger.warning("OpenAI TTS failed (%s); using browser fallback.", type(exc).__name__)
-        return _browser_response(profile, text, reason=f"OpenAI TTS failed: {type(exc).__name__}.")
+        detail = _safe_error_detail(exc)
+        logger.warning("OpenAI TTS failed (%s); using browser fallback.", detail)
+        return _browser_response(profile, text, reason=f"OpenAI TTS failed: {detail}.")
 
     fmt = str(profile.get("response_format") or "mp3")
     content_type = MIME_BY_FORMAT.get(fmt, "audio/mpeg")
@@ -418,13 +420,40 @@ def _openai_speech_bytes(profile: dict[str, Any], text: str) -> bytes:
     instructions = str(profile.get("instructions") or "").strip()
     if instructions and model not in {"tts-1", "tts-1-hd"}:
         kwargs["instructions"] = instructions
-    response = client.audio.speech.create(**kwargs)
+    try:
+        response = _create_openai_speech(client, kwargs)
+    except TypeError as exc:
+        if "instructions" not in kwargs or "instructions" not in str(exc):
+            raise
+        retry_kwargs = dict(kwargs)
+        retry_kwargs.pop("instructions", None)
+        logger.warning("OpenAI SDK rejected TTS instructions; retrying speech without instructions.")
+        response = _create_openai_speech(client, retry_kwargs)
+    return _speech_response_bytes(response)
+
+
+def _create_openai_speech(client: Any, kwargs: dict[str, Any]) -> Any:
+    return client.audio.speech.create(**kwargs)
+
+
+def _speech_response_bytes(response: Any) -> bytes:
     if hasattr(response, "read"):
         return response.read()
     content = getattr(response, "content", None)
     if isinstance(content, bytes):
         return content
     return bytes(response)
+
+
+def _safe_error_detail(exc: Exception) -> str:
+    text = str(exc).strip()
+    if not text:
+        return type(exc).__name__
+    text = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", text)
+    text = " ".join(text.split())
+    if len(text) > 220:
+        text = f"{text[:217]}..."
+    return f"{type(exc).__name__}: {text}"
 
 
 def _write_audio(audio_bytes: bytes, fmt: str) -> str:
