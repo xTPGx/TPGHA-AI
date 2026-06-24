@@ -113,6 +113,12 @@ export default function VoiceSources({ embedded = false }: { embedded?: boolean 
         <Stat label="Generic command" value="room scoped" />
       </div>
 
+      {items.length === 0 && (
+        <div className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+          Wake words are configured on assistants, but no real microphone, HA Assist satellite, tablet, or panel is mapped yet. Add a voice source, choose its room and assistant/user, then paste the HA source device or entity ID when available.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {items.map((source) => (
           <div key={source.id} className="card">

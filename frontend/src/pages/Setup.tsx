@@ -83,7 +83,7 @@ export default function Setup() {
     {
       title: "Wake words and voice sources",
       ok: (cfg?.devices?.voice_sources?.length || 0) > 0,
-      detail: `${voice?.counts?.assistants_ready || 0}/${voice?.counts?.assistants || 0} assistants ready · ${voice?.counts?.ready || 0} sources ready`,
+      detail: `${voice?.counts?.assistants_with_wake_words || 0}/${voice?.counts?.assistants || 0} assistants have wake words · ${voice?.counts?.assistants_with_linked_sources || 0}/${voice?.counts?.assistants || 0} linked to sources · ${voice?.counts?.ready || 0} sources ready`,
       to: "/assistants",
     },
     {

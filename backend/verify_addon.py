@@ -337,6 +337,11 @@ def main() -> int:
     check("/voice/deployment has readiness counts",
           "counts" in r.json() and "sources" in r.json(),
           str(r.json()))
+    voice_counts = r.json().get("counts", {})
+    check("/voice/deployment separates wake words from source deployment",
+          "assistants_with_wake_words" in voice_counts
+          and "assistants_with_linked_sources" in voice_counts,
+          str(voice_counts))
 
     r = client.get("/dashboards/tablet-profiles")
     check("/dashboards/tablet-profiles returns JSON", r.status_code == 200 and is_json(r),

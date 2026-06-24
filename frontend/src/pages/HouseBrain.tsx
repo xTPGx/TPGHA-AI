@@ -146,16 +146,16 @@ export default function HouseBrain({ embedded = false }: { embedded?: boolean })
               <div className="mt-1 text-lg font-semibold">{deployment?.counts?.total || 0}</div>
             </div>
             <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
-              <div className="text-xs uppercase text-slate-400">Trusted</div>
-              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.trusted || 0}</div>
+              <div className="text-xs uppercase text-slate-400">Wake words</div>
+              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.assistants_with_wake_words || 0}/{deployment?.counts?.assistants || 0}</div>
             </div>
             <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
-              <div className="text-xs uppercase text-slate-400">Missing IDs</div>
+              <div className="text-xs uppercase text-slate-400">Linked assistants</div>
+              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.assistants_with_linked_sources || 0}/{deployment?.counts?.assistants || 0}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-xs uppercase text-slate-400">Missing source IDs</div>
               <div className="mt-1 text-lg font-semibold">{deployment?.counts?.missing_source_identity || 0}</div>
-            </div>
-            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
-              <div className="text-xs uppercase text-slate-400">Rooms left</div>
-              <div className="mt-1 text-lg font-semibold">{deployment?.counts?.rooms_without_voice_source || 0}</div>
             </div>
           </div>
           <div className="space-y-2">

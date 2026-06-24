@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.12
+
+- Split wake-word readiness into two clear concepts: assistant wake phrases configured versus real voice sources deployed.
+- Updated Brain, Home Brain, and Setup wording so the live-house blocker points to missing microphones/panels/HA Assist sources, not missing assistant wake phrases.
+- Added an empty-state callout in Assistant wake deployment explaining how to add a real voice source.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.11
 
 - Upgraded the OpenAI Python SDK to support `gpt-4o-mini-tts` voice instructions.

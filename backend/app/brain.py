@@ -130,7 +130,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "status": "ready" if wake_word.get("counts", {}).get("ready", 0) else "partial",
             "score": 86 if wake_word.get("counts", {}).get("ready", 0) else 66,
             "evidence": [
-                f"{wake_word.get('counts', {}).get('assistants_ready', 0)}/{wake_word.get('counts', {}).get('assistants', 0)} assistants have wake words and linked sources.",
+                f"{wake_word.get('counts', {}).get('assistants_with_wake_words', 0)}/{wake_word.get('counts', {}).get('assistants', 0)} assistants have wake words configured.",
+                f"{wake_word.get('counts', {}).get('assistants_with_linked_sources', 0)}/{wake_word.get('counts', {}).get('assistants', 0)} assistants are linked to real voice sources.",
                 f"{wake_word.get('counts', {}).get('total', 0)} voice source profiles configured.",
                 f"{wake_word.get('counts', {}).get('ready', 0)} voice sources ready for room-aware routing.",
                 f"{wake_word.get('counts', {}).get('missing_source_identity', 0)} sources still need source_device_id/source_entity_id.",
@@ -331,13 +332,15 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
             and active_voice.get("missing_source_identity", 0) == 0,
             [
                 f"OpenAI configured: {settings.openai_configured}.",
+                f"{active_voice.get('assistants_with_wake_words', 0)}/{active_voice.get('assistants', 0)} assistants have wake words configured.",
+                f"{active_voice.get('assistants_with_linked_sources', 0)}/{active_voice.get('assistants', 0)} assistants are linked to real voice sources.",
                 f"{active_voice.get('total', 0)} voice sources configured.",
                 f"{active_voice.get('missing_source_identity', 0)} voice sources missing source identity.",
                 f"{active_voice.get('rooms_without_voice_source', 0)} rooms without a source.",
             ],
             _missing([
                 (not settings.openai_configured, "Configure OpenAI API key for real assistant reasoning/TTS."),
-                (active_voice.get("total", 0) <= 0, "Add at least one real voice source."),
+                (active_voice.get("total", 0) <= 0, "Add at least one real microphone/panel/HA Assist voice source."),
                 (active_voice.get("missing_source_identity", 0) > 0, "Paste real HA Assist/Browser Mod source IDs into voice_sources."),
             ]),
             "You can talk to the house from real microphones/panels and get natural replies in the right place.",

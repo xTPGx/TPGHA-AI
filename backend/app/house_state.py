@@ -315,11 +315,19 @@ def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
     missing_identity = sum(1 for s in sources if "source_device_id_or_source_entity_id" in s["missing"])
     missing_room = sum(1 for s in sources if "room" in s["missing"])
     missing_speaker = sum(1 for s in sources if "speaker_route" in s["missing"])
+    assistants_with_wake_words = sum(
+        1 for a in assistants if a["listen_enabled"] and bool(a["wake_words"])
+    )
+    assistants_with_linked_sources = sum(
+        1 for a in assistants if a["listen_enabled"] and bool(a["sources"])
+    )
     return {
         "counts": {
             **readiness.get("counts", {}),
             "assistants": len(assistants),
             "assistants_ready": sum(1 for a in assistants if a["ready"]),
+            "assistants_with_wake_words": assistants_with_wake_words,
+            "assistants_with_linked_sources": assistants_with_linked_sources,
             "assistants_missing_wake_words": sum(1 for a in assistants if "wake_words" in a["missing"]),
             "assistants_missing_voice_source": sum(1 for a in assistants if "voice_source" in a["missing"]),
             "ready": sum(1 for s in sources if s["setup_status"] == "ready"),
