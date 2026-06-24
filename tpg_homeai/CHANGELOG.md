@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.9
+
+- Moved voice testing, preview, and voice catalog into the Assistant editor.
+- Removed Voice Settings from the main navigation; old `/voice-settings` links now redirect to Assistants.
+- Added voice-profile overrides to preview/test endpoints so unsaved assistant editor voice choices can be tested directly.
+- Clarified UI language so `browser` is shown as playback destination, not mistaken for the TTS provider.
+- Upgraded legacy saved assistant voice profiles like `browser / neutral` to the new OpenAI defaults for Atlas and Chatty.
+- Added regression coverage to ensure editor voice overrides preserve the selected OpenAI voice profile.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.8
 
 - Moved wake-word identity onto Assistant profiles with editable `wake_words` and `listen_enabled`.

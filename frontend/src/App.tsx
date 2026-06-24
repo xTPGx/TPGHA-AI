@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Entities from "./pages/Entities";
 import Rooms from "./pages/Rooms";
@@ -17,7 +17,6 @@ import DeviceProfiles from "./pages/DeviceProfiles";
 import MemoryCenter from "./pages/MemoryCenter";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import VoiceSources from "./pages/VoiceSources";
-import VoiceSettings from "./pages/VoiceSettings";
 import HouseBrain from "./pages/HouseBrain";
 import Setup from "./pages/Setup";
 
@@ -41,7 +40,6 @@ const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean 
       { to: "/discovery", label: "Discovery" },
       { to: "/rooms", label: "Rooms" },
       { to: "/assistants", label: "Assistants" },
-      { to: "/voice-settings", label: "Voice Settings" },
       { to: "/voice-sources", label: "Voice Sources" },
       { to: "/users", label: "Users" },
       { to: "/music", label: "Music" },
@@ -125,7 +123,7 @@ export default function App() {
           <Route path="/profiles" element={<DeviceProfiles />} />
           <Route path="/memory-center" element={<MemoryCenter />} />
           <Route path="/dashboard-builder" element={<DashboardBuilder />} />
-          <Route path="/voice-settings" element={<VoiceSettings />} />
+          <Route path="/voice-settings" element={<Navigate to="/assistants" replace />} />
           <Route path="/voice-sources" element={<VoiceSources />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/ha" element={<HAStatus />} />

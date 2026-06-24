@@ -118,7 +118,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Assistants own wake-word identity; Voice Sources deploy that assistant into rooms.",
                 "Configured assistant voice profiles can use OpenAI TTS with browser fallback.",
                 "Reply routing can target browser, quiet mode, explicit media player, or room speaker.",
-                "Voice Settings exposes profile readiness, catalog, preview, and test playback.",
+                "Assistant profiles expose voice selection, OpenAI TTS readiness, catalog, preview, and test playback.",
                 "Home Assistant Assist can forward conversation to TPG HomeAI.",
                 f"OpenAI TTS configured: {settings.openai_configured}.",
             ],

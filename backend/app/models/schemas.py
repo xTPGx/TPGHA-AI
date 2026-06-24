@@ -328,6 +328,7 @@ class ChatRequest(CommandRequest):
 class VoicePreviewRequest(BaseModel):
     assistant: str = "atlas"
     text: str = "System voice check. I am online."
+    voice_profile: Optional[VoiceProfile] = None
     target_entity_id: Optional[str] = None
     room: Optional[str] = None
     source_device_id: Optional[str] = None
@@ -338,6 +339,7 @@ class VoicePreviewRequest(BaseModel):
 class VoiceSpeakRequest(BaseModel):
     assistant: str = "atlas"
     text: str
+    voice_profile: Optional[VoiceProfile] = None
     target_entity_id: Optional[str] = None
     force_browser: bool = False
     room: Optional[str] = None

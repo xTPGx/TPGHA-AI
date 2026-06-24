@@ -60,7 +60,7 @@ export default function Setup() {
       title: "OpenAI configured",
       ok: health?.openai?.configured,
       detail: health?.openai?.mode || "fallback parser",
-      to: "/voice-settings",
+      to: "/assistants",
     },
     {
       title: "Users and assistants",

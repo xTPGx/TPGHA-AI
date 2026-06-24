@@ -366,6 +366,25 @@ def main() -> int:
     check("/voice/profiles chatty uses OpenAI Coral",
           chatty_profile.get("provider") == "openai" and chatty_profile.get("voice") == "coral",
           str(chatty_profile))
+    r = client.post("/config/assistants", json={
+        "id": "atlas",
+        "name": "Atlas",
+        "owner": "shawn",
+        "aliases": ["atlas"],
+        "wake_words": ["atlas", "hey atlas"],
+        "listen_enabled": True,
+        "personality": "Legacy browser voice upgrade check.",
+        "tone": "confident",
+        "voice": {"provider": "browser", "voice": "neutral", "fallback_provider": "browser"},
+    })
+    check("/config/assistants accepts legacy browser voice", r.status_code == 200, r.text)
+    r = client.get("/voice/profiles")
+    legacy_atlas_profile = next((p for p in r.json().get("profiles", [])
+                                 if p.get("assistant", {}).get("id") == "atlas"), {})
+    check("/voice/profiles upgrades legacy atlas browser voice",
+          legacy_atlas_profile.get("provider") == "openai"
+          and legacy_atlas_profile.get("voice") == "cedar",
+          str(legacy_atlas_profile))
 
     r = client.get("/voice/voices")
     check("/voice/voices returns JSON", r.status_code == 200 and is_json(r),
@@ -401,6 +420,16 @@ def main() -> int:
     check("/voice/speak fallback preserves atlas voice profile",
           r.json().get("profile", {}).get("provider") == "openai"
           and r.json().get("profile", {}).get("voice") == "cedar",
+          str(r.json()))
+    r = client.post("/voice/speak", json={
+        "assistant": "atlas",
+        "text": "Voice override check.",
+        "voice_profile": {"provider": "openai", "model": "gpt-4o-mini-tts", "voice": "onyx"},
+    })
+    check("/voice/speak preserves editor voice override",
+          r.status_code == 200
+          and r.json().get("profile", {}).get("provider") == "openai"
+          and r.json().get("profile", {}).get("voice") == "onyx",
           str(r.json()))
 
     r = client.post("/memory/draft", json={

@@ -189,6 +189,7 @@ def list_voice_source_readiness(config: Optional[AppConfig] = None) -> dict[str,
 async def preview_voice(
     assistant_id: str,
     text: str,
+    voice_profile: Optional[VoiceProfile] = None,
     target_entity_id: Optional[str] = None,
     room: Optional[str] = None,
     source_device_id: Optional[str] = None,
@@ -199,6 +200,7 @@ async def preview_voice(
     profile = resolve_voice_profile(
         cfg, assistant_id, target_entity_id, room, source_device_id, source_entity_id, reply_mode
     )
+    profile = _apply_profile_override(profile, voice_profile)
     return {
         "profile": profile,
         "text": text,
@@ -210,6 +212,7 @@ async def preview_voice(
 async def speak_text(
     assistant_id: str,
     text: str,
+    voice_profile: Optional[VoiceProfile] = None,
     target_entity_id: Optional[str] = None,
     force_browser: bool = False,
     room: Optional[str] = None,
@@ -221,6 +224,7 @@ async def speak_text(
     profile = resolve_voice_profile(
         cfg, assistant_id, target_entity_id, room, source_device_id, source_entity_id, reply_mode
     )
+    profile = _apply_profile_override(profile, voice_profile)
     if profile.get("route", {}).get("mode") == "none":
         return {
             "mode": "silent",
@@ -272,13 +276,36 @@ def _profile_from_assistant(assistant: Optional[Assistant], assistant_id: str) -
         return _with_runtime_defaults(default, settings.openai_tts_model, settings.openai_tts_format)
     raw = assistant.voice
     if isinstance(raw, VoiceProfile):
-        merged = default.model_copy(update={k: v for k, v in raw.model_dump().items() if v not in (None, "")})
+        raw_data = raw.model_dump()
+        if _is_legacy_browser_profile(raw_data) and key in DEFAULT_PROFILES:
+            return _with_runtime_defaults(default, settings.openai_tts_model, settings.openai_tts_format)
+        if raw_data.get("voice") in {"neutral", "default", ""}:
+            raw_data.pop("voice", None)
+        merged = default.model_copy(update={k: v for k, v in raw_data.items() if v not in (None, "")})
         return _with_runtime_defaults(merged, settings.openai_tts_model, settings.openai_tts_format)
     alias = str(raw or "").lower()
     if alias in {"", "neutral", "default"} and key in DEFAULT_PROFILES:
         return _with_runtime_defaults(default, settings.openai_tts_model, settings.openai_tts_format)
     mapped = DEFAULT_PROFILES.get(alias) or default
     return _with_runtime_defaults(mapped, settings.openai_tts_model, settings.openai_tts_format)
+
+
+def _is_legacy_browser_profile(data: dict[str, Any]) -> bool:
+    provider = str(data.get("provider") or "").lower()
+    voice = str(data.get("voice") or "").lower()
+    return provider == "browser" and voice in {"", "neutral", "default", "alloy"}
+
+
+def _apply_profile_override(profile: dict[str, Any], override: Optional[VoiceProfile]) -> dict[str, Any]:
+    if not override:
+        return profile
+    settings = get_settings()
+    data = dict(profile)
+    for key, value in override.model_dump().items():
+        if value not in (None, ""):
+            data[key] = value
+    data["available"] = data.get("provider") == "browser" or settings.openai_configured
+    return data
 
 
 def resolve_reply_route(

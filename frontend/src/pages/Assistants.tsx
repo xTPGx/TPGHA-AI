@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import PageHeader from "../components/PageHeader";
 
@@ -18,12 +18,31 @@ const emptyAssistant = {
 
 export default function Assistants() {
   const [cfg, setCfg] = useState<any>(null);
+  const [voices, setVoices] = useState<any[]>([]);
+  const [voiceSettings, setVoiceSettings] = useState<Record<string, any>>({});
+  const [voiceText, setVoiceText] = useState("Voice check complete. I am online and ready.");
+  const [voiceResult, setVoiceResult] = useState<any>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
   const [editor, setEditor] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const load = async () => setCfg(await api.config());
-  useEffect(() => { void load(); }, []);
+  const load = async () => {
+    const [config, voiceCatalog, profiles] = await Promise.all([
+      api.config(),
+      api.voiceVoices(),
+      api.voiceProfiles(),
+    ]);
+    setCfg(config);
+    setVoices(voiceCatalog.voices || []);
+    setVoiceSettings(profiles.settings || {});
+  };
+  useEffect(() => {
+    void load();
+    return () => audioRef.current?.pause();
+  }, []);
 
   const assistants = cfg?.assistants?.assistants ?? [];
   const users = cfg?.assistants?.users ?? [];
@@ -33,17 +52,73 @@ export default function Assistants() {
 
   const editAssistant = (assistant?: any) => {
     const voice = typeof assistant?.voice === "object" ? assistant.voice : {};
+    const effectiveVoice = assistant ? resolvedVoice(assistant) : { provider: "openai", voice: "cedar" };
     setMessage("");
+    setVoiceResult(null);
+    setVoiceError("");
     setEditor(assistant ? {
       ...emptyAssistant,
       ...assistant,
       aliases: (assistant.aliases ?? []).join(", "),
       wake_words: (assistant.wake_words ?? defaultWakeWords(assistant.id, assistant.name)).join(", "),
       listen_enabled: assistant.listen_enabled !== false,
-      voice_provider: voice.provider || "openai",
-      voice: voice.voice || resolvedVoice(assistant).voice,
+      voice_provider: effectiveVoice.provider || voice.provider || "openai",
+      voice: effectiveVoice.voice || voice.voice || "cedar",
       voice_instructions: voice.instructions || "",
     } : emptyAssistant);
+  };
+
+  const editorVoiceProfile = () => ({
+    provider: editor.voice_provider || "openai",
+    model: "gpt-4o-mini-tts",
+    voice: editor.voice || "cedar",
+    response_format: "mp3",
+    output: "browser",
+    fallback_provider: "browser",
+    instructions: editor.voice_instructions || "",
+  });
+
+  const previewVoice = async () => {
+    setVoiceBusy(true);
+    setVoiceError("");
+    try {
+      const response = await api.voicePreview({
+        assistant: slug(editor.id || editor.name),
+        text: voiceText,
+        voice_profile: editorVoiceProfile(),
+      });
+      setVoiceResult(response);
+    } catch (e: any) {
+      setVoiceError(e.message || String(e));
+    } finally {
+      setVoiceBusy(false);
+    }
+  };
+
+  const testVoice = async () => {
+    setVoiceBusy(true);
+    setVoiceError("");
+    try {
+      const response = await api.voiceSpeak({
+        assistant: slug(editor.id || editor.name),
+        text: voiceText,
+        voice_profile: editorVoiceProfile(),
+      });
+      setVoiceResult(response);
+      if (response.audio_base64 && response.content_type) {
+        audioRef.current?.pause();
+        const audio = new Audio(`data:${response.content_type};base64,${response.audio_base64}`);
+        audioRef.current = audio;
+        await audio.play();
+      } else if (response.speak_text && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(response.speak_text));
+      }
+    } catch (e: any) {
+      setVoiceError(e.message || String(e));
+    } finally {
+      setVoiceBusy(false);
+    }
   };
 
   const saveAssistant = async () => {
@@ -109,7 +184,7 @@ export default function Assistants() {
             <label>
               <div className="mb-1 text-xs uppercase text-slate-500">Voice</div>
               <select className="input" value={editor.voice} onChange={(e) => setEditor({ ...editor, voice: e.target.value })}>
-                {["cedar", "coral", "nova", "onyx", "marin", "sage", "verse", "ballad", "ash", "echo", "fable", "shimmer"].map((v) => <option key={v} value={v}>{v}</option>)}
+                {(voices.length ? voices : DEFAULT_VOICES).map((v: any) => <option key={v.id || v} value={v.id || v}>{v.label || v.id || v}</option>)}
               </select>
             </label>
             <label className="flex items-center gap-2 rounded border border-slate-800 bg-slate-950/30 px-3 py-2">
@@ -125,6 +200,60 @@ export default function Assistants() {
               <textarea className="input min-h-20" value={editor.voice_instructions} onChange={(e) => setEditor({ ...editor, voice_instructions: e.target.value })} />
             </label>
           </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="rounded border border-slate-800 bg-slate-950/30 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-lg font-semibold">Voice Test</div>
+                  <div className="text-sm text-slate-400">
+                    {editor.voice_provider} / {editor.voice} {"->"} browser playback
+                  </div>
+                </div>
+                <span className={`badge ${voiceSettings.openai_configured ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+                  OpenAI TTS {voiceSettings.openai_configured ? "ready" : "not configured"}
+                </span>
+              </div>
+              <textarea className="input min-h-24" value={voiceText} onChange={(e) => setVoiceText(e.target.value)} />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="btn" onClick={() => void testVoice()} disabled={voiceBusy || !voiceText.trim()}>
+                  {voiceBusy ? "Working..." : "Test Voice"}
+                </button>
+                <button className="btn-ghost" onClick={() => void previewVoice()} disabled={voiceBusy || !voiceText.trim()}>
+                  Preview Voice
+                </button>
+              </div>
+              {voiceError && <div className="mt-3 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{voiceError}</div>}
+              {voiceResult && (
+                <div className="mt-3 space-y-2 text-sm">
+                  <Row label="TTS provider" value={voiceResult.provider === "browser" ? `browser fallback${voiceResult.fallback_reason ? `: ${voiceResult.fallback_reason}` : ""}` : voiceResult.provider} />
+                  <Row label="Voice profile" value={`${voiceResult.profile?.provider || editor.voice_provider} / ${voiceResult.profile?.voice || editor.voice}`} />
+                  <Row label="Playback" value={voiceResult.profile?.route?.output || voiceResult.profile?.output || "browser"} />
+                  <pre className="max-h-56 overflow-auto rounded bg-slate-950 p-3 text-xs text-slate-300">
+                    {JSON.stringify({ ...voiceResult, audio_base64: voiceResult.audio_base64 ? "[audio bytes]" : undefined }, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-slate-800 bg-slate-950/30 p-4">
+              <div className="mb-3 text-lg font-semibold">Voice Catalog</div>
+              <div className="max-h-80 space-y-2 overflow-auto">
+                {(voices.length ? voices : DEFAULT_VOICES.map((id) => ({ id, label: id }))).map((voice: any) => (
+                  <button
+                    key={voice.id}
+                    className={`block w-full rounded border px-3 py-2 text-left ${editor.voice === voice.id ? "border-brand bg-brand-dark/20" : "border-slate-800 bg-slate-950/40"}`}
+                    onClick={() => setEditor({ ...editor, voice: voice.id })}
+                  >
+                    <div className="font-semibold">{voice.label || voice.id}</div>
+                    <div className="font-mono text-xs text-brand">{voice.id}</div>
+                    {voice.style && <div className="mt-1 text-xs text-slate-400">{voice.style}</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="mt-4 flex gap-2">
             <button className="btn" onClick={saveAssistant} disabled={saving || !editor.name || !editor.owner}>Save Assistant</button>
             <button className="btn-ghost" onClick={() => setEditor(null)}>Cancel</button>
@@ -199,16 +328,24 @@ function slug(value: string) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
+const DEFAULT_VOICES = ["cedar", "coral", "nova", "onyx", "marin", "sage", "verse", "ballad", "ash", "echo", "fable", "shimmer"];
+
 function defaultWakeWords(id: string, name: string) {
   const base = String(id || name || "").trim().toLowerCase();
   return base ? [base] : [];
 }
 
 function resolvedVoice(assistant: any) {
+  const defaultVoice = assistant?.id === "chatty" ? "coral" : "cedar";
   if (typeof assistant?.voice === "object") {
+    const provider = String(assistant.voice.provider || "").toLowerCase();
+    const voice = String(assistant.voice.voice || "").toLowerCase();
+    if (provider === "browser" && ["", "neutral", "default", "alloy"].includes(voice) && ["atlas", "chatty"].includes(assistant?.id)) {
+      return { provider: "openai", voice: defaultVoice };
+    }
     return {
       provider: assistant.voice.provider || "openai",
-      voice: assistant.voice.voice || (assistant.id === "chatty" ? "coral" : "cedar"),
+      voice: ["", "neutral", "default"].includes(voice) ? defaultVoice : assistant.voice.voice,
     };
   }
   const raw = String(assistant?.voice || "").toLowerCase();

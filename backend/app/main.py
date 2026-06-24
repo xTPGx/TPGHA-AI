@@ -91,7 +91,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.8"
+APP_VERSION = "1.0.9"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -756,7 +756,8 @@ async def voice_preview(req: VoicePreviewRequest):
     return await preview_voice(
         req.assistant,
         req.text,
-        req.target_entity_id,
+        voice_profile=req.voice_profile,
+        target_entity_id=req.target_entity_id,
         room=req.room,
         source_device_id=req.source_device_id,
         source_entity_id=req.source_entity_id,
@@ -769,6 +770,7 @@ async def voice_speak(req: VoiceSpeakRequest):
     return await speak_text(
         req.assistant,
         req.text,
+        voice_profile=req.voice_profile,
         target_entity_id=req.target_entity_id,
         force_browser=req.force_browser,
         room=req.room,
