@@ -65,20 +65,16 @@ const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean 
 export default function App() {
   const location = useLocation();
   const [session, setSession] = useState<any>(null);
-  const [activeUser, setActiveUser] = useState(() => localStorage.getItem("tpg_homeai_user") || "");
+  const [previewRole, setPreviewRole] = useState<Role | "">("");
   const users = session?.users || [];
-  const selectedUser = users.find((u: any) => u.id === activeUser) || session?.detected_user || users[0];
-  const role: Role = selectedUser?.role || session?.role || "guest";
+  const sessionUser = session?.detected_user || users[0];
+  const sessionRole: Role = sessionUser?.role || session?.role || "guest";
+  const role: Role = previewRole || sessionRole;
+  const canPreviewRoles = sessionRole === "admin";
 
   useEffect(() => {
     api.uiSession().then((result) => {
       setSession(result);
-      const saved = localStorage.getItem("tpg_homeai_user");
-      const fallback = result.detected_user?.id || result.users?.[0]?.id || "";
-      if (!saved && fallback) {
-        setActiveUser(fallback);
-        localStorage.setItem("tpg_homeai_user", fallback);
-      }
     }).catch(() => setSession({ role: "guest", users: [] }));
   }, []);
 
@@ -118,23 +114,31 @@ export default function App() {
           <div className="text-lg font-bold text-brand">TPG HomeAI</div>
           <div className="text-xs text-slate-400">Orchestrator</div>
         </div>
-        {users.length > 0 && (
+        {sessionUser && (
           <div className="mb-5 rounded-lg border border-slate-800 bg-slate-900/50 p-2">
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-              View As
+              Signed In
             </label>
-            <select
-              className="input py-1.5 text-sm"
-              value={selectedUser?.id || ""}
-              onChange={(e) => {
-                setActiveUser(e.target.value);
-                localStorage.setItem("tpg_homeai_user", e.target.value);
-              }}
-            >
-              {users.map((u: any) => (
-                <option key={u.id} value={u.id}>{u.name} · {u.role}</option>
-              ))}
-            </select>
+            <div className="rounded-md bg-slate-950/70 px-2 py-1.5 text-sm text-slate-200">
+              {sessionUser.name} · {sessionRole}
+            </div>
+            {canPreviewRoles && (
+              <>
+                <label className="mb-1 mt-3 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Preview Menu
+                </label>
+                <select
+                  className="input py-1.5 text-sm"
+                  value={previewRole}
+                  onChange={(e) => setPreviewRole(e.target.value as Role | "")}
+                >
+                  <option value="">Full admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="resident">Resident</option>
+                  <option value="guest">Guest</option>
+                </select>
+              </>
+            )}
           </div>
         )}
         <nav className="flex flex-col gap-4">

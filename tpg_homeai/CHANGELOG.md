@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.16
+
+- Fixed role-aware navigation so the signed-in session role controls menu access.
+- Replaced the sticky View As selector with a non-persistent admin-only Preview Menu selector.
+- Prevented a saved browser preview value, such as Jordie/resident, from hiding Shawn/admin tools after reload.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.15
 
 - Added household user roles: admin, manager, resident, and guest.
