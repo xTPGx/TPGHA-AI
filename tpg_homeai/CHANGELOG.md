@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.14
+
+- Added a Conversation Notebook page for browsing past Chat sessions inside TPG HomeAI.
+- Added per-session notes and Markdown export so brainstorming sessions can be downloaded and shared with ChatGPT or docs.
+- Added a read-only web research/search layer and wired search context into general OpenAI conversation for current/latest questions.
+- Added Notebook + Research as a first-class Jarvis Brain readiness layer.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.13
 
 - Fixed the Brain Overall score so completed layers can actually reach 100% instead of being permanently capped below full readiness.

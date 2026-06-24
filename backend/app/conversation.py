@@ -14,6 +14,7 @@ from .db.database import get_session
 from .db.models import CommandLog
 from .homeassistant.services import safe_get_states
 from .models.schemas import Assistant, User
+from .research import format_search_context, search_web, should_search
 from .router.resolver import Resolver
 
 
@@ -31,6 +32,10 @@ async def answer_general(
     assistant_id = assistant.id if assistant else assistant_name
     user_id = user.id if user else (user_name or "")
     house_context = _house_context(config, states, message)
+    research = None
+    if should_search(message):
+        research = await search_web(message, max_results=5)
+        house_context = f"{house_context}\n\n{format_search_context(research)}"
     recent_context = _recent_context(assistant_id, user_id, conversation_id)
     response = get_ai_client().general_chat(
         message,
@@ -49,6 +54,7 @@ async def answer_general(
         "data": {
             "house_context": house_context,
             "conversation_context": recent_context,
+            "research": research,
         },
     }
 

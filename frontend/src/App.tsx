@@ -15,6 +15,7 @@ import Suggestions from "./pages/Suggestions";
 import Brain from "./pages/Brain";
 import DeviceProfiles from "./pages/DeviceProfiles";
 import MemoryCenter from "./pages/MemoryCenter";
+import Notebook from "./pages/Notebook";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
 
@@ -26,6 +27,7 @@ const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean 
     items: [
       { to: "/", label: "Dashboard", end: true },
       { to: "/chat", label: "Chat" },
+      { to: "/notebook", label: "Notebook" },
       { to: "/jarvis", label: "Brain" },
       { to: "/suggestions", label: "Suggestions" },
     ],
@@ -114,6 +116,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/notebook" element={<Notebook />} />
           <Route path="/jarvis" element={<Brain />} />
           <Route path="/setup" element={<Setup />} />
           <Route path="/house-brain" element={<Navigate to="/jarvis" replace />} />

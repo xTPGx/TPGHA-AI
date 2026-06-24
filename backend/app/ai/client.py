@@ -359,7 +359,7 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
             "include_voice": any(k in text for k in ["voice", "assistant", "mic", "microphone"]),
         }, source="fallback")
 
-    if "dashboard" in text or "open" in text:
+    if "dashboard" in text and re.search(r"\b(open|show|pull up|navigate|go to|display|launch)\b", text):
         return ToolCall("open_dashboard", {"target": text}, source="fallback")
 
     return ToolCall("", {}, source="fallback", assistant_text="I'm not sure which action you meant.")

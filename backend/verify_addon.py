@@ -541,6 +541,53 @@ def main() -> int:
           body.get("command", {}).get("data", {}).get("policy", {}).get("decision") == "proposal_required",
           str(body))
 
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "conversation_id": "verify-notebook-session",
+        "message": "Let's brainstorm a cleaner office dashboard layout.",
+    })
+    check("/chat notebook seed returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+
+    r = client.get("/conversations")
+    check("/conversations returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/conversations includes seeded session",
+          any(c.get("conversation_id") == "verify-notebook-session" for c in r.json().get("conversations", [])),
+          str(r.json()))
+
+    r = client.post("/conversations/verify-notebook-session/notes", json={
+        "conversation_id": "verify-notebook-session",
+        "assistant": "atlas",
+        "user": "shawn",
+        "title": "Office dashboard",
+        "body": "Keep lighting, fan, camera, and music controls together.",
+    })
+    check("/conversations/{id}/notes creates note",
+          r.status_code == 200 and r.json().get("note", {}).get("title") == "Office dashboard",
+          r.text)
+
+    r = client.get("/conversations/verify-notebook-session")
+    check("/conversations/{id} returns transcript",
+          r.status_code == 200 and len(r.json().get("messages", [])) >= 1,
+          r.text)
+    check("/conversations/{id} includes notes",
+          len(r.json().get("notes", [])) >= 1,
+          r.text)
+
+    r = client.get("/conversations/verify-notebook-session/export")
+    check("/conversations/{id}/export returns markdown JSON",
+          r.status_code == 200 and "# " in r.json().get("markdown", ""),
+          r.text)
+
+    r = client.post("/research/search", json={"query": "", "max_results": 3})
+    check("/research/search returns structured JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/research/search validates query without crashing",
+          r.json().get("error") == "Query is required.",
+          str(r.json()))
+
     r = client.get("/debug/last-command")
     check("/debug/last-command returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -633,6 +680,10 @@ def main() -> int:
     check("unknown memory API route is JSON 404",
           r.status_code == 404 and is_json(r) and not is_html(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.get("/conversations/does-not-exist/extra")
+    check("unknown conversations API route is JSON 404",
+          r.status_code == 404 and is_json(r) and not is_html(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
 
     print("Frontend routes return HTML")
     r = client.get("/")
@@ -646,6 +697,9 @@ def main() -> int:
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/chat")
     check("GET ingress chat route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/notebook")
+    check("GET ingress notebook route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/suggestions")
     check("GET ingress suggestions route is HTML", is_html(r),

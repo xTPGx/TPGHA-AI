@@ -42,9 +42,11 @@ from .models.schemas import (
     ConfirmRequest,
     DashboardDraftRequest,
     DraftUpdateRequest,
+    ConversationNoteRequest,
     IgnoreRequest,
     MapRequest,
     MemoryDraftRequest,
+    ResearchSearchRequest,
     Assistant,
     MusicAccountUpsert,
     PermissionsUpsert,
@@ -68,7 +70,9 @@ from .brain import build_brain_layers, build_completion_status
 from .device_adapters import build_device_adapters
 from .outcomes import build_device_profiles
 from . import memory as memory_store
+from . import notebook as notebook_store
 from . import proactive as proactive_store
+from . import research as research_store
 from .router.resolver import Resolver
 from .settings import get_settings
 from .voice import (
@@ -91,13 +95,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.13"
+APP_VERSION = "1.0.14"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "debug", "knowledge", "memory", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
+    "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
 
@@ -107,7 +111,7 @@ _API_PREFIXES = (
 # names such as discovery/chat/suggestions/ha; those must serve index.html.
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "config", "command", "confirm",
-    "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "brain",
+    "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain",
     "ai", "voice", "test", "tools", "docs", "redoc", "openapi.json",
 )
 
@@ -830,6 +834,48 @@ async def memory_ignore(memory_id: int):
         return {"memory": memory_store.ignore_memory(memory_id)}
     except KeyError:
         raise HTTPException(status_code=404, detail="Memory not found")
+
+
+# --------------------------------------------------------------- notebook
+@app.get("/conversations")
+async def conversations(limit: int = 50):
+    return {"conversations": notebook_store.list_conversations(limit=limit)}
+
+
+@app.get("/conversations/{conversation_id}")
+async def conversation_detail(conversation_id: str):
+    return notebook_store.conversation_detail(conversation_id)
+
+
+@app.post("/conversations/{conversation_id}/notes")
+async def conversation_note(conversation_id: str, req: ConversationNoteRequest):
+    if req.conversation_id and req.conversation_id != conversation_id:
+        raise HTTPException(status_code=400, detail="Conversation ID mismatch.")
+    if not req.body.strip():
+        raise HTTPException(status_code=400, detail="Note body is required.")
+    return {"note": notebook_store.add_note(
+        conversation_id,
+        assistant=req.assistant or "",
+        user=req.user or "",
+        title=req.title,
+        body=req.body,
+        source=req.source,
+    )}
+
+
+@app.get("/conversations/{conversation_id}/export")
+async def conversation_export(conversation_id: str):
+    return {
+        "conversation_id": conversation_id,
+        "filename": f"tpg-homeai-{conversation_id}.md",
+        "markdown": notebook_store.export_markdown(conversation_id),
+    }
+
+
+# --------------------------------------------------------------- research
+@app.post("/research/search")
+async def research_search(req: ResearchSearchRequest):
+    return await research_store.search_web(req.query, req.max_results)
 
 
 # ------------------------------------------------------------ dashboards

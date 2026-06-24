@@ -1,6 +1,7 @@
 const APP_ROUTES = new Set([
   "",
   "chat",
+  "notebook",
   "suggestions",
   "jarvis",
   "house-brain",

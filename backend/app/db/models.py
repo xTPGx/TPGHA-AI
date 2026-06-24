@@ -124,3 +124,19 @@ class Suggestion(Base):
     action_type: Mapped[str] = mapped_column(String(64), default="")
     payload: Mapped[str] = mapped_column(Text, default="{}")  # JSON object
     status: Mapped[str] = mapped_column(String(32), default="suggested")
+
+
+class ConversationNote(Base):
+    """User-authored notes attached to a brainstorming/chat session."""
+
+    __tablename__ = "conversation_note"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    conversation_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    assistant: Mapped[str] = mapped_column(String(64), default="")
+    user: Mapped[str] = mapped_column(String(64), default="")
+    title: Mapped[str] = mapped_column(String(255), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(64), default="user")

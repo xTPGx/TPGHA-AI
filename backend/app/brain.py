@@ -117,6 +117,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Automatically draft memory from repeated corrections and user preferences.",
         },
         {
+            "id": "conversation_notebook",
+            "title": "Conversation Notebook + Research",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "General chat sessions are persisted through the command audit log.",
+                "Notebook UI can browse past conversations and attach session notes.",
+                "Conversation transcripts export as Markdown for ChatGPT, docs, or sharing.",
+                "Read-only web search is available for current/research questions and can feed general chat context.",
+            ],
+            "next": "Add uploaded file/floor-plan workspace with approval-first extraction into house context.",
+        },
+        {
             "id": "voice_layer",
             "title": "Voice Layer",
             "status": "ready" if voice_ready else "partial",
@@ -365,6 +378,20 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
             ],
             [],
             "The system learns preferences through approved memory, not unsafe hidden mutation.",
+        ),
+        _gate(
+            "notebook_research",
+            "Notebook + Web Research",
+            True,
+            True,
+            [
+                "Conversation sessions can be browsed in TPG HomeAI.",
+                "Users can attach notes to a conversation.",
+                "Conversation exports produce Markdown for ChatGPT or external sharing.",
+                "Read-only web search can be used directly and injected into general chat context.",
+            ],
+            [],
+            "Brainstorming and research sessions stay inside Home Assistant and can be exported when needed.",
         ),
         _gate(
             "proactive_suggestions",

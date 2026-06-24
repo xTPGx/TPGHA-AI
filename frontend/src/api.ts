@@ -191,6 +191,22 @@ export const api = {
     http<any>(`/memory/${id}/approve`, { method: "POST" }),
   ignoreMemory: (id: number) =>
     http<any>(`/memory/${id}/ignore`, { method: "POST" }),
+  conversations: (limit = 50) =>
+    http<any>(`/conversations?limit=${encodeURIComponent(String(limit))}`),
+  conversation: (conversationId: string) =>
+    http<any>(`/conversations/${encodeURIComponent(conversationId)}`),
+  addConversationNote: (conversationId: string, body: Record<string, any>) =>
+    http<any>(`/conversations/${encodeURIComponent(conversationId)}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ ...body, conversation_id: conversationId }),
+    }),
+  exportConversation: (conversationId: string) =>
+    http<any>(`/conversations/${encodeURIComponent(conversationId)}/export`),
+  researchSearch: (query: string, maxResults = 5) =>
+    http<any>("/research/search", {
+      method: "POST",
+      body: JSON.stringify({ query, max_results: maxResults }),
+    }),
   dashboardDraft: (body: Record<string, any>) =>
     http<any>("/dashboards/draft", { method: "POST", body: JSON.stringify(body) }),
   dashboardInstall: (body: Record<string, any>) =>

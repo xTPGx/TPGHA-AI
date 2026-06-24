@@ -418,6 +418,20 @@ class MemoryDraftRequest(BaseModel):
     source: str = "user"
 
 
+class ConversationNoteRequest(BaseModel):
+    conversation_id: str
+    assistant: Optional[str] = None
+    user: Optional[str] = None
+    title: str = "Note"
+    body: str
+    source: str = "web_ui"
+
+
+class ResearchSearchRequest(BaseModel):
+    query: str
+    max_results: int = 5
+
+
 class HAEntity(BaseModel):
     entity_id: str
     state: str
