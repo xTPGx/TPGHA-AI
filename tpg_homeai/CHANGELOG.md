@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.10
+
+- Moved wake-word and voice-source deployment management into the Assistant page.
+- Removed Voice Sources from the main navigation; old `/voice-sources` links now redirect to Assistants.
+- Kept Brain as the single Jarvis/Home intelligence area; old `/house-brain` links now redirect to Brain.
+- Updated first-run setup links so wake-word setup sends users to Assistants instead of a separate voice-source page.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.9
 
 - Moved voice testing, preview, and voice catalog into the Assistant editor.

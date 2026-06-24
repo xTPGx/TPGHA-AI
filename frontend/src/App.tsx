@@ -16,8 +16,6 @@ import Brain from "./pages/Brain";
 import DeviceProfiles from "./pages/DeviceProfiles";
 import MemoryCenter from "./pages/MemoryCenter";
 import DashboardBuilder from "./pages/DashboardBuilder";
-import VoiceSources from "./pages/VoiceSources";
-import HouseBrain from "./pages/HouseBrain";
 import Setup from "./pages/Setup";
 
 type NavItem = { to: string; label: string; end?: boolean };
@@ -40,7 +38,6 @@ const navGroups: Array<{ label: string; items: NavItem[]; collapsible?: boolean 
       { to: "/discovery", label: "Discovery" },
       { to: "/rooms", label: "Rooms" },
       { to: "/assistants", label: "Assistants" },
-      { to: "/voice-sources", label: "Voice Sources" },
       { to: "/users", label: "Users" },
       { to: "/music", label: "Music" },
     ],
@@ -119,12 +116,12 @@ export default function App() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/jarvis" element={<Brain />} />
           <Route path="/setup" element={<Setup />} />
-          <Route path="/house-brain" element={<HouseBrain />} />
+          <Route path="/house-brain" element={<Navigate to="/jarvis" replace />} />
           <Route path="/profiles" element={<DeviceProfiles />} />
           <Route path="/memory-center" element={<MemoryCenter />} />
           <Route path="/dashboard-builder" element={<DashboardBuilder />} />
           <Route path="/voice-settings" element={<Navigate to="/assistants" replace />} />
-          <Route path="/voice-sources" element={<VoiceSources />} />
+          <Route path="/voice-sources" element={<Navigate to="/assistants" replace />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/ha" element={<HAStatus />} />
           <Route path="/discovery" element={<Discovery />} />

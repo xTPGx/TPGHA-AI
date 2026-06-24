@@ -84,7 +84,7 @@ export default function Setup() {
       title: "Wake words and voice sources",
       ok: (cfg?.devices?.voice_sources?.length || 0) > 0,
       detail: `${voice?.counts?.assistants_ready || 0}/${voice?.counts?.assistants || 0} assistants ready · ${voice?.counts?.ready || 0} sources ready`,
-      to: "/voice-sources",
+      to: "/assistants",
     },
     {
       title: "Permissions policy",

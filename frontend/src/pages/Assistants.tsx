@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import PageHeader from "../components/PageHeader";
+import VoiceSources from "./VoiceSources";
 
 const emptyAssistant = {
   id: "",
@@ -297,6 +298,10 @@ export default function Assistants() {
           );
         })}
       </div>
+
+      <section className="mt-8">
+        <VoiceSources embedded />
+      </section>
     </div>
   );
 }

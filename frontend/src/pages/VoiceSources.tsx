@@ -16,7 +16,7 @@ const emptySource = {
   aliases: "",
 };
 
-export default function VoiceSources() {
+export default function VoiceSources({ embedded = false }: { embedded?: boolean }) {
   const [items, setItems] = useState<any[]>([]);
   const [cfg, setCfg] = useState<any>(null);
   const [editor, setEditor] = useState<any | null>(null);
@@ -63,11 +63,24 @@ export default function VoiceSources() {
 
   return (
     <div>
-      <PageHeader
-        title="Voice Sources"
-        subtitle="Deploy assistant wake words onto microphones, tablets, panels, and HA Assist satellites."
-        actions={<div className="flex gap-2"><button className="btn-ghost" onClick={() => void load()}>Refresh</button><button className="btn" onClick={() => editSource()}>Add Voice Source</button></div>}
-      />
+      {embedded ? (
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xl font-bold text-slate-100">Wake Word Deployment</div>
+            <div className="text-sm text-slate-400">Map assistants to microphones, tablets, panels, and HA Assist satellites.</div>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-ghost" onClick={() => void load()}>Refresh</button>
+            <button className="btn" onClick={() => editSource()}>Add Voice Source</button>
+          </div>
+        </div>
+      ) : (
+        <PageHeader
+          title="Voice Sources"
+          subtitle="Deploy assistant wake words onto microphones, tablets, panels, and HA Assist satellites."
+          actions={<div className="flex gap-2"><button className="btn-ghost" onClick={() => void load()}>Refresh</button><button className="btn" onClick={() => editSource()}>Add Voice Source</button></div>}
+        />
+      )}
 
       {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
