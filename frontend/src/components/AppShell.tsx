@@ -32,6 +32,7 @@ export default function AppShell({
   const location = useLocation();
   const navigate = useNavigate();
   const canGoBack = location.pathname !== "/";
+  const isChatWorkspace = location.pathname === "/chat" || location.pathname === "/notebook";
 
   useEffect(() => setOpen(false), [location.pathname]);
 
@@ -45,7 +46,7 @@ export default function AppShell({
   }, [open]);
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_28rem),#07111f] text-slate-100">
+    <div className="app-shell min-h-screen overflow-x-hidden bg-[#070d18] text-slate-100">
       <header className="compact-header sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 px-3 py-2 backdrop-blur xl:hidden">
         <div className="flex min-h-12 items-center justify-between gap-3">
           {canGoBack && (
@@ -79,7 +80,7 @@ export default function AppShell({
       </header>
 
       <div className="flex min-h-screen min-w-0">
-        <aside className="wide-sidebar hidden w-[17.5rem] shrink-0 border-r border-slate-800/80 bg-slate-950/70 p-4 backdrop-blur xl:block">
+        <aside className="wide-sidebar hidden w-[16.5rem] shrink-0 border-r border-white/10 bg-[#080d18]/95 p-3 backdrop-blur xl:block">
           <ShellNav
             navGroups={navGroups}
             role={role}
@@ -124,8 +125,11 @@ export default function AppShell({
         )}
 
         <main className="min-w-0 flex-1 overflow-x-hidden">
-          <div className="mx-auto w-full max-w-[96rem] px-3 py-4 sm:px-5 lg:px-6 xl:py-6">
-            {canGoBack && (
+          <div className={isChatWorkspace
+            ? "h-[calc(100vh-4.0625rem)] w-full overflow-hidden xl:h-screen"
+            : "mx-auto w-full max-w-[96rem] px-3 py-4 sm:px-5 lg:px-6 xl:py-6"
+          }>
+            {canGoBack && !isChatWorkspace && (
               <button
                 className="mb-4 hidden min-h-11 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-sky-400/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300/70 xl:inline-flex"
                 onClick={() => navigate(-1)}
@@ -165,18 +169,24 @@ function ShellNav({
   const location = useLocation();
   return (
     <div className="flex min-h-full flex-col">
-      <div className="mb-6 hidden xl:block">
-        <div className="text-xl font-bold text-sky-300">TPG HomeAI</div>
-        <div className="text-xs text-slate-500">Orchestrator</div>
+      <div className="mb-5 hidden xl:block">
+        <div className="text-base font-bold text-sky-300">TPG HomeAI</div>
+        <div className="text-xs text-slate-500">House intelligence</div>
       </div>
 
       {sessionUser && (
-        <div className="mb-5 rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Signed in</div>
-          <div className="truncate text-sm font-semibold text-slate-100">{sessionUser.name}</div>
-          <div className="text-xs text-slate-500">{roleLabel(sessionRole)}</div>
+        <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.035] p-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-400/15 text-xs font-bold text-sky-200">
+              {(sessionUser.name || "H").slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-slate-100">{sessionUser.name}</div>
+              <div className="text-xs text-slate-500">{roleLabel(sessionRole)}</div>
+            </div>
+          </div>
           {haUserCandidates.length > 0 && (
-            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px] text-slate-400">
+            <div className="mt-2 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-slate-400">
               HA login: {haUserCandidates.join(", ")}
             </div>
           )}
@@ -200,7 +210,7 @@ function ShellNav({
         </div>
       )}
 
-      <nav className="flex flex-col gap-5">
+      <nav className="flex flex-col gap-4">
         {navGroups.map((group) => {
           const visible = group.items.filter((item) => item.roles.includes(role));
           if (!visible.length) return null;
@@ -213,10 +223,10 @@ function ShellNav({
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `min-h-11 rounded-xl px-3 py-2.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-sky-300/70 ${
+                    `min-h-10 rounded-xl px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-sky-300/70 ${
                       isActive
-                        ? "border border-sky-400/30 bg-sky-400/14 text-sky-100"
-                        : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                        ? "bg-sky-400/14 text-sky-100"
+                        : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                     }`
                   }
                 >

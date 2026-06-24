@@ -13,7 +13,7 @@ body {
   max-width: 100%;
   overflow-x: hidden;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: #07111f;
+  background: #070d18;
 }
 
 * {
@@ -41,19 +41,34 @@ button {
 
 @layer components {
   .card {
-    @apply min-w-0 max-w-full rounded-2xl border border-slate-700/60 bg-slate-900/60 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.22)] backdrop-blur sm:p-5;
+    @apply min-w-0 max-w-full rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.20)] backdrop-blur sm:p-5;
   }
   .btn {
     @apply min-h-11 rounded-xl border border-sky-400/30 bg-brand-dark px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand focus:outline-none focus:ring-2 focus:ring-sky-300/70 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
-    @apply min-h-11 rounded-xl border border-slate-600/80 bg-slate-900/30 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300/70 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply min-h-11 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-400/50 hover:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-sky-300/70 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .input {
-    @apply min-h-11 w-full min-w-0 rounded-xl border border-slate-600/80 bg-slate-950/45 px-3 py-2 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-sky-400/20;
+    @apply min-h-11 w-full min-w-0 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-sky-400/20;
   }
   .badge {
     @apply inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium;
+  }
+  .chat-icon-btn {
+    @apply inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-slate-200 transition hover:border-sky-400/40 hover:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-sky-300/60 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .chat-pill {
+    @apply inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-slate-300 transition hover:border-sky-400/40 hover:bg-white/[0.08] hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300/60;
+  }
+  .chat-send-btn {
+    @apply min-h-11 rounded-xl bg-sky-500 px-4 text-sm font-semibold text-white transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-300/70 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400;
+  }
+  .chat-user-bubble {
+    @apply rounded-2xl bg-sky-500 px-4 py-3 text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.20)];
+  }
+  .chat-assistant-bubble {
+    @apply rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-slate-100 shadow-[0_12px_32px_rgba(0,0,0,0.18)];
   }
 }
 
@@ -69,4 +84,30 @@ button {
   .code-scroll {
     @apply max-w-full overflow-x-auto rounded-xl bg-black/40 p-3 text-xs leading-relaxed text-slate-300;
   }
+}
+
+* {
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }

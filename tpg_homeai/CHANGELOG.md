@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.24
+
+- Rebuilt the Chat workspace into a full-height ChatGPT-style surface with a persistent conversation rail on tablet/desktop and a drawer on mobile.
+- Removed the stacked history-above-chat layout that made HA ingress feel cramped and confusing.
+- Tightened the global app shell with a quieter sidebar, full-width chat route, cleaner cards, polished scrollbars, and modern chat composer styling.
+- Added prompt starters, sleeker message bubbles, and compact Notes access inside Chat.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.23
 
 - Set add-on `panel_admin: false` so the native Home Assistant sidebar entry is available to HA non-admin users, not only owners.

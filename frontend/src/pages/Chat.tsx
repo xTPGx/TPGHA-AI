@@ -167,9 +167,14 @@ function transcriptMessages(detail: any): Msg[] {
   });
 }
 
+function quickPrompt(text: string) {
+  return text;
+}
+
 export default function Chat() {
   const [conversationId, setConversationId] = useState(() => id());
   const [activeTab, setActiveTab] = useState<"chat" | "notebook">("chat");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [config, setConfig] = useState<any>(null);
   const [assistant, setAssistant] = useState("atlas");
@@ -208,6 +213,7 @@ export default function Chat() {
       setDetail(response);
       setMessages(transcriptMessages(response));
       setActiveTab("chat");
+      setHistoryOpen(false);
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {
@@ -220,6 +226,7 @@ export default function Chat() {
     setMessages([]);
     setDetail(null);
     setActiveTab("chat");
+    setHistoryOpen(false);
   };
 
   useEffect(() => {
@@ -479,78 +486,72 @@ export default function Chat() {
     recognition.start();
   };
 
+  const sidebar = (
+    <ConversationRail
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      conversations={conversations}
+      conversationId={conversationId}
+      selectedAssistant={selectedAssistant}
+      selectedUser={selectedUser}
+      sessionRole={session?.role || "profile"}
+      speakResponses={speakResponses}
+      setSpeakResponses={setSpeakResponses}
+      newChat={newChat}
+      loadConversation={loadConversation}
+      close={() => setHistoryOpen(false)}
+    />
+  );
+
   return (
-    <div className="grid min-h-[calc(100vh-7rem)] gap-4 xl:grid-cols-[19rem_minmax(0,1fr)]">
-      <aside className="card flex max-h-[calc(100vh-8rem)] min-h-[18rem] flex-col overflow-hidden p-3">
-        <div className="mb-3 flex items-center gap-2">
-          <Button className="min-h-10 flex-1 px-3 py-2 text-sm" onClick={newChat}>New chat</Button>
-          <Button
-            variant="ghost"
-            className="min-h-10 px-3 py-2 text-sm"
-            onClick={() => setSpeakResponses((v) => !v)}
-            title="Toggle spoken replies"
-          >
-            {speakResponses ? "Voice on" : "Voice off"}
-          </Button>
-        </div>
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <button
-            className={`rounded-lg border px-3 py-2 text-sm ${activeTab === "chat" ? "border-sky-400/50 bg-sky-400/15 text-sky-100" : "border-slate-800 bg-slate-950/30 text-slate-300"}`}
-            onClick={() => setActiveTab("chat")}
-          >
-            Chat
-          </button>
-          <button
-            className={`rounded-lg border px-3 py-2 text-sm ${activeTab === "notebook" ? "border-sky-400/50 bg-sky-400/15 text-sky-100" : "border-slate-800 bg-slate-950/30 text-slate-300"}`}
-            onClick={() => setActiveTab("notebook")}
-          >
-            Notebook
-          </button>
-        </div>
-        <div className="mb-3 rounded-xl border border-slate-800 bg-slate-950/35 p-3">
-          <div className="text-sm font-semibold text-slate-100">{selectedAssistant?.name || assistant}</div>
-          <div className="mt-1 text-xs text-slate-500">{selectedUser?.name || user} · {session?.role || "profile"}</div>
-        </div>
-        <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Conversations</div>
-        <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1">
-          {conversations.map((item) => (
-            <button
-              key={item.conversation_id}
-              className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
-                item.conversation_id === conversationId
-                  ? "border-sky-400/50 bg-sky-400/15 text-slate-100"
-                  : "border-slate-800 bg-slate-950/35 text-slate-300 hover:border-slate-600"
-              }`}
-              onClick={() => void loadConversation(item.conversation_id)}
-            >
-              <div className="line-clamp-2 font-medium">{item.title}</div>
-              <div className="mt-1 text-xs text-slate-500">{item.message_count} messages · {item.note_count} notes</div>
-            </button>
-          ))}
-          {conversations.length === 0 && <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-500">No saved chats yet.</div>}
-        </div>
+    <div className="relative flex h-full min-h-0 bg-[#070d18] text-slate-100">
+      <aside className="hidden w-[18rem] shrink-0 border-r border-white/10 bg-[#090f1c] md:block">
+        {sidebar}
       </aside>
 
-      <main className="flex min-h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/35">
-        <div className="flex min-h-16 items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate text-lg font-bold text-slate-100">{selectedAssistant?.name || "TPG AI"}</div>
-            <div className="truncate text-xs text-slate-500">Signed in as {selectedUser?.name || "current HA user"}</div>
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button className="absolute inset-0 bg-black/60" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" />
+          <aside className="relative h-full w-[min(21rem,88vw)] border-r border-white/10 bg-[#090f1c] shadow-2xl">
+            {sidebar}
+          </aside>
+        </div>
+      )}
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[#070d18]/95 px-3 backdrop-blur sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <button className="chat-icon-btn md:hidden" onClick={() => setHistoryOpen(true)} aria-label="Open chat history">
+              <span className="block h-0.5 w-5 rounded bg-current" />
+              <span className="block h-0.5 w-5 rounded bg-current" />
+              <span className="block h-0.5 w-5 rounded bg-current" />
+            </button>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-slate-100 sm:text-base">{selectedAssistant?.name || "TPG HomeAI"}</div>
+              <div className="truncate text-xs text-slate-500">{selectedUser?.name || "Home Assistant user"} profile</div>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
-              className={`btn-ghost min-h-10 px-3 py-2 text-sm ${listening ? "border-rose-400 bg-rose-500/20 text-rose-100" : ""}`}
+              className={`chat-pill ${activeTab === "notebook" ? "border-sky-400/50 bg-sky-400/15 text-sky-100" : ""}`}
+              onClick={() => setActiveTab(activeTab === "notebook" ? "chat" : "notebook")}
+            >
+              {activeTab === "notebook" ? "Chat" : "Notes"}
+            </button>
+            <button
+              className={`chat-icon-btn ${listening ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
               onClick={toggleListening}
               disabled={busy || !speechSupported}
               title={speechSupported ? "Use microphone" : "Voice input is not supported in this browser"}
+              aria-label="Use microphone"
             >
-              {listening ? "Stop" : "Mic"}
+              Mic
             </button>
           </div>
-        </div>
+        </header>
 
-        {error && <div className="mx-4 mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
-        {voiceError && <div className="mx-4 mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100">{voiceError}</div>}
+        {error && <div className="mx-4 mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
+        {voiceError && <div className="mx-4 mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">{voiceError}</div>}
 
         {activeTab === "notebook" ? (
           <NotebookPanel
@@ -564,94 +565,32 @@ export default function Chat() {
           />
         ) : (
           <>
-            <section className="min-h-0 flex-1 space-y-5 overflow-auto px-4 py-6">
-              {messages.length === 0 && (
-                <div className="mx-auto flex min-h-[22rem] max-w-3xl flex-col items-center justify-center text-center">
-                  <div className="text-2xl font-semibold text-slate-100">What do you want to do?</div>
-                  <div className="mt-3 max-w-xl text-sm leading-relaxed text-slate-400">
-                    Ask anything, brainstorm, control devices, or create a scheduled task like “turn off all lights at 10PM.”
-                  </div>
+            <section className="min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-6">
+              <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
+                {messages.length === 0 && (
+                  <EmptyState assistantName={selectedAssistant?.name || "TPG HomeAI"} onPrompt={(prompt) => void send(prompt)} />
+                )}
+                <div className="space-y-6">
+                  {messages.map((m) => (
+                    <MessageBubble
+                      key={m.id}
+                      message={m}
+                      busy={busy}
+                      executePreview={executePreview}
+                      appendAssistant={appendAssistant}
+                      installDraft={installDraft}
+                      confirm={confirm}
+                      cancel={cancel}
+                    />
+                  ))}
                 </div>
-              )}
-              {messages.map((m) => {
-                const automationDraftId = draftId(m.command);
-                return (
-                  <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[min(48rem,92%)] rounded-2xl border px-4 py-3 text-sm shadow-lg ${
-                      m.role === "user"
-                        ? "border-sky-400/30 bg-sky-500/20 text-slate-50"
-                        : m.kind === "preview"
-                          ? "border-cyan-400/50 bg-cyan-950/45 text-slate-100"
-                          : "border-slate-700 bg-slate-950/62 text-slate-200"
-                    }`}>
-                      {m.mode && <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-300">{m.mode}</div>}
-                      <div className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</div>
-
-                      {m.command && (
-                        <div className="mt-3 space-y-2 rounded-xl border border-slate-700/70 bg-slate-950/50 p-3 text-xs text-slate-300">
-                          <div className="flex flex-wrap gap-2">
-                            {m.command.intent && <Badge tone="brand">{m.command.intent}</Badge>}
-                            {m.command.data?.policy?.decision && <Badge>{m.command.data.policy.decision}</Badge>}
-                            {m.command.requires_confirmation && <Badge tone="warn">confirmation</Badge>}
-                            {automationDraftId && <Badge tone="warn">draft {automationDraftId}</Badge>}
-                          </div>
-                          <div className="grid gap-1">
-                            {targetSummary(m.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(m.command)}</div>}
-                            {serviceSummary(m.command) && <div><span className="text-slate-500">Service:</span> {serviceSummary(m.command)}</div>}
-                          </div>
-                          {outcomeLabel(m.command) && (
-                            <div className={m.command.data?.outcome?.verified === false ? "text-amber-200" : "text-emerald-200"}>
-                              <span className="text-slate-500">Outcome:</span> {outcomeLabel(m.command)}
-                            </div>
-                          )}
-                          {m.command.data?.security?.pin_required && <div className="text-amber-200">Security PIN required</div>}
-                          <DeveloperDetails data={{ tool_call: m.command.tool_call, resolved: m.command.resolved, data: m.command.data }} />
-                        </div>
-                      )}
-
-                      {m.kind === "preview" && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button className="px-3 py-1.5 text-xs" onClick={() => void executePreview(m)} disabled={busy}>
-                            {m.command?.requires_confirmation ? "Request confirmation" : PROPOSAL_INTENTS.has(m.command?.intent || "") ? "Create draft" : "Execute"}
-                          </Button>
-                          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => appendAssistant({ text: "Cancelled.", mode: "cancelled" })} disabled={busy}>
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
-
-                      {automationDraftId && m.kind !== "preview" && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button className="px-3 py-1.5 text-xs" onClick={() => void installDraft(automationDraftId)} disabled={busy}>
-                            Install in HA
-                          </Button>
-                        </div>
-                      )}
-
-                      {m.kind === "confirmation" && m.command?.confirmation_token && (
-                        <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
-                          <div className="font-semibold text-amber-100">Confirm action</div>
-                          <div className="mt-1 text-xs text-amber-100/80">Review the target and confirm only if it is correct.</div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <Button variant="warning" className="px-3 py-1.5 text-xs" onClick={() => void confirm(m.command!.confirmation_token!)} disabled={busy}>
-                              Confirm
-                            </Button>
-                            <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void cancel(m.command!.confirmation_token!)} disabled={busy}>
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              </div>
             </section>
 
-            <div className="border-t border-slate-800 bg-slate-950/65 p-3">
-              <div className="flex gap-2">
+            <div className="shrink-0 border-t border-white/10 bg-[#070d18]/95 px-3 py-3 backdrop-blur sm:px-6">
+              <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-white/10 bg-[#0b1220] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.32)]">
                 <textarea
-                  className="input min-h-[3.5rem] flex-1 resize-none rounded-2xl"
+                  className="min-h-[3rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => {
@@ -660,16 +599,215 @@ export default function Chat() {
                       void send();
                     }
                   }}
-                  placeholder={listening ? "Listening..." : "Message TPG HomeAI..."}
+                  placeholder={listening ? "Listening..." : "Message TPG HomeAI"}
                 />
-                <Button className="self-stretch rounded-2xl px-5" onClick={() => void send()} disabled={busy}>
-                  {busy ? "Thinking..." : "Send"}
-                </Button>
+                <button className="chat-send-btn" onClick={() => void send()} disabled={busy || !text.trim()}>
+                  {busy ? "..." : "Send"}
+                </button>
               </div>
             </div>
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function ConversationRail({
+  activeTab,
+  setActiveTab,
+  conversations,
+  conversationId,
+  selectedAssistant,
+  selectedUser,
+  sessionRole,
+  speakResponses,
+  setSpeakResponses,
+  newChat,
+  loadConversation,
+  close,
+}: {
+  activeTab: "chat" | "notebook";
+  setActiveTab: (tab: "chat" | "notebook") => void;
+  conversations: any[];
+  conversationId: string;
+  selectedAssistant: any;
+  selectedUser: any;
+  sessionRole: string;
+  speakResponses: boolean;
+  setSpeakResponses: (value: boolean) => void;
+  newChat: () => void;
+  loadConversation: (id: string) => Promise<void>;
+  close: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col p-3">
+      <div className="mb-3 flex items-center justify-between gap-2 md:hidden">
+        <div className="text-sm font-semibold text-slate-100">Workspace</div>
+        <button className="chat-pill" onClick={close}>Close</button>
+      </div>
+      <button className="mb-3 min-h-11 rounded-xl bg-sky-500 px-4 text-sm font-semibold text-white transition hover:bg-sky-400" onClick={newChat}>
+        New chat
+      </button>
+      <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+        <button
+          className={`rounded-lg px-3 py-2 text-sm transition ${activeTab === "chat" ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-100"}`}
+          onClick={() => setActiveTab("chat")}
+        >
+          Chat
+        </button>
+        <button
+          className={`rounded-lg px-3 py-2 text-sm transition ${activeTab === "notebook" ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-100"}`}
+          onClick={() => setActiveTab("notebook")}
+        >
+          Notes
+        </button>
+      </div>
+      <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="truncate text-sm font-semibold text-slate-100">{selectedAssistant?.name || "Assistant"}</div>
+        <div className="mt-1 truncate text-xs text-slate-500">{selectedUser?.name || "HA user"} · {sessionRole}</div>
+        <button
+          className={`mt-3 w-full rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+            speakResponses
+              ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100"
+              : "border-white/10 bg-black/20 text-slate-300"
+          }`}
+          onClick={() => setSpeakResponses(!speakResponses)}
+        >
+          {speakResponses ? "Voice replies on" : "Voice replies off"}
+        </button>
+      </div>
+      <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recent chats</div>
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+        {conversations.map((item) => (
+          <button
+            key={item.conversation_id}
+            className={`group w-full rounded-xl px-3 py-2.5 text-left transition ${
+              item.conversation_id === conversationId ? "bg-sky-400/14 text-slate-100" : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100"
+            }`}
+            onClick={() => void loadConversation(item.conversation_id)}
+          >
+            <div className="line-clamp-2 text-sm font-medium leading-snug">{item.title}</div>
+            <div className="mt-1 text-xs text-slate-600 group-hover:text-slate-500">{item.message_count} messages · {item.note_count} notes</div>
+          </button>
+        ))}
+        {conversations.length === 0 && <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-500">No saved chats yet.</div>}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ assistantName, onPrompt }: { assistantName: string; onPrompt: (prompt: string) => void }) {
+  const prompts = [
+    "Create scheduled task. Turn off all lights at 10PM.",
+    "What should I improve in my smart home?",
+    "Build a dashboard for the office.",
+    "What is the weather today?",
+  ];
+  return (
+    <div className="flex flex-1 flex-col justify-center py-10">
+      <div className="mb-8 text-center">
+        <div className="text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">{assistantName}</div>
+        <div className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-400">
+          Ask anything, brainstorm, manage the house, or create Home Assistant changes from natural language.
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {prompts.map((prompt) => (
+          <button
+            key={prompt}
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-slate-300 transition hover:border-sky-400/40 hover:bg-sky-400/10 hover:text-slate-100"
+            onClick={() => onPrompt(quickPrompt(prompt))}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  busy,
+  executePreview,
+  appendAssistant,
+  installDraft,
+  confirm,
+  cancel,
+}: {
+  message: Msg;
+  busy: boolean;
+  executePreview: (msg: Msg) => Promise<void>;
+  appendAssistant: (msg: Omit<Msg, "id" | "role">) => void;
+  installDraft: (id: number) => Promise<void>;
+  confirm: (token: string) => Promise<void>;
+  cancel: (token: string) => Promise<void>;
+}) {
+  const automationDraftId = draftId(message.command);
+  const isUser = message.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[min(42rem,92%)] ${isUser ? "chat-user-bubble" : "chat-assistant-bubble"}`}>
+        {message.mode && !isUser && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">{message.mode}</div>}
+        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
+
+        {message.command && (
+          <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-300">
+            <div className="flex flex-wrap gap-2">
+              {message.command.intent && <Badge tone="brand">{message.command.intent}</Badge>}
+              {message.command.data?.policy?.decision && <Badge>{message.command.data.policy.decision}</Badge>}
+              {message.command.requires_confirmation && <Badge tone="warn">confirmation</Badge>}
+              {automationDraftId && <Badge tone="warn">draft {automationDraftId}</Badge>}
+            </div>
+            <div className="grid gap-1">
+              {targetSummary(message.command) && <div><span className="text-slate-500">Target:</span> {targetSummary(message.command)}</div>}
+              {serviceSummary(message.command) && <div><span className="text-slate-500">Service:</span> {serviceSummary(message.command)}</div>}
+            </div>
+            {outcomeLabel(message.command) && (
+              <div className={message.command.data?.outcome?.verified === false ? "text-amber-200" : "text-emerald-200"}>
+                <span className="text-slate-500">Outcome:</span> {outcomeLabel(message.command)}
+              </div>
+            )}
+            {message.command.data?.security?.pin_required && <div className="text-amber-200">Security PIN required</div>}
+            <DeveloperDetails data={{ tool_call: message.command.tool_call, resolved: message.command.resolved, data: message.command.data }} />
+          </div>
+        )}
+
+        {message.kind === "preview" && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button className="min-h-9 px-3 py-1.5 text-xs" onClick={() => void executePreview(message)} disabled={busy}>
+              {message.command?.requires_confirmation ? "Request confirmation" : PROPOSAL_INTENTS.has(message.command?.intent || "") ? "Create draft" : "Execute"}
+            </Button>
+            <Button variant="ghost" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => appendAssistant({ text: "Cancelled.", mode: "cancelled" })} disabled={busy}>
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        {automationDraftId && message.kind !== "preview" && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button className="min-h-9 px-3 py-1.5 text-xs" onClick={() => void installDraft(automationDraftId)} disabled={busy}>
+              Install in HA
+            </Button>
+          </div>
+        )}
+
+        {message.kind === "confirmation" && message.command?.confirmation_token && (
+          <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+            <div className="font-semibold text-amber-100">Confirm action</div>
+            <div className="mt-1 text-xs text-amber-100/80">Review the target and confirm only if it is correct.</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="warning" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => void confirm(message.command!.confirmation_token!)} disabled={busy}>
+                Confirm
+              </Button>
+              <Button variant="ghost" className="min-h-9 px-3 py-1.5 text-xs" onClick={() => void cancel(message.command!.confirmation_token!)} disabled={busy}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -692,23 +830,23 @@ function NotebookPanel({
   busy: boolean;
 }) {
   return (
-    <section className="min-h-0 flex-1 overflow-auto p-4">
+    <section className="min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-6">
       <div className="mx-auto max-w-4xl space-y-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-lg font-semibold text-slate-100">{detail?.messages?.[0]?.message || "Current conversation"}</div>
-              <div className="mt-1 text-xs text-slate-500">{conversationId}</div>
+            <div className="min-w-0">
+              <div className="truncate text-lg font-semibold text-slate-100">{detail?.messages?.[0]?.message || "Current conversation"}</div>
+              <div className="mt-1 truncate text-xs text-slate-500">{conversationId}</div>
             </div>
             <Button onClick={() => void exportMarkdown()} disabled={busy || !detail?.messages?.length}>Download Markdown</Button>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Transcript</div>
           <div className="max-h-[28rem] space-y-3 overflow-auto pr-1">
             {(detail?.messages || []).map((message: any) => (
-              <div key={message.id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div key={message.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <div className="mb-2 text-xs text-slate-500">{message.created_at}</div>
                 <div className="mb-2 text-sm text-slate-200"><span className="text-slate-500">User:</span> {message.message}</div>
                 <div className="whitespace-pre-wrap text-sm text-slate-300"><span className="text-slate-500">Assistant:</span> {message.response}</div>
@@ -718,11 +856,11 @@ function NotebookPanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="mb-3 text-lg font-semibold text-slate-100">Notes</div>
           <div className="mb-4 space-y-2">
             {(detail?.notes || []).map((n: any) => (
-              <div key={n.id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div key={n.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <div className="text-sm font-semibold text-slate-200">{n.title}</div>
                 <div className="mt-1 whitespace-pre-wrap text-sm text-slate-400">{n.body}</div>
               </div>
