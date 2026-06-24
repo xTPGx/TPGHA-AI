@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.20
+
+- Added a global Back button in compact and wide layouts for easier Home Assistant panel navigation.
+- Displayed admin sessions as Owner in the UI to match the household access model.
+- Added owner lockout protection so saving users cannot remove the last Owner/Admin profile.
+- Added runtime recovery for existing configs that accidentally have no Owner/Admin user, allowing the owner to regain the Users page and fix roles.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.19
 
 - Refactored the frontend into a responsive Home Assistant-friendly app shell with compact drawer navigation and wide-screen sidebar navigation.

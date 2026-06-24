@@ -95,7 +95,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.19"
+APP_VERSION = "1.0.20"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -292,7 +292,7 @@ async def ui_session(request: Request):
             for assistant in cfg.assistants.assistants
         ],
         "roles": {
-            "admin": "Full setup, configuration, diagnostics, and Jarvis operation.",
+            "admin": "Owner access: full setup, configuration, diagnostics, and Jarvis operation.",
             "manager": "House setup and Jarvis operation without low-level diagnostics.",
             "resident": "Jarvis operation: chat, notebook, dashboard, brain.",
             "kiosk": "Shared wall panel or house remote: dashboard and chat only.",

@@ -171,6 +171,17 @@ def main() -> int:
           str(test_assistant))
 
     r = client.post("/config/users", json={
+        "id": "shawn",
+        "name": "Shawn",
+        "role": "resident",
+        "aliases": ["shawn", "boss", "owner"],
+        "music_account": "spotify_xtpgx",
+    })
+    check("/config/users blocks demoting last owner",
+          r.status_code == 400 and "no Owner/Admin" in r.text,
+          r.text)
+
+    r = client.post("/config/users", json={
         "id": "test_user",
         "name": "Test User",
         "aliases": ["tester"],

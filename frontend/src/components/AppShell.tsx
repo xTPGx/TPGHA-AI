@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
 export type NavItemDef = { to: string; label: string; end?: boolean; roles: Role[] };
@@ -26,6 +26,8 @@ export default function AppShell({
 }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const canGoBack = location.pathname !== "/";
 
   useEffect(() => setOpen(false), [location.pathname]);
 
@@ -42,6 +44,15 @@ export default function AppShell({
     <div className="app-shell min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_28rem),#07111f] text-slate-100">
       <header className="compact-header sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 px-3 py-2 backdrop-blur xl:hidden">
         <div className="flex min-h-12 items-center justify-between gap-3">
+          {canGoBack && (
+            <button
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+            >
+              <span className="text-2xl leading-none">&lsaquo;</span>
+            </button>
+          )}
           <button
             className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300"
             onClick={() => setOpen(true)}
@@ -55,7 +66,7 @@ export default function AppShell({
           </button>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-bold text-sky-300">TPG HomeAI</div>
-            <div className="truncate text-xs text-slate-500">{sessionUser?.name || "House"} · {role}</div>
+            <div className="truncate text-xs text-slate-500">{sessionUser?.name || "House"} · {roleLabel(role)}</div>
           </div>
           <div className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2.5 py-1 text-xs text-sky-200">
             AI
@@ -106,6 +117,14 @@ export default function AppShell({
 
         <main className="min-w-0 flex-1 overflow-x-hidden">
           <div className="mx-auto w-full max-w-[96rem] px-3 py-4 sm:px-5 lg:px-6 xl:py-6">
+            {canGoBack && (
+              <button
+                className="mb-4 hidden min-h-11 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-sky-400/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300/70 xl:inline-flex"
+                onClick={() => navigate(-1)}
+              >
+                Back
+              </button>
+            )}
             {children}
           </div>
         </main>
@@ -143,7 +162,7 @@ function ShellNav({
         <div className="mb-5 rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Signed in</div>
           <div className="truncate text-sm font-semibold text-slate-100">{sessionUser.name}</div>
-          <div className="text-xs text-slate-500">{sessionRole}</div>
+          <div className="text-xs text-slate-500">{roleLabel(sessionRole)}</div>
           {canPreviewRoles && (
             <div className="mt-3">
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Preview menu</label>
@@ -208,4 +227,10 @@ function ShellNav({
       </div>
     </div>
   );
+}
+
+function roleLabel(role: Role) {
+  if (role === "admin") return "Owner";
+  if (role === "kiosk") return "Kiosk / Shared";
+  return role.charAt(0).toUpperCase() + role.slice(1);
 }

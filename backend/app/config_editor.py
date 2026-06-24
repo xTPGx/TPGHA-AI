@@ -116,9 +116,23 @@ def upsert_user(item: dict[str, Any]) -> dict[str, Any]:
     if not replaced:
         items.append(item)
     data["users"] = items
+    _ensure_admin_not_removed(items, item_id)
     _validate("assistants.yaml", data)
     _write("assistants.yaml", data)
     return {"section": "users", "item": item, "created": not replaced}
+
+
+def _ensure_admin_not_removed(users: list[Any], edited_id: str) -> None:
+    admin_users = [
+        user for user in users
+        if isinstance(user, dict) and user.get("role") == "admin"
+    ]
+    if admin_users:
+        return
+    raise ValueError(
+        f"Cannot save user '{edited_id}' because it would leave TPG HomeAI "
+        "with no Owner/Admin account."
+    )
 
 
 def upsert_music_account(item: dict[str, Any]) -> dict[str, Any]:

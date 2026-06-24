@@ -112,6 +112,7 @@ def load_config(config_dir: Optional[Path] = None) -> AppConfig:
             devices=devices,
             permissions=permissions,
         )
+        _ensure_runtime_admin(config)
     except Exception as exc:  # noqa: BLE001 - we intentionally degrade, not crash
         _CONFIG_ERROR = f"{type(exc).__name__}: {exc}"
         logger.error("Config validation failed (degraded mode): %s", _CONFIG_ERROR)
@@ -130,6 +131,31 @@ def load_config(config_dir: Optional[Path] = None) -> AppConfig:
         len(config.devices.speakers),
     )
     return config
+
+
+def _ensure_runtime_admin(config: AppConfig) -> None:
+    """Prevent a bad user edit from permanently hiding owner/admin tools.
+
+    This is an in-memory recovery guard. It does not overwrite YAML; once the
+    owner can reach the Users page again, they can save the intended role.
+    """
+    users = config.assistants.users
+    if not users or any(user.role == "admin" for user in users):
+        return
+    preferred = next(
+        (
+            user for user in users
+            if user.id.lower() == "shawn"
+            or user.name.lower() == "shawn"
+            or "owner" in {alias.lower() for alias in user.aliases}
+        ),
+        users[0],
+    )
+    logger.warning(
+        "No Owner/Admin user configured; temporarily treating %s as admin for UI recovery.",
+        preferred.id,
+    )
+    preferred.role = "admin"
 
 
 def get_config() -> AppConfig:
