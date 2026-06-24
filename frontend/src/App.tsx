@@ -72,7 +72,7 @@ export default function App() {
   const [previewRole, setPreviewRole] = useState<Role | "">("");
   const users = session?.users || [];
   const sessionUser = session?.detected_user || users[0];
-  const sessionRole: Role = sessionUser?.role || session?.role || "guest";
+  const sessionRole: Role = session?.role || sessionUser?.role || "guest";
   const role: Role = previewRole || sessionRole;
   const canPreviewRoles = sessionRole === "admin";
 
@@ -103,6 +103,8 @@ export default function App() {
       role={role}
       sessionRole={sessionRole}
       sessionUser={sessionUser}
+      haUserCandidates={session?.ha_user_candidates || []}
+      unknownHaUser={session?.unknown_ha_user || ""}
       previewRole={previewRole}
       canPreviewRoles={canPreviewRoles}
       onPreviewRoleChange={setPreviewRole}

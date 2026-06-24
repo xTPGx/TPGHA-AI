@@ -265,6 +265,22 @@ def main() -> int:
           and r.json().get("detected_user", {}).get("id") == "jordie"
           and r.json().get("detected_user", {}).get("role") == "resident",
           str(r.json()))
+    r = client.get("/ui/session", headers={
+        "x-ha-user-name": "Jordie",
+        "x-ha-user-is-admin": "true",
+    })
+    check("/ui/session honors HA admin authority",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "jordie"
+          and r.json().get("detected_user", {}).get("role") == "admin"
+          and r.json().get("role") == "admin"
+          and r.json().get("ha_admin") is True,
+          str(r.json()))
+    r = client.get("/ui/session", headers={"x-ha-user-name": "jordie-rae"})
+    check("/ui/session normalizes HA usernames",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "jordie",
+          str(r.json()))
     r = client.get("/ui/session", headers={"x-ha-user-name": "kiosk"})
     check("/ui/session maps HA header to kiosk user",
           r.status_code == 200

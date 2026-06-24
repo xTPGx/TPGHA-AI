@@ -95,7 +95,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.20"
+APP_VERSION = "1.0.21"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -262,16 +262,23 @@ async def ui_session(request: Request):
     users = cfg.assistants.users
     header_candidates = _user_header_candidates(request)
     detected = _detect_user_from_headers(request, users)
+    ha_admin = _ha_admin_from_headers(request)
     unknown_user = None
     if not detected and header_candidates:
         unknown_user = sorted(header_candidates)[0]
         memory_store.propose_user_setup_suggestion(unknown_user)
     active = detected or _default_ui_user(users)
+    effective_role = "admin" if ha_admin else (active.role if active else "guest")
+    active_payload = active.model_dump() if active else None
+    if active_payload:
+        active_payload["role"] = effective_role
     default_assistant = _default_assistant_for_user(active, cfg.assistants.assistants)
     return {
-        "detected_user": active.model_dump() if active else None,
-        "role": active.role if active else "guest",
+        "detected_user": active_payload,
+        "role": effective_role,
         "default_assistant": default_assistant.model_dump() if default_assistant else None,
+        "ha_user_candidates": sorted(header_candidates),
+        "ha_admin": ha_admin,
         "unknown_ha_user": unknown_user,
         "users": [
             {
@@ -1156,9 +1163,10 @@ def _detect_user_from_headers(request: Request, users: list[User]) -> User | Non
     candidates = _user_header_candidates(request)
     if not candidates:
         return None
+    normalized_candidates = {_normalize_identity(candidate) for candidate in candidates}
     for user in users:
-        names = {user.id.lower(), user.name.lower(), *(alias.lower() for alias in user.aliases)}
-        if candidates & names:
+        names = _user_identity_values(user)
+        if candidates & names or normalized_candidates & names:
             return user
     return None
 
@@ -1174,6 +1182,42 @@ def _user_header_candidates(request: Request) -> set[str]:
     )
     values = [request.headers.get(name, "") for name in header_names]
     return {v.strip().lower() for v in values if v and v.strip()}
+
+
+def _ha_admin_from_headers(request: Request) -> bool:
+    """Honor HA/proxy admin signals when available.
+
+    Standard HA ingress may not expose this today, but custom panels/proxies can.
+    When present, HA is the source of truth for UI access level.
+    """
+    header_names = (
+        "x-ha-user-is-admin",
+        "x-ha-is-admin",
+        "x-hass-user-is-admin",
+        "x-home-assistant-user-is-admin",
+        "x-forwarded-user-is-admin",
+        "remote-user-is-admin",
+    )
+    truthy = {"1", "true", "yes", "on", "admin", "administrator"}
+    return any(
+        str(request.headers.get(name, "")).strip().lower() in truthy
+        for name in header_names
+    )
+
+
+def _user_identity_values(user: User) -> set[str]:
+    values = {user.id, user.name, *user.aliases}
+    result: set[str] = set()
+    for value in values:
+        raw = str(value or "").strip().lower()
+        if raw:
+            result.add(raw)
+            result.add(_normalize_identity(raw))
+    return result
+
+
+def _normalize_identity(value: str) -> str:
+    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
 
 
 def _default_assistant_for_user(user: User | None, assistants: list[Assistant]) -> Assistant | None:

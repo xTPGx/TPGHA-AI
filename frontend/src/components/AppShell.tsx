@@ -11,6 +11,8 @@ export default function AppShell({
   role,
   sessionRole,
   sessionUser,
+  haUserCandidates,
+  unknownHaUser,
   previewRole,
   canPreviewRoles,
   onPreviewRoleChange,
@@ -20,6 +22,8 @@ export default function AppShell({
   role: Role;
   sessionRole: Role;
   sessionUser: any;
+  haUserCandidates: string[];
+  unknownHaUser: string;
   previewRole: Role | "";
   canPreviewRoles: boolean;
   onPreviewRoleChange: (role: Role | "") => void;
@@ -81,6 +85,8 @@ export default function AppShell({
             role={role}
             sessionRole={sessionRole}
             sessionUser={sessionUser}
+            haUserCandidates={haUserCandidates}
+            unknownHaUser={unknownHaUser}
             previewRole={previewRole}
             canPreviewRoles={canPreviewRoles}
             onPreviewRoleChange={onPreviewRoleChange}
@@ -107,6 +113,8 @@ export default function AppShell({
                 role={role}
                 sessionRole={sessionRole}
                 sessionUser={sessionUser}
+                haUserCandidates={haUserCandidates}
+                unknownHaUser={unknownHaUser}
                 previewRole={previewRole}
                 canPreviewRoles={canPreviewRoles}
                 onPreviewRoleChange={onPreviewRoleChange}
@@ -138,6 +146,8 @@ function ShellNav({
   role,
   sessionRole,
   sessionUser,
+  haUserCandidates,
+  unknownHaUser,
   previewRole,
   canPreviewRoles,
   onPreviewRoleChange,
@@ -146,6 +156,8 @@ function ShellNav({
   role: Role;
   sessionRole: Role;
   sessionUser: any;
+  haUserCandidates: string[];
+  unknownHaUser: string;
   previewRole: Role | "";
   canPreviewRoles: boolean;
   onPreviewRoleChange: (role: Role | "") => void;
@@ -163,6 +175,16 @@ function ShellNav({
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Signed in</div>
           <div className="truncate text-sm font-semibold text-slate-100">{sessionUser.name}</div>
           <div className="text-xs text-slate-500">{roleLabel(sessionRole)}</div>
+          {haUserCandidates.length > 0 && (
+            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px] text-slate-400">
+              HA login: {haUserCandidates.join(", ")}
+            </div>
+          )}
+          {unknownHaUser && (
+            <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+              Add this HA username as an alias to the right TPG user.
+            </div>
+          )}
           {canPreviewRoles && (
             <div className="mt-3">
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Preview menu</label>

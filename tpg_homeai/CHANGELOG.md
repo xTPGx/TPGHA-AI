@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.21
+
+- Added normalized HA username matching so punctuation/spacing differences in HA login names are less likely to create the wrong TPG session.
+- Exposed detected HA login candidates in the UI session for easier troubleshooting.
+- Added an HA-admin authority override path so, when HA/proxy admin headers are available, Administrator sessions are treated as Owner/Admin in TPG HomeAI.
+- Kept TPG profiles for assistant identity, memory, voice, and music ownership while allowing HA to own access level when it can provide it.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.20
 
 - Added a global Back button in compact and wide layouts for easier Home Assistant panel navigation.
