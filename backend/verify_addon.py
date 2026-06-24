@@ -245,6 +245,9 @@ def main() -> int:
           ui.get("detected_user", {}).get("id") == "shawn"
           and ui.get("detected_user", {}).get("role") == "admin",
           str(ui))
+    check("/ui/session defaults Shawn to Atlas",
+          ui.get("default_assistant", {}).get("id") == "atlas",
+          str(ui))
     r = client.get("/ui/session", headers={"x-ha-user-name": "Jordie"})
     check("/ui/session maps HA header to resident user",
           r.status_code == 200
@@ -256,6 +259,19 @@ def main() -> int:
           r.status_code == 200
           and r.json().get("detected_user", {}).get("id") == "house_remote"
           and r.json().get("detected_user", {}).get("role") == "kiosk",
+          str(r.json()))
+    check("/ui/session defaults kiosk to Jarvis",
+          r.json().get("default_assistant", {}).get("id") == "jarvis",
+          str(r.json()))
+    r = client.get("/ui/session", headers={"x-ha-user-name": "New HA User"})
+    check("/ui/session reports unknown HA user",
+          r.status_code == 200 and r.json().get("unknown_ha_user") == "new ha user",
+          str(r.json()))
+    r = client.get("/suggestions/proactive")
+    check("unknown HA user creates setup suggestion",
+          any(s.get("action_type") == "create_user_profile"
+              and s.get("payload", {}).get("username") == "new ha user"
+              for s in r.json().get("suggestions", [])),
           str(r.json()))
 
     r = client.get("/config")
@@ -580,6 +596,12 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/conversations includes seeded session",
           any(c.get("conversation_id") == "verify-notebook-session" for c in r.json().get("conversations", [])),
+          str(r.json()))
+    r = client.get("/conversations?assistant=atlas&user=shawn")
+    check("/conversations filters by assistant and user",
+          r.status_code == 200
+          and all(c.get("assistant") == "atlas" and c.get("user") == "shawn"
+                  for c in r.json().get("conversations", [])),
           str(r.json()))
 
     r = client.post("/conversations/verify-notebook-session/notes", json={

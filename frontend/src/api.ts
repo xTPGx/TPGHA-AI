@@ -192,8 +192,12 @@ export const api = {
     http<any>(`/memory/${id}/approve`, { method: "POST" }),
   ignoreMemory: (id: number) =>
     http<any>(`/memory/${id}/ignore`, { method: "POST" }),
-  conversations: (limit = 50) =>
-    http<any>(`/conversations?limit=${encodeURIComponent(String(limit))}`),
+  conversations: (limit = 50, filters?: { assistant?: string; user?: string }) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (filters?.assistant) params.set("assistant", filters.assistant);
+    if (filters?.user) params.set("user", filters.user);
+    return http<any>(`/conversations?${params.toString()}`);
+  },
   conversation: (conversationId: string) =>
     http<any>(`/conversations/${encodeURIComponent(conversationId)}`),
   addConversationNote: (conversationId: string, body: Record<string, any>) =>

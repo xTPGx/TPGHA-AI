@@ -158,6 +158,8 @@ export default function Chat() {
     () => (crypto?.randomUUID ? crypto.randomUUID() : `chat-${Date.now()}`),
     [],
   );
+  const [session, setSession] = useState<any>(null);
+  const [config, setConfig] = useState<any>(null);
   const [assistant, setAssistant] = useState("atlas");
   const [user, setUser] = useState("shawn");
   const [room, setRoom] = useState("");
@@ -172,6 +174,11 @@ export default function Chat() {
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechSupported = Boolean(getSpeechRecognition());
+  const users = session?.users || config?.assistants?.users || [];
+  const assistants = session?.assistants || config?.assistants?.assistants || [];
+  const selectedAssistant = assistants.find((a: any) => a.id === assistant);
+  const selectedUser = users.find((u: any) => u.id === user);
+  const canSwitchProfiles = ["admin", "manager"].includes(session?.role);
 
   useEffect(() => {
     return () => {
@@ -179,6 +186,26 @@ export default function Chat() {
       audioRef.current?.pause();
       window.speechSynthesis?.cancel();
     };
+  }, []);
+
+  useEffect(() => {
+    Promise.all([api.uiSession(), api.config()])
+      .then(([sessionResult, configResult]) => {
+        setSession(sessionResult);
+        setConfig(configResult);
+        const defaultUser = sessionResult.detected_user?.id || configResult.assistants?.users?.[0]?.id || "shawn";
+        const defaultAssistant = (
+          sessionResult.default_assistant?.id ||
+          configResult.assistants?.assistants?.find((a: any) => a.owner === defaultUser)?.id ||
+          configResult.assistants?.assistants?.[0]?.id ||
+          "atlas"
+        );
+        setUser(defaultUser);
+        setAssistant(defaultAssistant);
+      })
+      .catch(() => {
+        /* keep safe starter defaults */
+      });
   }, []);
 
   const browserSpeak = (message: string) => {
@@ -370,14 +397,24 @@ export default function Chat() {
       <PageHeader title="Chat" subtitle="Ask anything, brainstorm, or control the house through guarded actions" />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <select className="input max-w-[12rem]" value={assistant} onChange={(e) => setAssistant(e.target.value)}>
-          <option value="atlas">Atlas</option>
-          <option value="chatty">Chatty</option>
+        <select className="input max-w-[12rem]" value={assistant} onChange={(e) => setAssistant(e.target.value)} disabled={Boolean(session) && !canSwitchProfiles}>
+          {assistants.length === 0 && <option value="atlas">Atlas</option>}
+          {assistants.map((a: any) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
         </select>
-        <select className="input max-w-[12rem]" value={user} onChange={(e) => setUser(e.target.value)}>
-          <option value="shawn">Shawn</option>
-          <option value="jordie">Jordie</option>
+        <select className="input max-w-[12rem]" value={user} onChange={(e) => setUser(e.target.value)} disabled={Boolean(session) && !canSwitchProfiles}>
+          {users.length === 0 && <option value="shawn">Shawn</option>}
+          {users.map((u: any) => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
         </select>
+        {(selectedAssistant || selectedUser) && (
+          <div className="rounded-lg border border-slate-700 bg-slate-950/30 px-3 py-2 text-xs text-slate-400">
+            Profile: <span className="text-slate-200">{selectedAssistant?.name || assistant}</span>
+            {" "}· Owner: <span className="text-slate-200">{selectedUser?.name || user}</span>
+          </div>
+        )}
         <input
           className="input max-w-[12rem]"
           value={room}

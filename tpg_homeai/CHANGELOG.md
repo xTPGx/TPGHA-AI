@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.18
+
+- Added Jarvis as the shared AI profile for kiosk, wall panel, iPad, and house remote sessions.
+- Made UI session responses include the active user's default assistant and all configured profiles.
+- Made Chat default to the assistant/profile owned by the detected HA/TPG user instead of hardcoding Atlas/Shawn.
+- Added profile-aware Notebook filtering so Atlas, Chatty, and Jarvis histories stay organized.
+- Added Suggestions inbox detection for unknown HA/proxy users that need TPG AI profile setup.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.17
 
 - Added a first-class kiosk/shared-user role for wall tablets, shared iPads, and room remotes.

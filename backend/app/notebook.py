@@ -11,12 +11,16 @@ from .db.database import get_session
 from .db.models import CommandLog, ConversationNote
 
 
-def list_conversations(limit: int = 50) -> list[dict[str, Any]]:
+def list_conversations(limit: int = 50, assistant: str | None = None,
+                       user: str | None = None) -> list[dict[str, Any]]:
     limit = max(1, min(200, int(limit or 50)))
     with get_session() as session:
-        rows = session.query(CommandLog).filter(
-            CommandLog.conversation_id != ""
-        ).order_by(desc(CommandLog.created_at), desc(CommandLog.id)).limit(1000).all()
+        query = session.query(CommandLog).filter(CommandLog.conversation_id != "")
+        if assistant:
+            query = query.filter(CommandLog.assistant == assistant)
+        if user:
+            query = query.filter(CommandLog.user == user)
+        rows = query.order_by(desc(CommandLog.created_at), desc(CommandLog.id)).limit(1000).all()
         note_counts = {
             row.conversation_id: row.count
             for row in session.query(

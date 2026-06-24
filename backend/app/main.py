@@ -95,7 +95,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.17"
+APP_VERSION = "1.0.18"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -260,11 +260,19 @@ async def get_config_endpoint():
 async def ui_session(request: Request):
     cfg = get_config()
     users = cfg.assistants.users
+    header_candidates = _user_header_candidates(request)
     detected = _detect_user_from_headers(request, users)
+    unknown_user = None
+    if not detected and header_candidates:
+        unknown_user = sorted(header_candidates)[0]
+        memory_store.propose_user_setup_suggestion(unknown_user)
     active = detected or _default_ui_user(users)
+    default_assistant = _default_assistant_for_user(active, cfg.assistants.assistants)
     return {
         "detected_user": active.model_dump() if active else None,
         "role": active.role if active else "guest",
+        "default_assistant": default_assistant.model_dump() if default_assistant else None,
+        "unknown_ha_user": unknown_user,
         "users": [
             {
                 "id": user.id,
@@ -273,6 +281,15 @@ async def ui_session(request: Request):
                 "aliases": user.aliases,
             }
             for user in users
+        ],
+        "assistants": [
+            {
+                "id": assistant.id,
+                "name": assistant.name,
+                "owner": assistant.owner,
+                "aliases": assistant.aliases,
+            }
+            for assistant in cfg.assistants.assistants
         ],
         "roles": {
             "admin": "Full setup, configuration, diagnostics, and Jarvis operation.",
@@ -866,8 +883,10 @@ async def memory_ignore(memory_id: int):
 
 # --------------------------------------------------------------- notebook
 @app.get("/conversations")
-async def conversations(limit: int = 50):
-    return {"conversations": notebook_store.list_conversations(limit=limit)}
+async def conversations(limit: int = 50, assistant: str | None = None, user: str | None = None):
+    return {"conversations": notebook_store.list_conversations(
+        limit=limit, assistant=assistant, user=user,
+    )}
 
 
 @app.get("/conversations/{conversation_id}")
@@ -1134,6 +1153,17 @@ def _is_api_path(full_path: str) -> bool:
 
 
 def _detect_user_from_headers(request: Request, users: list[User]) -> User | None:
+    candidates = _user_header_candidates(request)
+    if not candidates:
+        return None
+    for user in users:
+        names = {user.id.lower(), user.name.lower(), *(alias.lower() for alias in user.aliases)}
+        if candidates & names:
+            return user
+    return None
+
+
+def _user_header_candidates(request: Request) -> set[str]:
     header_names = (
         "x-ha-user",
         "x-ha-user-name",
@@ -1143,14 +1173,16 @@ def _detect_user_from_headers(request: Request, users: list[User]) -> User | Non
         "remote-user",
     )
     values = [request.headers.get(name, "") for name in header_names]
-    candidates = {v.strip().lower() for v in values if v and v.strip()}
-    if not candidates:
-        return None
-    for user in users:
-        names = {user.id.lower(), user.name.lower(), *(alias.lower() for alias in user.aliases)}
-        if candidates & names:
-            return user
-    return None
+    return {v.strip().lower() for v in values if v and v.strip()}
+
+
+def _default_assistant_for_user(user: User | None, assistants: list[Assistant]) -> Assistant | None:
+    if user is None:
+        return assistants[0] if assistants else None
+    for assistant in assistants:
+        if assistant.owner == user.id:
+            return assistant
+    return assistants[0] if assistants else None
 
 
 def _default_ui_user(users: list[User]) -> User | None:

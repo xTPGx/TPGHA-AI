@@ -148,6 +148,36 @@ def _add_suggestion(session, *, title: str, message: str, category: str,
     ))
 
 
+def propose_user_setup_suggestion(username: str, source: str = "ha_user") -> dict[str, Any] | None:
+    username = " ".join(str(username or "").split())
+    if not username:
+        return None
+    title = f"Set up TPG AI profile for {username}"
+    with get_session() as session:
+        before = _suggestion_exists(session, "user_setup", "create_user_profile", title)
+        _add_suggestion(
+            session,
+            title=title,
+            message=(
+                f"Home Assistant reported a user named {username}, but TPG HomeAI "
+                "does not have a matching profile yet."
+            ),
+            category="user_setup",
+            priority="high",
+            action_type="create_user_profile",
+            payload={"username": username, "source": source},
+        )
+        session.commit()
+        if before:
+            return None
+        row = session.query(Suggestion).filter(
+            Suggestion.category == "user_setup",
+            Suggestion.action_type == "create_user_profile",
+            Suggestion.title == title,
+        ).order_by(Suggestion.created_at.desc()).first()
+        return _suggestion_dict(row) if row else None
+
+
 async def generate_suggestions() -> dict[str, Any]:
     graph = await build_house_graph(include_registries=True)
     created = 0

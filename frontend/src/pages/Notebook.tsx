@@ -6,18 +6,30 @@ export default function Notebook() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [detail, setDetail] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
+  const [assistantFilter, setAssistantFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
   const [note, setNote] = useState({ title: "Session note", body: "" });
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canBrowseProfiles = ["admin", "manager"].includes(session?.role);
 
   const loadSessions = async () => {
     try {
-      const response = await api.conversations(80);
+      const response = await api.conversations(80, {
+        assistant: assistantFilter || undefined,
+        user: userFilter || undefined,
+      });
       const list = response.conversations || [];
       setSessions(list);
-      if (!selected && list[0]?.conversation_id) setSelected(list[0].conversation_id);
+      if (list[0]?.conversation_id && !list.some((item: any) => item.conversation_id === selected)) {
+        setSelected(list[0].conversation_id);
+      } else if (!list.length) {
+        setSelected("");
+        setDetail(null);
+      }
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -36,12 +48,24 @@ export default function Notebook() {
   };
 
   useEffect(() => {
-    void loadSessions();
+    api.uiSession().then((result) => {
+      setSession(result);
+      const defaultUser = result.detected_user?.id || "";
+      const defaultAssistant = result.default_assistant?.id || "";
+      setUserFilter(defaultUser);
+      setAssistantFilter(defaultAssistant);
+    }).catch(() => {
+      void loadSessions();
+    });
   }, []);
 
   useEffect(() => {
     void loadDetail(selected);
   }, [selected]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [assistantFilter, userFilter]);
 
   const addNote = async () => {
     if (!selected || !note.body.trim()) return;
@@ -106,11 +130,32 @@ export default function Notebook() {
     <div>
       <PageHeader
         title="Notebook"
-        subtitle="Conversation history, research, notes, and exportable transcripts"
+        subtitle="Profile-aware conversation history, research, notes, and exportable transcripts"
         actions={<button className="btn-ghost" onClick={() => void loadSessions()}>Refresh</button>}
       />
 
       {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
+
+      {canBrowseProfiles ? (
+        <div className="mb-4 flex flex-wrap gap-3">
+          <select className="input max-w-[14rem]" value={assistantFilter} onChange={(e) => setAssistantFilter(e.target.value)}>
+            <option value="">All profiles</option>
+            {(session?.assistants || []).map((a: any) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+          <select className="input max-w-[14rem]" value={userFilter} onChange={(e) => setUserFilter(e.target.value)}>
+            <option value="">All users</option>
+            {(session?.users || []).map((u: any) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-lg border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm text-slate-400">
+          Showing {session?.default_assistant?.name || "your assistant"} history for {session?.detected_user?.name || "your profile"}.
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[22rem_1fr]">
         <div className="card">

@@ -107,6 +107,7 @@ def ensure_config_dir() -> Path:
             if not dest.exists() and src.exists():
                 dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
                 logger.info("Seeded starter config: %s", name)
+        _merge_missing_assistant_profiles(base / "assistants.yaml", template_dir / "assistants.yaml")
 
     # Generated overlays must always exist as valid (possibly empty) YAML.
     for name in ("discovered.yaml", "ignored.yaml"):
@@ -117,6 +118,39 @@ def ensure_config_dir() -> Path:
                 encoding="utf-8",
             )
     return base
+
+
+def _merge_missing_assistant_profiles(dest: Path, src: Path) -> None:
+    """Append new starter users/assistants on upgrades without overwriting edits."""
+    if not dest.exists() or not src.exists():
+        return
+    try:
+        current = yaml.safe_load(dest.read_text(encoding="utf-8")) or {}
+        template = yaml.safe_load(src.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # noqa: BLE001 - config validation handles bad YAML later
+        logger.warning("Could not read assistant profile templates: %s", exc)
+        return
+
+    changed = False
+    for section in ("users", "assistants"):
+        existing = list(current.get(section) or [])
+        existing_ids = {
+            item.get("id") for item in existing
+            if isinstance(item, dict) and item.get("id")
+        }
+        for item in template.get(section) or []:
+            if not isinstance(item, dict):
+                continue
+            item_id = item.get("id")
+            if item_id and item_id not in existing_ids:
+                existing.append(item)
+                existing_ids.add(item_id)
+                changed = True
+                logger.info("Added starter %s profile: %s", section.rstrip("s"), item_id)
+        current[section] = existing
+
+    if changed:
+        dest.write_text(yaml.safe_dump(current, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
 def _find_template_dir() -> Optional[Path]:
