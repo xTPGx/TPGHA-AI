@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.27
+
+- Registered the all-user Home Assistant custom integration panel on a dedicated `/tpg-homeai-app` route so it no longer competes with the Supervisor add-on ingress panel.
+- Removed both the legacy add-on panel path and the custom panel path before registering, preventing stale owner-only sidebar entries from blocking non-admin/mobile users.
+- Updated the `open_panel` service default to `/tpg-homeai-app` so Browser Mod/tablet navigation uses the non-admin-safe route.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.26
 
 - Replaced the Supervisor add-on sidebar panel with the custom integration iframe panel at `/tpg-homeai` when the integration loads.

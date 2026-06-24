@@ -208,7 +208,7 @@ open_panel:
     path:
       name: Path
       required: false
-      default: /tpg-homeai
+      default: /tpg-homeai-app
       selector:
         text:
     browser_id:

@@ -81,6 +81,8 @@ from .const import (
 from .coordinator import TPGHomeAICoordinator
 
 _LOGGER = logging.getLogger(__name__)
+PANEL_PATH = "tpg-homeai-app"
+LEGACY_ADDON_PANEL_PATH = "tpg-homeai"
 
 PLATFORMS: list[Platform] = [
     Platform.CONVERSATION,
@@ -447,7 +449,7 @@ DASHBOARD_DRAFT_SCHEMA = vol.Schema({
     vol.Optional("include_unavailable", default=False): cv.boolean,
 })
 OPEN_PANEL_SCHEMA = vol.Schema({
-    vol.Optional("path", default="/tpg-homeai"): cv.string,
+    vol.Optional("path", default=f"/{PANEL_PATH}"): cv.string,
     vol.Optional("browser_id"): cv.string,
     vol.Optional("use_browser_mod", default=True): cv.boolean,
 })
@@ -483,16 +485,18 @@ def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     try:
         from homeassistant.components import frontend
 
-        # Supervisor add-on ingress may register the same path before the custom
-        # integration loads. Replace it so HA non-admin users get the panel too.
-        frontend.async_remove_panel(hass, "tpg-homeai")
+        # Supervisor add-on ingress may register an admin-only panel at the
+        # legacy path. Keep the all-user custom panel on its own path so it
+        # does not compete with Supervisor panel ownership or mobile caching.
+        frontend.async_remove_panel(hass, LEGACY_ADDON_PANEL_PATH)
+        frontend.async_remove_panel(hass, PANEL_PATH)
         frontend.async_register_built_in_panel(
             hass,
             component_name="iframe",
             sidebar_title="TPG HomeAI",
             sidebar_icon="mdi:robot-happy",
-            frontend_url_path="tpg-homeai",
-            config={"url": entry.data[CONF_URL]},
+            frontend_url_path=PANEL_PATH,
+            config={"url": entry.data[CONF_URL], "require_admin": False},
             require_admin=False,
             sidebar_default_visible=True,
         )
@@ -504,7 +508,8 @@ def _remove_sidebar_panel(hass: HomeAssistant) -> None:
     try:
         from homeassistant.components import frontend
 
-        frontend.async_remove_panel(hass, "tpg-homeai")
+        frontend.async_remove_panel(hass, LEGACY_ADDON_PANEL_PATH)
+        frontend.async_remove_panel(hass, PANEL_PATH)
     except Exception:  # noqa: BLE001 - panel may not exist on this HA version
         pass
 
@@ -583,7 +588,7 @@ def _register_services(hass: HomeAssistant) -> None:
         )
 
     async def _open_panel(call: ServiceCall) -> ServiceResponse:
-        path = call.data.get("path", "/tpg-homeai")
+        path = call.data.get("path", f"/{PANEL_PATH}")
         use_browser_mod = call.data.get("use_browser_mod", True)
         browser_id = call.data.get("browser_id")
         browser_mod_used = False
@@ -595,7 +600,7 @@ def _register_services(hass: HomeAssistant) -> None:
             browser_mod_used = True
         return {
             "path": path,
-            "panel": "/tpg-homeai",
+            "panel": f"/{PANEL_PATH}",
             "browser_mod_used": browser_mod_used,
         }
 
