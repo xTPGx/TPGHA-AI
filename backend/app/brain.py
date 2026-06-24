@@ -115,6 +115,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "score": 92 if settings.openai_configured else 78,
             "evidence": [
                 "Browser mic input is available in Chat.",
+                "Assistants own wake-word identity; Voice Sources deploy that assistant into rooms.",
                 "Configured assistant voice profiles can use OpenAI TTS with browser fallback.",
                 "Reply routing can target browser, quiet mode, explicit media player, or room speaker.",
                 "Voice Settings exposes profile readiness, catalog, preview, and test playback.",
@@ -129,6 +130,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "status": "ready" if wake_word.get("counts", {}).get("ready", 0) else "partial",
             "score": 86 if wake_word.get("counts", {}).get("ready", 0) else 66,
             "evidence": [
+                f"{wake_word.get('counts', {}).get('assistants_ready', 0)}/{wake_word.get('counts', {}).get('assistants', 0)} assistants have wake words and linked sources.",
                 f"{wake_word.get('counts', {}).get('total', 0)} voice source profiles configured.",
                 f"{wake_word.get('counts', {}).get('ready', 0)} voice sources ready for room-aware routing.",
                 f"{wake_word.get('counts', {}).get('missing_source_identity', 0)} sources still need source_device_id/source_entity_id.",

@@ -448,6 +448,7 @@ voice_sources:
   - id: office_panel
     name: Office Voice Panel
     room: office
+    assistant: atlas
     user: shawn
     trust_level: trusted
     default_reply: room_speaker
@@ -460,6 +461,7 @@ voice_sources:
   - id: kitchen_display
     name: Kitchen Display Voice
     room: kitchen
+    assistant: atlas
     trust_level: household
     default_reply: room_speaker
     speaker: kitchen
@@ -472,6 +474,7 @@ voice_sources:
   - id: bedroom_satellite
     name: Bedroom Voice Satellite
     room: bedroom
+    assistant: atlas
     trust_level: household
     default_reply: quiet
     speaker: bedroom
@@ -483,6 +486,7 @@ voice_sources:
   - id: living_room_satellite
     name: Living Room Voice Satellite
     room: living_room
+    assistant: atlas
     trust_level: household
     default_reply: room_speaker
     speaker: living_room

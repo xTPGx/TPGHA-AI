@@ -86,6 +86,8 @@ class Assistant(_CfgBase):
     name: str
     owner: str
     aliases: list[str] = Field(default_factory=list)
+    wake_words: list[str] = Field(default_factory=list)
+    listen_enabled: bool = True
     personality: str = ""
     tone: str = "neutral"
     voice: str | VoiceProfile = "neutral"
@@ -228,6 +230,7 @@ class VoiceSource(_CfgBase):
     id: str
     name: str
     room: str
+    assistant: Optional[str] = None
     source_device_id: Optional[str] = None
     source_entity_id: Optional[str] = None
     user: Optional[str] = None

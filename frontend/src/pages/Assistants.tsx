@@ -7,6 +7,8 @@ const emptyAssistant = {
   name: "",
   owner: "",
   aliases: "",
+  wake_words: "",
+  listen_enabled: true,
   tone: "confident",
   personality: "",
   voice_provider: "openai",
@@ -26,6 +28,7 @@ export default function Assistants() {
   const assistants = cfg?.assistants?.assistants ?? [];
   const users = cfg?.assistants?.users ?? [];
   const accounts = cfg?.devices?.music_accounts ?? {};
+  const voiceSources = cfg?.devices?.voice_sources ?? [];
   const userById = (id: string) => users.find((u: any) => u.id === id);
 
   const editAssistant = (assistant?: any) => {
@@ -35,8 +38,10 @@ export default function Assistants() {
       ...emptyAssistant,
       ...assistant,
       aliases: (assistant.aliases ?? []).join(", "),
+      wake_words: (assistant.wake_words ?? defaultWakeWords(assistant.id, assistant.name)).join(", "),
+      listen_enabled: assistant.listen_enabled !== false,
       voice_provider: voice.provider || "openai",
-      voice: voice.voice || (assistant.id === "chatty" ? "coral" : "cedar"),
+      voice: voice.voice || resolvedVoice(assistant).voice,
       voice_instructions: voice.instructions || "",
     } : emptyAssistant);
   };
@@ -50,6 +55,8 @@ export default function Assistants() {
         name: editor.name,
         owner: editor.owner,
         aliases: csv(editor.aliases),
+        wake_words: csv(editor.wake_words),
+        listen_enabled: Boolean(editor.listen_enabled),
         tone: editor.tone,
         personality: editor.personality,
         voice: {
@@ -98,11 +105,16 @@ export default function Assistants() {
             </label>
             <Field label="Tone" value={editor.tone} onChange={(v) => setEditor({ ...editor, tone: v })} placeholder="confident" />
             <Field label="Aliases" value={editor.aliases} onChange={(v) => setEditor({ ...editor, aliases: v })} placeholder="atlas, house" />
+            <Field label="Wake Words" value={editor.wake_words} onChange={(v) => setEditor({ ...editor, wake_words: v })} placeholder="atlas, hey atlas" />
             <label>
               <div className="mb-1 text-xs uppercase text-slate-500">Voice</div>
               <select className="input" value={editor.voice} onChange={(e) => setEditor({ ...editor, voice: e.target.value })}>
                 {["cedar", "coral", "nova", "onyx", "marin", "sage", "verse", "ballad", "ash", "echo", "fable", "shimmer"].map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
+            </label>
+            <label className="flex items-center gap-2 rounded border border-slate-800 bg-slate-950/30 px-3 py-2">
+              <input type="checkbox" checked={editor.listen_enabled} onChange={(e) => setEditor({ ...editor, listen_enabled: e.target.checked })} />
+              <span>Enable wake-word listening for this assistant</span>
             </label>
             <label className="md:col-span-2">
               <div className="mb-1 text-xs uppercase text-slate-500">Personality</div>
@@ -124,7 +136,9 @@ export default function Assistants() {
         {assistants.map((a: any) => {
           const owner = userById(a.owner);
           const acct = owner?.music_account ? accounts[owner.music_account] : null;
-          const voice = typeof a.voice === "object" ? a.voice : { voice: a.voice };
+          const voice = resolvedVoice(a);
+          const sources = voiceSources.filter((source: any) => source.assistant === a.id || (!source.assistant && source.user === a.owner));
+          const wakeWords = a.wake_words?.length ? a.wake_words : defaultWakeWords(a.id, a.name);
           return (
             <div key={a.id} className="card">
               <div className="flex items-center justify-between gap-3">
@@ -137,10 +151,19 @@ export default function Assistants() {
               <p className="mt-2 text-sm text-slate-300">{a.personality}</p>
               <dl className="mt-4 space-y-1 text-sm">
                 <Row label="Owner" value={owner ? owner.name : a.owner} />
-                <Row label="Voice" value={`${voice.provider || "browser"} / ${voice.voice || "default"}`} />
+                <Row label="Voice" value={`${voice.provider} / ${voice.voice}`} />
+                <Row label="Wake words" value={wakeWords.join(", ")} />
+                <Row label="Wake deployment" value={`${sources.length} linked source${sources.length === 1 ? "" : "s"}`} />
                 <Row label="Music account" value={acct ? acct.name : owner?.music_account} />
                 <Row label="Aliases" value={(a.aliases ?? []).join(", ")} />
               </dl>
+              {sources.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {sources.map((source: any) => (
+                    <span key={source.id} className="badge bg-cyan-500/10 text-cyan-200">{source.name} · {source.room}</span>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -174,4 +197,28 @@ function csv(value: string) {
 
 function slug(value: string) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function defaultWakeWords(id: string, name: string) {
+  const base = String(id || name || "").trim().toLowerCase();
+  return base ? [base] : [];
+}
+
+function resolvedVoice(assistant: any) {
+  if (typeof assistant?.voice === "object") {
+    return {
+      provider: assistant.voice.provider || "openai",
+      voice: assistant.voice.voice || (assistant.id === "chatty" ? "coral" : "cedar"),
+    };
+  }
+  const raw = String(assistant?.voice || "").toLowerCase();
+  if (assistant?.id === "atlas" && (!raw || raw === "neutral" || raw === "default")) {
+    return { provider: "openai", voice: "cedar" };
+  }
+  if (assistant?.id === "chatty" && (!raw || raw === "bright" || raw === "default")) {
+    return { provider: "openai", voice: "coral" };
+  }
+  if (raw === "bright") return { provider: "openai", voice: "coral" };
+  if (raw === "neutral") return { provider: "browser", voice: "alloy" };
+  return { provider: "openai", voice: raw || "cedar" };
 }

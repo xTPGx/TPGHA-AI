@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.8
+
+- Moved wake-word identity onto Assistant profiles with editable `wake_words` and `listen_enabled`.
+- Added optional assistant binding on Voice Sources so microphones, panels, and satellites deploy a specific assistant into a room.
+- Updated Assistants UI to edit wake words, show linked voice sources, and display resolved OpenAI voice defaults instead of misleading legacy aliases.
+- Updated wake-word readiness to report assistant readiness and physical source deployment separately.
+- Seeded Atlas/Chatty wake words and sample source bindings in starter config.
+- Added regression coverage for assistant wake-word saves and Brain wake-word assistant readiness.
+- Kept backend, add-on, Docker label, and custom integration versions aligned.
+
 ## 1.0.7
 
 - Added a guided Setup page for first-run readiness across HA, OpenAI, users, rooms, music, voice sources, and permissions.

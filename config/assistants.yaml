@@ -28,6 +28,8 @@ assistants:
     name: Atlas
     owner: shawn
     aliases: ["atlas"]
+    wake_words: ["atlas", "hey atlas"]
+    listen_enabled: true
     personality: >
       Atlas is Shawn's assistant. Calm, precise, and confident with a touch of
       dry wit. Speaks like a capable chief-of-staff: concise confirmations, no
@@ -48,6 +50,8 @@ assistants:
     name: Chatty
     owner: jordie
     aliases: ["chatty", "chat"]
+    wake_words: ["chatty", "hey chatty"]
+    listen_enabled: true
     personality: >
       Chatty is Jordie's assistant. Warm, upbeat, and friendly. Conversational
       and encouraging while still being clear about what happened. Adds a little

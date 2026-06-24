@@ -153,6 +153,8 @@ def main() -> int:
         "name": "Test Assistant",
         "owner": "shawn",
         "aliases": ["test assistant"],
+        "wake_words": ["test assistant", "hey test"],
+        "listen_enabled": True,
         "personality": "A concise test assistant.",
         "tone": "calm",
         "voice": {"provider": "openai", "model": "gpt-4o-mini-tts", "voice": "coral"},
@@ -160,6 +162,12 @@ def main() -> int:
     check("/config/assistants upserts assistant",
           r.status_code == 200 and r.json().get("saved") is True,
           r.text)
+    config_after_assistant = client.get("/config").json()
+    test_assistant = next((a for a in config_after_assistant.get("assistants", {}).get("assistants", [])
+                           if a.get("id") == "test_assistant"), {})
+    check("/config/assistants saves wake words",
+          test_assistant.get("wake_words") == ["test assistant", "hey test"],
+          str(test_assistant))
 
     r = client.post("/config/users", json={
         "id": "test_user",
@@ -208,6 +216,7 @@ def main() -> int:
         "id": "test_voice_source",
         "name": "Test Voice Source",
         "room": "test_room",
+        "assistant": "test_assistant",
         "trust_level": "household",
         "default_reply": "browser",
         "aliases": ["test mic"],
@@ -278,6 +287,10 @@ def main() -> int:
     check("/brain/house-state includes mode brain and wake word",
           "mode_brain" in r.json() and "wake_word" in r.json(),
           str(r.json()))
+    wake_word = r.json().get("wake_word", {})
+    check("/brain/house-state wake word has assistants",
+          bool(wake_word.get("assistants")) and "assistants_ready" in wake_word.get("counts", {}),
+          str(wake_word))
 
     r = client.get("/brain/modes")
     check("/brain/modes returns JSON", r.status_code == 200 and is_json(r),

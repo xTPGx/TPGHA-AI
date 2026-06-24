@@ -81,9 +81,9 @@ export default function Setup() {
       to: "/music",
     },
     {
-      title: "Voice sources",
+      title: "Wake words and voice sources",
       ok: (cfg?.devices?.voice_sources?.length || 0) > 0,
-      detail: `${cfg?.devices?.voice_sources?.length || 0} voice sources · ${voice?.counts?.ready || 0} ready`,
+      detail: `${voice?.counts?.assistants_ready || 0}/${voice?.counts?.assistants || 0} assistants ready · ${voice?.counts?.ready || 0} sources ready`,
       to: "/voice-sources",
     },
     {

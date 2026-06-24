@@ -6,6 +6,7 @@ const emptySource = {
   id: "",
   name: "",
   room: "",
+  assistant: "",
   user: "",
   trust_level: "household",
   default_reply: "room_speaker",
@@ -57,13 +58,14 @@ export default function VoiceSources() {
 
   const rooms = cfg?.devices?.rooms || [];
   const users = cfg?.assistants?.users || [];
+  const assistants = cfg?.assistants?.assistants || [];
   const speakers = cfg?.devices?.speakers || [];
 
   return (
     <div>
       <PageHeader
         title="Voice Sources"
-        subtitle="Map microphones, tablets, panels, and satellites to room context."
+        subtitle="Deploy assistant wake words onto microphones, tablets, panels, and HA Assist satellites."
         actions={<div className="flex gap-2"><button className="btn-ghost" onClick={() => void load()}>Refresh</button><button className="btn" onClick={() => editSource()}>Add Voice Source</button></div>}
       />
 
@@ -76,6 +78,7 @@ export default function VoiceSources() {
             <Field label="ID" value={editor.id} onChange={(v) => setEditor({ ...editor, id: slug(v) })} placeholder="office_panel" />
             <Field label="Name" value={editor.name} onChange={(v) => setEditor({ ...editor, name: v })} placeholder="Office Voice Panel" />
             <Select label="Room" value={editor.room} onChange={(v) => setEditor({ ...editor, room: v })} options={rooms.map((r: any) => [r.id, r.name])} />
+            <Select label="Assistant" value={editor.assistant} onChange={(v) => setEditor({ ...editor, assistant: v })} options={assistants.map((a: any) => [a.id, a.name])} optional />
             <Select label="User" value={editor.user} onChange={(v) => setEditor({ ...editor, user: v })} options={users.map((u: any) => [u.id, u.name])} optional />
             <Select label="Trust" value={editor.trust_level} onChange={(v) => setEditor({ ...editor, trust_level: v })} options={[["trusted", "Trusted"], ["household", "Household"], ["guest", "Guest"], ["outside", "Outside"]]} />
             <Select label="Reply" value={editor.default_reply} onChange={(v) => setEditor({ ...editor, default_reply: v })} options={[["browser", "Browser"], ["room_speaker", "Room speaker"], ["quiet", "Quiet"], ["none", "None"]]} />
@@ -93,7 +96,7 @@ export default function VoiceSources() {
 
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
         <Stat label="Configured sources" value={items.length} />
-        <Stat label="Context behavior" value="source -> room" />
+        <Stat label="Deployment" value="assistant -> source -> room" />
         <Stat label="Generic command" value="room scoped" />
       </div>
 
@@ -110,6 +113,8 @@ export default function VoiceSources() {
             <div className="space-y-2 text-sm text-slate-300">
               <Row label="Source device" value={source.source_device_id || "not set"} />
               <Row label="Source entity" value={source.source_entity_id || "not set"} />
+              <Row label="Assistant" value={source.assistant || "owner default"} />
+              <Row label="User" value={source.user || "not set"} />
               <Row label="Trust" value={source.trust_level} />
               <Row label="Reply" value={source.default_reply} />
               <Row label="Speaker" value={source.speaker || source.resolved_reply_route?.target_entity_id || "not set"} />

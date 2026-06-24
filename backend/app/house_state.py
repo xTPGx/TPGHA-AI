@@ -133,6 +133,8 @@ def build_assistant_intelligence(config: AppConfig) -> dict[str, Any]:
                 "owner_name": users.get(assistant.owner).name if users.get(assistant.owner) else assistant.owner,
                 "personality": assistant.personality,
                 "tone": assistant.tone,
+                "wake_words": assistant.wake_words,
+                "listen_enabled": assistant.listen_enabled,
                 "voice": assistant.voice.model_dump() if hasattr(assistant.voice, "model_dump") else assistant.voice,
                 "approved_memories": [
                     {
@@ -250,7 +252,7 @@ def build_mode_brain(config: AppConfig, state: dict[str, Any] | None = None) -> 
 
 
 def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
-    """Explain microphone/satellite readiness room by room."""
+    """Explain assistant wake words and microphone/satellite readiness."""
 
     from .voice import list_voice_source_readiness
 
@@ -273,6 +275,30 @@ def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
             "next_step": _voice_source_next_step(missing),
         })
 
+    assistants = []
+    for assistant in config.assistants.assistants:
+        linked_sources = [
+            source for source in sources
+            if source.get("assistant") == assistant.id
+            or (not source.get("assistant") and source.get("user") == assistant.owner)
+        ]
+        assistant_missing = []
+        if assistant.listen_enabled and not assistant.wake_words:
+            assistant_missing.append("wake_words")
+        if assistant.listen_enabled and not linked_sources:
+            assistant_missing.append("voice_source")
+        assistants.append({
+            "id": assistant.id,
+            "name": assistant.name,
+            "owner": assistant.owner,
+            "listen_enabled": assistant.listen_enabled,
+            "wake_words": assistant.wake_words,
+            "sources": [{"id": s.get("id"), "name": s.get("name"), "room": s.get("room"), "setup_status": s.get("setup_status")} for s in linked_sources],
+            "ready": assistant.listen_enabled and bool(assistant.wake_words) and bool(linked_sources),
+            "missing": assistant_missing,
+            "next_step": _assistant_wake_next_step(assistant_missing),
+        })
+
     rooms_with_source = {str(s.get("room")) for s in sources if s.get("room")}
     recommended = []
     for room in config.devices.rooms:
@@ -292,6 +318,10 @@ def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
     return {
         "counts": {
             **readiness.get("counts", {}),
+            "assistants": len(assistants),
+            "assistants_ready": sum(1 for a in assistants if a["ready"]),
+            "assistants_missing_wake_words": sum(1 for a in assistants if "wake_words" in a["missing"]),
+            "assistants_missing_voice_source": sum(1 for a in assistants if "voice_source" in a["missing"]),
             "ready": sum(1 for s in sources if s["setup_status"] == "ready"),
             "partial": sum(1 for s in sources if s["setup_status"] == "partial"),
             "missing_source_identity": missing_identity,
@@ -299,6 +329,7 @@ def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
             "missing_speaker_route": missing_speaker,
             "rooms_without_voice_source": len(recommended),
         },
+        "assistants": assistants,
         "sources": sources,
         "recommended_satellites": recommended,
         "policies": [
@@ -469,6 +500,16 @@ def _voice_source_next_step(missing: list[str]) -> str:
     if "speaker_route" in missing:
         return "Map a room speaker or set default_reply to browser/quiet."
     return "Review this voice source mapping."
+
+
+def _assistant_wake_next_step(missing: list[str]) -> str:
+    if not missing:
+        return "Assistant has wake words and at least one linked voice source."
+    if "wake_words" in missing:
+        return "Add wake words on the Assistant profile."
+    if "voice_source" in missing:
+        return "Link at least one Voice Source to this assistant or the assistant owner."
+    return "Review this assistant wake-word setup."
 
 
 def _recommendations(away: bool, security: list[dict[str, Any]], energy: list[dict[str, Any]],
