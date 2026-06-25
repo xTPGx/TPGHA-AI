@@ -676,6 +676,18 @@ def main() -> int:
     check("/house/assets/{id}/file returns original file",
           r.status_code == 200 and b"Office floor plan" in r.content,
           f"status={r.status_code} body={r.text[:100] if hasattr(r, 'text') else ''}")
+    r = client.get("/house/spatial-brain")
+    check("/house/spatial-brain returns approved room context",
+          r.status_code == 200
+          and r.json().get("summary", {}).get("approved_assets", 0) >= 1
+          and any(room.get("display_name") == "Office" for room in r.json().get("rooms", [])),
+          str(r.json()))
+    r = client.post("/dashboards/draft", json={"title": "TPG Office Spatial", "style": "native", "room": "Office"})
+    check("/dashboards/draft includes spatial layout notes",
+          r.status_code == 200
+          and "AI Layout Notes" in r.json().get("yaml", "")
+          and r.json().get("spatial_brain", {}).get("summary", {}).get("approved_assets", 0) >= 1,
+          str(r.json()))
     r = client.post("/chat", json={
         "assistant": "atlas",
         "user": "shawn",
@@ -697,6 +709,13 @@ def main() -> int:
           "assistants_with_wake_words" in voice_counts
           and "assistants_with_linked_sources" in voice_counts,
           str(voice_counts))
+    r = client.get("/voice/runtime")
+    check("/voice/runtime returns deployable assistant/source map",
+          r.status_code == 200
+          and "assistants" in r.json()
+          and "room_routes" in r.json()
+          and "runtime_sources" in r.json().get("counts", {}),
+          str(r.json()))
 
     r = client.get("/dashboards/tablet-profiles")
     check("/dashboards/tablet-profiles returns JSON", r.status_code == 200 and is_json(r),
@@ -912,6 +931,23 @@ def main() -> int:
           and r.json().get("mode") == "proposal"
           and r.json().get("command", {}).get("intent") == "create_simple_automation",
           str(r.json()))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "at sunset when someone is home",
+            "action_description": "turn on office light and turn off office fan",
+            "original_request": "At sunset when someone is home, turn on office light and turn off office fan.",
+        },
+    })
+    automation_yaml = r.json().get("data", {}).get("proposed_yaml", "")
+    check("automation builder v2 supports sun, presence, and multi-action YAML",
+          r.status_code == 200
+          and "platform: sun" in automation_yaml
+          and "Someone is home" in automation_yaml
+          and automation_yaml.count("service:") >= 2,
+          automation_yaml or str(r.json()))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

@@ -204,9 +204,11 @@ export const api = {
     http<any>(`/house/assets/${id}/approve`, { method: "POST" }),
   ignoreHouseAsset: (id: number) =>
     http<any>(`/house/assets/${id}/ignore`, { method: "POST" }),
+  houseSpatialBrain: () => http<any>("/house/spatial-brain"),
   voiceProfiles: () => http<any>("/voice/profiles"),
   voiceVoices: () => http<any>("/voice/voices"),
   voiceDeployment: () => http<any>("/voice/deployment"),
+  voiceRuntime: () => http<any>("/voice/runtime"),
   voicePreview: (body: Record<string, any>) =>
     http<any>("/voice/preview", { method: "POST", body: JSON.stringify(body) }),
   voiceSpeak: (body: Record<string, any>) =>

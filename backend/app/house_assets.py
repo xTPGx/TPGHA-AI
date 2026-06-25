@@ -145,6 +145,108 @@ def approved_asset_context(limit: int = 6) -> str:
     return "\n".join(lines)
 
 
+def build_spatial_brain() -> dict[str, Any]:
+    """Build room-aware knowledge from approved house assets."""
+
+    config = get_config()
+    assets = list_assets(status="approved")
+    rooms = [
+        {
+            "id": room.id,
+            "name": room.name,
+            "aliases": list(room.aliases or []),
+            "lights": list(room.lights or []),
+            "fans": list(room.fans or []),
+            "speakers": [] if not room.speaker else [room.speaker],
+            "cameras": [] if not room.camera else [room.camera],
+            "displays": [] if not room.display else [room.display],
+            "locks": [] if not room.lock else [room.lock],
+            "climate": [] if not room.climate else [room.climate],
+        }
+        for room in config.devices.rooms
+    ]
+    room_index = {room["name"].lower(): room for room in rooms}
+    room_index.update({room["id"].lower(): room for room in rooms})
+    for room in rooms:
+        for alias in room["aliases"]:
+            room_index[str(alias).lower()] = room
+
+    grouped: dict[str, dict[str, Any]] = {}
+    dashboard_hints: list[dict[str, Any]] = []
+    automation_hints: list[dict[str, Any]] = []
+    mapping_questions: list[dict[str, Any]] = []
+    whole_house_assets: list[dict[str, Any]] = []
+
+    for asset in assets:
+        analysis = asset.get("analysis") or {}
+        candidates = _asset_room_candidates(asset)
+        asset_summary = _spatial_asset_summary(asset)
+        if not candidates:
+            whole_house_assets.append(asset_summary)
+            candidates = ["whole_house"]
+
+        for candidate in candidates:
+            room_key = _room_key(candidate, room_index)
+            entry = grouped.setdefault(room_key, {
+                "room": room_key,
+                "display_name": _room_display_name(room_key, room_index),
+                "configured_room": room_index.get(room_key),
+                "assets": [],
+                "dashboard_uses": [],
+                "automation_ideas": [],
+                "mapping_questions": [],
+                "coverage": {},
+            })
+            entry["assets"].append(asset_summary)
+            entry["dashboard_uses"].extend(_limited_strings(analysis.get("dashboard_uses"), 4))
+            entry["automation_ideas"].extend(_limited_strings(analysis.get("automation_ideas"), 4))
+            entry["mapping_questions"].extend(_limited_strings(analysis.get("mapping_questions"), 4))
+
+    for entry in grouped.values():
+        configured = entry.get("configured_room") or {}
+        entry["dashboard_uses"] = _dedupe(entry["dashboard_uses"])
+        entry["automation_ideas"] = _dedupe(entry["automation_ideas"])
+        entry["mapping_questions"] = _dedupe(entry["mapping_questions"])
+        entry["coverage"] = {
+            "has_lights": bool(configured.get("lights")),
+            "has_fans": bool(configured.get("fans")),
+            "has_speakers": bool(configured.get("speakers")),
+            "has_cameras": bool(configured.get("cameras")),
+            "has_displays": bool(configured.get("displays")),
+            "asset_count": len(entry["assets"]),
+        }
+        for item in entry["dashboard_uses"]:
+            dashboard_hints.append({"room": entry["display_name"], "hint": item})
+        for item in entry["automation_ideas"]:
+            automation_hints.append({"room": entry["display_name"], "hint": item})
+        for item in entry["mapping_questions"]:
+            mapping_questions.append({"room": entry["display_name"], "question": item})
+
+    configured_room_names = {room["name"] for room in rooms}
+    rooms_with_assets = {
+        entry["display_name"] for key, entry in grouped.items()
+        if key != "whole_house"
+    }
+    uncovered_rooms = sorted(configured_room_names - rooms_with_assets)
+
+    return {
+        "summary": {
+            "approved_assets": len(assets),
+            "configured_rooms": len(rooms),
+            "rooms_with_assets": len(rooms_with_assets),
+            "uncovered_rooms": len(uncovered_rooms),
+            "whole_house_assets": len(whole_house_assets),
+        },
+        "rooms": sorted(grouped.values(), key=lambda item: item["display_name"].lower()),
+        "whole_house_assets": whole_house_assets,
+        "dashboard_hints": dashboard_hints[:25],
+        "automation_hints": automation_hints[:25],
+        "mapping_questions": mapping_questions[:25],
+        "uncovered_rooms": uncovered_rooms,
+        "next_steps": _spatial_next_steps(assets, uncovered_rooms, mapping_questions),
+    }
+
+
 def analyze_asset(
     *,
     data: bytes,
@@ -263,6 +365,91 @@ def _mapping_questions(asset_type: str, rooms: list[str]) -> list[str]:
     if asset_type in {"floorplan", "blueprint"}:
         questions.append("Which doors, windows, garage entries, and exterior zones should be labeled?")
     return questions
+
+
+def _asset_room_candidates(asset: dict[str, Any]) -> list[str]:
+    analysis = asset.get("analysis") or {}
+    values = []
+    if asset.get("room"):
+        values.append(str(asset["room"]))
+    values.extend(_limited_strings(analysis.get("room_candidates"), 8))
+    return _dedupe(values)
+
+
+def _spatial_asset_summary(asset: dict[str, Any]) -> dict[str, Any]:
+    analysis = asset.get("analysis") or {}
+    return {
+        "id": asset.get("id"),
+        "title": asset.get("title") or asset.get("original_filename"),
+        "asset_type": asset.get("asset_type"),
+        "room": asset.get("room"),
+        "summary": analysis.get("summary") or asset.get("description") or "",
+        "dashboard_uses": _limited_strings(analysis.get("dashboard_uses"), 5),
+        "automation_ideas": _limited_strings(analysis.get("automation_ideas"), 5),
+        "mapping_questions": _limited_strings(analysis.get("mapping_questions"), 5),
+        "safety_notes": _limited_strings(analysis.get("safety_notes"), 5),
+    }
+
+
+def _room_key(candidate: str, room_index: dict[str, dict[str, Any]]) -> str:
+    needle = str(candidate or "").strip().lower()
+    if not needle:
+        return "whole_house"
+    if needle in room_index:
+        return str(room_index[needle]["name"]).lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", needle).strip("_")
+    for key, room in room_index.items():
+        if normalized and normalized == re.sub(r"[^a-z0-9]+", "_", key).strip("_"):
+            return str(room["name"]).lower()
+    return needle
+
+
+def _room_display_name(room_key: str, room_index: dict[str, dict[str, Any]]) -> str:
+    room = room_index.get(room_key)
+    if room:
+        return str(room["name"])
+    if room_key == "whole_house":
+        return "Whole house"
+    return room_key.replace("_", " ").title()
+
+
+def _limited_strings(value: Any, limit: int) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value[:limit] if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        key = value.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(value.strip())
+    return result
+
+
+def _spatial_next_steps(
+    assets: list[dict[str, Any]],
+    uncovered_rooms: list[str],
+    mapping_questions: list[dict[str, Any]],
+) -> list[str]:
+    steps: list[str] = []
+    if not assets:
+        steps.append("Upload and approve a real floor plan, blueprint, room photo, or house note.")
+    if uncovered_rooms:
+        shown = ", ".join(uncovered_rooms[:5])
+        more = "..." if len(uncovered_rooms) > 5 else ""
+        steps.append(f"Add room photos or layout notes for: {shown}{more}")
+    if mapping_questions:
+        steps.append("Answer the top mapping questions so dashboards and automations know real room placement.")
+    if not steps:
+        steps.append("Spatial brain is ready for dashboard, zone, and routine drafting.")
+    return steps
 
 
 def _set_status(asset_id: int, status: str) -> dict[str, Any]:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.39
+
+- Added the House Spatial Brain: approved floor plans, blueprints, room photos, and notes are grouped by room with dashboard hints, automation ideas, mapping questions, and coverage status.
+- Added `/house/spatial-brain` and `/voice/runtime` APIs for deployable room knowledge and assistant/source voice runtime readiness.
+- Dashboard drafts now include AI Layout Notes from approved house knowledge assets so generated dashboards are informed by real floor plans and room notes.
+- Upgraded automation drafting for multi-action scheduled tasks with time, delay, sunset, sunrise, and presence conditions while keeping install approval-first.
+- Added House Knowledge UI spatial readiness cards and expanded Jarvis Brain readiness layers for spatial brain, dashboard architect, automation builder v2, personal profiles, and voice runtime.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.38
 
 - Added a House Knowledge workspace for floor plans, blueprints, room photos, and layout notes.

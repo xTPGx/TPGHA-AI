@@ -349,6 +349,63 @@ def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
     }
 
 
+def build_voice_runtime(config: AppConfig) -> dict[str, Any]:
+    """Return the deployable voice runtime map for assistants and sources."""
+
+    deployment = build_wake_word_deployment(config)
+    runtime_assistants = []
+    for assistant in deployment.get("assistants", []):
+        sources = assistant.get("sources") or []
+        runtime_assistants.append({
+            "assistant_id": assistant.get("id"),
+            "assistant_name": assistant.get("name"),
+            "owner": assistant.get("owner"),
+            "wake_words": assistant.get("wake_words") or [],
+            "listen_enabled": bool(assistant.get("listen_enabled")),
+            "linked_source_count": len(sources),
+            "ready": bool(assistant.get("ready")),
+            "runtime_state": "online" if assistant.get("ready") else "needs_setup",
+            "next_step": assistant.get("next_step"),
+            "sources": sources,
+        })
+
+    room_routes = []
+    for source in deployment.get("sources", []):
+        route = source.get("resolved_reply_route") or {}
+        room_routes.append({
+            "source_id": source.get("id"),
+            "source_name": source.get("name"),
+            "assistant": source.get("assistant"),
+            "user": source.get("user"),
+            "room": source.get("room"),
+            "trust": source.get("trust"),
+            "default_reply": source.get("default_reply"),
+            "target_entity_id": route.get("target_entity_id"),
+            "setup_status": source.get("setup_status"),
+            "missing": source.get("missing") or [],
+            "ready": source.get("setup_status") == "ready",
+            "next_step": source.get("next_step"),
+        })
+
+    counts = deployment.get("counts", {})
+    ready_assistants = sum(1 for item in runtime_assistants if item["ready"])
+    ready_sources = sum(1 for item in room_routes if item["ready"])
+    return {
+        "status": "ready" if ready_assistants and ready_sources else "needs_setup",
+        "counts": {
+            **counts,
+            "runtime_assistants": len(runtime_assistants),
+            "runtime_assistants_ready": ready_assistants,
+            "runtime_sources": len(room_routes),
+            "runtime_sources_ready": ready_sources,
+        },
+        "assistants": runtime_assistants,
+        "room_routes": room_routes,
+        "recommended_satellites": deployment.get("recommended_satellites", []),
+        "policies": deployment.get("policies", []),
+    }
+
+
 def _room_for_display(config: AppConfig, display_ref: str):
     for room in config.devices.rooms:
         if display_ref in {room.display or "", room.id, room.name}:

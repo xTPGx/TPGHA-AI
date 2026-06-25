@@ -43,6 +43,46 @@ def _guess_delay(text: str) -> Optional[str]:
     return f"{hours:02d}:{mins:02d}:00"
 
 
+def _guess_sun_trigger(text: str) -> dict[str, Any] | None:
+    lower = text.lower()
+    if "sunset" in lower or "sundown" in lower:
+        return {"platform": "sun", "event": "sunset"}
+    if "sunrise" in lower or "sun up" in lower or "sunup" in lower:
+        return {"platform": "sun", "event": "sunrise"}
+    return None
+
+
+def _presence_conditions(text: str) -> list[dict[str, Any]]:
+    lower = text.lower()
+    if any(phrase in lower for phrase in (
+        "when nobody is home",
+        "if nobody is home",
+        "when no one is home",
+        "if no one is home",
+        "when everyone is away",
+        "if everyone is away",
+    )):
+        return [{
+            "condition": "template",
+            "value_template": "{{ states.person | selectattr('state', 'eq', 'home') | list | count == 0 }}",
+            "alias": "Nobody is home",
+        }]
+    if any(phrase in lower for phrase in (
+        "when someone is home",
+        "if someone is home",
+        "when anybody is home",
+        "if anybody is home",
+        "when people are home",
+        "if people are home",
+    )):
+        return [{
+            "condition": "template",
+            "value_template": "{{ states.person | selectattr('state', 'eq', 'home') | list | count > 0 }}",
+            "alias": "Someone is home",
+        }]
+    return []
+
+
 async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -> ActionResult:
     intent = "create_simple_automation"
     trigger_desc = (params.get("trigger_description") or "").strip()
@@ -56,7 +96,10 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     at_time = _guess_time(trigger_desc) or _guess_time(action_source)
     delay = _guess_delay(trigger_desc) or _guess_delay(action_source)
     trigger: dict[str, Any]
-    if at_time:
+    sun_trigger = _guess_sun_trigger(trigger_desc) or _guess_sun_trigger(action_source)
+    if sun_trigger:
+        trigger = sun_trigger
+    elif at_time:
         trigger = {"platform": "time", "at": at_time}
     elif delay:
         trigger = {"platform": "manual", "note": "Start this timer when approved."}
@@ -69,11 +112,13 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     if delay:
         actions = [{"delay": delay}, *actions]
 
+    conditions = _presence_conditions(" ".join([trigger_desc, action_source, original_request]))
+
     proposed = {
         "alias": f"TPG HomeAI: {trigger_desc[:48]}",
         "description": f"Draft generated from: '{trigger_desc}' -> '{action_source}'",
         "trigger": [trigger],
-        "condition": [],
+        "condition": conditions,
         "action": actions,
         "mode": "single",
     }
@@ -116,7 +161,13 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
             "created in Home Assistant. Review and approve to create it."
         ),
         resolved={"trigger": trigger, "draft_id": draft_id},
-        data={"proposed_yaml": proposed_yaml, "draft_id": draft_id},
+        data={
+            "proposed_yaml": proposed_yaml,
+            "draft_id": draft_id,
+            "trigger": trigger,
+            "conditions": conditions,
+            "actions": actions,
+        },
     )
 
 
@@ -152,6 +203,14 @@ def _strip_schedule_words(text: str) -> str:
     text = re.sub(r"\b(create|make|add|build)\s+(a\s+)?(scheduled task|schedule|automation)\b[:,]?\s*", "", text, flags=re.I)
     text = _AT_TIME_RE.sub("", text)
     text = _DELAY_RE.sub("", text)
+    text = re.sub(r"\b(at|around)\s+(sunset|sundown|sunrise|sun up|sunup)\b", "", text, flags=re.I)
+    text = re.sub(
+        r"\b(if|when)\s+(nobody|no one|everyone|someone|anybody|people)\s+"
+        r"(is|are)\s+(home|away)\b",
+        "",
+        text,
+        flags=re.I,
+    )
     return " ".join(text.split())
 
 

@@ -11,6 +11,7 @@ export default function HouseKnowledge() {
   const [assets, setAssets] = useState<any[]>([]);
   const [cfg, setCfg] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
+  const [spatial, setSpatial] = useState<any>(null);
   const [status, setStatus] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState("");
@@ -28,14 +29,16 @@ export default function HouseKnowledge() {
 
   const load = async () => {
     try {
-      const [assetResult, configResult, sessionResult] = await Promise.all([
+      const [assetResult, configResult, sessionResult, spatialResult] = await Promise.all([
         api.houseAssets(status || undefined),
         api.config(),
         api.uiSession(homeAssistantSessionHints()),
+        api.houseSpatialBrain(),
       ]);
       setAssets(assetResult.assets || []);
       setCfg(configResult);
       setSession(sessionResult);
+      setSpatial(spatialResult);
       setError("");
     } catch (e: any) {
       setError(e.message || String(e));
@@ -134,6 +137,8 @@ export default function HouseKnowledge() {
         </div>
       </section>
 
+      <SpatialBrainPanel spatial={spatial} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {STATUSES.map((item) => (
@@ -162,6 +167,66 @@ export default function HouseKnowledge() {
         ))}
       </div>
       {assets.length === 0 && <div className="card text-slate-500">No house assets found.</div>}
+    </div>
+  );
+}
+
+function SpatialBrainPanel({ spatial }: { spatial: any }) {
+  if (!spatial) return null;
+  const summary = spatial.summary || {};
+  const rooms = spatial.rooms || [];
+  const questions = spatial.mapping_questions || [];
+  return (
+    <section className="card">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Spatial Brain</h2>
+          <p className="mt-1 text-sm text-slate-400">Approved house assets grouped into room context for dashboards, routines, zones, and voice placement.</p>
+        </div>
+        <span className="badge bg-cyan-500/10 text-cyan-200">{summary.rooms_with_assets || 0}/{summary.configured_rooms || 0} rooms mapped</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Approved assets" value={summary.approved_assets || 0} />
+        <Stat label="Rooms with assets" value={summary.rooms_with_assets || 0} />
+        <Stat label="Uncovered rooms" value={summary.uncovered_rooms || 0} />
+        <Stat label="Whole-house assets" value={summary.whole_house_assets || 0} />
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {rooms.slice(0, 6).map((room: any) => (
+          <div key={room.room} className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-white">{room.display_name}</h3>
+              <span className="badge bg-slate-800 text-slate-300">{room.coverage?.asset_count || 0} assets</span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {["has_lights", "has_fans", "has_speakers", "has_cameras", "has_displays"].map((key) => (
+                <span key={key} className={`badge ${room.coverage?.[key] ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-800 text-slate-400"}`}>
+                  {key.replace("has_", "")}
+                </span>
+              ))}
+            </div>
+            <InfoList title="Dashboard hints" items={room.dashboard_uses} />
+            <InfoList title="Automation ideas" items={room.automation_ideas} />
+          </div>
+        ))}
+      </div>
+      {questions.length > 0 && (
+        <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <div className="font-semibold">Top mapping questions</div>
+          <ul className="mt-2 space-y-1">
+            {questions.slice(0, 4).map((item: any) => <li key={`${item.room}:${item.question}`}>- {item.room}: {item.question}</li>)}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
     </div>
   );
 }

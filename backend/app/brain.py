@@ -13,6 +13,7 @@ from .config_loader import config_error, get_config
 from .db.database import get_session
 from .db.models import CommandLog, ConversationState, HouseAsset, MemoryItem, Suggestion
 from .discovery import capabilities
+from .house_assets import build_spatial_brain
 from .house_state import build_mode_brain, build_wake_word_deployment
 from .router.action_policy import CONFIDENCE_REVIEW_THRESHOLD
 from .settings import get_settings
@@ -49,6 +50,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     config = get_config()
     mode_brain = build_mode_brain(config)
     wake_word = build_wake_word_deployment(config)
+    spatial_brain = build_spatial_brain()
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -149,6 +151,20 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Upload and approve the real house floor plan, room photos, and tablet/dashboard layout notes.",
         },
         {
+            "id": "house_spatial_brain",
+            "title": "House Spatial Brain",
+            "status": "ready" if spatial_brain.get("summary", {}).get("rooms_with_assets") else "partial",
+            "score": 100 if spatial_brain.get("summary", {}).get("rooms_with_assets") else 62,
+            "evidence": [
+                "Approved floor plans, blueprints, room photos, and notes are grouped by room.",
+                f"{spatial_brain.get('summary', {}).get('rooms_with_assets', 0)} rooms have approved spatial assets.",
+                f"{spatial_brain.get('summary', {}).get('uncovered_rooms', 0)} configured rooms still need spatial context.",
+                "Dashboard drafts include AI Layout Notes from approved spatial assets.",
+                "Spatial brain exposes dashboard hints, automation ideas, and mapping questions.",
+            ],
+            "next": "Approve real room photos/floor plans until every active room has spatial context.",
+        },
+        {
             "id": "voice_layer",
             "title": "Voice Layer",
             "status": "ready" if voice_ready else "partial",
@@ -192,6 +208,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add schedule mining from command history for time-of-day suggestions.",
         },
         {
+            "id": "automation_builder_v2",
+            "title": "Automation Builder v2",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Residents can draft scheduled tasks and automations without dashboard/system permissions.",
+                "Drafts can include multiple safe actions in one request.",
+                "Time, delay, sunset, sunrise, and presence conditions are converted into HA-style YAML.",
+                "Automation drafts remain approval-first before being installed into Home Assistant.",
+            ],
+            "next": "Add recurring calendar windows and natural-language condition editing.",
+        },
+        {
             "id": "ha_native_ui",
             "title": "HA Native UI + Dashboard Builder",
             "status": "ready",
@@ -203,6 +232,32 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Dashboard drafts include tablet/profile and voice-panel views.",
             ],
             "next": "Add drag-and-drop dashboard editing.",
+        },
+        {
+            "id": "dashboard_architect",
+            "title": "Dashboard Architect",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Owner/admin users can draft dashboard YAML from room and device context.",
+                "Dashboard drafts can include tablet/profile and voice-panel views.",
+                "Approved spatial assets are inserted as AI Layout Notes for review.",
+                "Browser Mod navigation metadata is included when dashboard drafts are generated.",
+            ],
+            "next": "Add live visual dashboard editing with drag/drop cards and tablet preview profiles.",
+        },
+        {
+            "id": "personal_ai_profiles",
+            "title": "Personal AI Profiles v2",
+            "status": "ready" if config.assistants.users and config.assistants.assistants else "partial",
+            "score": 100 if config.assistants.users and config.assistants.assistants else 72,
+            "evidence": [
+                f"{len(config.assistants.users)} TPG user profiles synced/configured.",
+                f"{len(config.assistants.assistants)} assistant profiles configured.",
+                "HA administrators become owner/admin profiles; HA non-admins receive resident profile scope.",
+                "Users keep their own assistant, notebook, memories, voice profile, and music account context.",
+            ],
+            "next": "Add owner-approved profile onboarding notifications for newly detected HA users.",
         },
         {
             "id": "house_state",

@@ -95,6 +95,7 @@ from .house_state import (
     build_house_state,
     build_mode_brain,
     build_tablet_profiles,
+    build_voice_runtime,
     build_wake_word_deployment,
 )
 
@@ -102,7 +103,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.38"
+APP_VERSION = "1.0.39"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1033,6 +1034,11 @@ async def house_asset_ignore(asset_id: int):
         raise HTTPException(status_code=404, detail=str(err))
 
 
+@app.get("/house/spatial-brain")
+async def house_spatial_brain():
+    return house_assets_store.build_spatial_brain()
+
+
 @app.get("/brain/layers")
 async def brain_layers(include_registries: bool = True):
     graph = await build_house_graph(include_registries=include_registries)
@@ -1081,6 +1087,11 @@ async def voice_voices():
 @app.get("/voice/deployment")
 async def voice_deployment():
     return build_wake_word_deployment(get_config())
+
+
+@app.get("/voice/runtime")
+async def voice_runtime():
+    return build_voice_runtime(get_config())
 
 
 @app.post("/voice/preview")

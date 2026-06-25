@@ -8,6 +8,7 @@ import re
 
 import yaml
 
+from ..house_assets import build_spatial_brain
 from ..models.schemas import AppConfig
 from ..models.results import ActionResult
 from . import ActionContext
@@ -289,6 +290,45 @@ def _tablet_view_cards(config: AppConfig) -> list[dict[str, Any]]:
     return cards
 
 
+def _spatial_brain_cards(spatial: dict[str, Any], room: str | None = None) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
+    rooms = spatial.get("rooms") or []
+    if room:
+        needle = room.strip().lower()
+        rooms = [
+            item for item in rooms
+            if needle in {
+                str(item.get("room") or "").lower(),
+                str(item.get("display_name") or "").lower(),
+            }
+        ]
+    if not rooms and not spatial.get("whole_house_assets"):
+        return cards
+
+    cards.append({
+        "type": "markdown",
+        "content": (
+            "## AI Layout Notes\n"
+            "Approved TPG HomeAI house knowledge used while drafting this dashboard. "
+            "Review room placement before installing."
+        ),
+    })
+    for item in rooms[:6]:
+        assets = item.get("assets") or []
+        uses = item.get("dashboard_uses") or []
+        questions = item.get("mapping_questions") or []
+        content = [
+            f"### {item.get('display_name') or item.get('room')}",
+            f"- Approved assets: `{len(assets)}`",
+        ]
+        if uses:
+            content.append("- Dashboard hints: " + "; ".join(uses[:3]))
+        if questions:
+            content.append("- Open mapping questions: " + "; ".join(questions[:2]))
+        cards.append({"type": "markdown", "content": "\n".join(content)})
+    return cards
+
+
 def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
                           style: str = "native", room: str | None = None,
                           include_browser_mod: bool = True,
@@ -307,9 +347,13 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
         needle = room.strip().lower().replace(" ", "_")
         rooms = [r for r in rooms if needle in {r.id.lower(), r.name.lower().replace(" ", "_")}]
 
+    spatial_brain = build_spatial_brain()
     home_cards = [c for r in rooms if (c := _room_card(r, style))]
     if not home_cards:
         home_cards = [{"type": "markdown", "content": "No approved room devices yet."}]
+    spatial_cards = _spatial_brain_cards(spatial_brain, room)
+    if spatial_cards:
+        home_cards = [*spatial_cards, *home_cards]
 
     views: list[dict[str, Any]] = [{
         "title": "Home",
@@ -395,6 +439,8 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
         notes.append("Voice panel adds assistant voice profile and source readiness cards.")
     if include_unavailable:
         notes.append("Unavailable devices are included when Home Assistant exposes them in approved config.")
+    if spatial_cards:
+        notes.append("Approved house knowledge assets were included as AI Layout Notes.")
 
     yaml_text = yaml.safe_dump(dashboard, sort_keys=False, allow_unicode=True)
     return {
@@ -404,6 +450,7 @@ def build_dashboard_draft(config: AppConfig, *, title: str = "TPG Home",
         "view_count": len(views),
         "dashboard": dashboard,
         "yaml": yaml_text,
+        "spatial_brain": spatial_brain,
         "notes": notes,
     }
 
