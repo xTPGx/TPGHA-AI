@@ -97,7 +97,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.28"
+APP_VERSION = "1.0.29"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -269,8 +269,9 @@ async def ui_session(request: Request):
     if not detected and header_candidates:
         unknown_user = sorted(header_candidates)[0]
         memory_store.propose_user_setup_suggestion(unknown_user)
-    active = detected or _default_ui_user(users)
-    effective_role = "admin" if ha_admin else (active.role if active else "guest")
+    active = detected or _safe_default_ui_user(users)
+    identity_trusted = detected is not None
+    effective_role = "admin" if (identity_trusted and ha_admin) else (active.role if active else "guest")
     active_payload = active.model_dump() if active else None
     if active_payload:
         active_payload["role"] = effective_role
@@ -281,6 +282,12 @@ async def ui_session(request: Request):
         "default_assistant": default_assistant.model_dump() if default_assistant else None,
         "ha_user_candidates": sorted(header_candidates),
         "ha_admin": ha_admin,
+        "identity_trusted": identity_trusted,
+        "identity_source": "ha_headers" if identity_trusted else "safe_fallback",
+        "identity_warning": "" if identity_trusted else (
+            "Home Assistant did not pass a trusted logged-in user identity; "
+            "TPG HomeAI is using the safest shared profile instead of owner access."
+        ),
         "unknown_ha_user": unknown_user,
         "users": [
             {
@@ -1199,10 +1206,17 @@ def _user_header_candidates(request: Request) -> set[str]:
     header_names = (
         "x-ha-user",
         "x-ha-user-name",
+        "x-ha-user-id",
         "x-hass-user",
+        "x-hass-user-id",
         "x-home-assistant-user",
+        "x-home-assistant-user-id",
         "x-forwarded-user",
+        "x-forwarded-user-id",
+        "x-ingress-user",
+        "x-ingress-user-id",
         "remote-user",
+        "remote-user-id",
     )
     values = [request.headers.get(name, "") for name in header_names]
     return {v.strip().lower() for v in values if v and v.strip()}
@@ -1253,8 +1267,14 @@ def _default_assistant_for_user(user: User | None, assistants: list[Assistant]) 
     return assistants[0] if assistants else None
 
 
-def _default_ui_user(users: list[User]) -> User | None:
-    for role in ("admin", "manager", "resident", "kiosk", "guest"):
+def _safe_default_ui_user(users: list[User]) -> User | None:
+    """Choose a non-privileged profile when HA has not identified the session.
+
+    Missing HA identity must never silently become owner/admin. Shared panels
+    and cross-origin iframes should land on the house/kiosk profile until a
+    trusted HA header or bridge identifies the real logged-in user.
+    """
+    for role in ("kiosk", "guest", "resident", "manager", "admin"):
         for user in users:
             if user.role == role:
                 return user

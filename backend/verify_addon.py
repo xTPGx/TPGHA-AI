@@ -111,10 +111,12 @@ def main() -> int:
           'PANEL_PATH = "tpg-homeai-app"' in ha_client
           and "frontend_url_path=PANEL_PATH" in ha_client
           and "LEGACY_ADDON_PANEL_PATH" in ha_client
+          and 'ADDON_INGRESS_PATH = "/api/hassio_ingress/3e5a55d6_tpg_homeai"' in ha_client
+          and 'config={"url": ADDON_INGRESS_PATH, "require_admin": False}' in ha_client
           and '"require_admin": False' in ha_client
           and "require_admin=False" in ha_client
           and "sidebar_default_visible=True" in ha_client,
-          "The HA iframe panel must not require administrator access.")
+          "The HA iframe panel must not require administrator access and must use HA ingress, not raw backend.")
     check("add-on ships custom integration files",
           "custom_components_template/tpg_homeai" in dockerfile,
           "The add-on image must include the matching custom integration.")
@@ -271,18 +273,27 @@ def main() -> int:
           ui.get("roles", {}).get("admin") and ui.get("roles", {}).get("resident")
           and ui.get("roles", {}).get("kiosk"),
           str(ui))
-    check("/ui/session defaults to admin when available",
-          ui.get("detected_user", {}).get("id") == "shawn"
-          and ui.get("detected_user", {}).get("role") == "admin",
+    check("/ui/session does not default to owner/admin without trusted HA identity",
+          ui.get("detected_user", {}).get("id") == "house_remote"
+          and ui.get("detected_user", {}).get("role") == "kiosk"
+          and ui.get("role") == "kiosk"
+          and ui.get("identity_trusted") is False
+          and ui.get("identity_source") == "safe_fallback",
           str(ui))
-    check("/ui/session defaults Shawn to Atlas",
-          ui.get("default_assistant", {}).get("id") == "atlas",
+    check("/ui/session defaults missing identity to shared Jarvis",
+          ui.get("default_assistant", {}).get("id") == "jarvis",
           str(ui))
     r = client.get("/ui/session", headers={"x-ha-user-name": "Jordie"})
     check("/ui/session maps HA header to resident user",
           r.status_code == 200
           and r.json().get("detected_user", {}).get("id") == "jordie"
           and r.json().get("detected_user", {}).get("role") == "resident",
+          str(r.json()))
+    r = client.get("/ui/session", headers={"x-ha-user-id": "jordie"})
+    check("/ui/session maps HA user-id header to resident user",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "jordie"
+          and r.json().get("identity_trusted") is True,
           str(r.json()))
     r = client.get("/ui/session", headers={
         "x-ha-user-name": "Jordie",

@@ -13,6 +13,7 @@ export default function AppShell({
   sessionUser,
   haUserCandidates,
   unknownHaUser,
+  identityWarning,
   previewRole,
   canPreviewRoles,
   onPreviewRoleChange,
@@ -24,6 +25,7 @@ export default function AppShell({
   sessionUser: any;
   haUserCandidates: string[];
   unknownHaUser: string;
+  identityWarning: string;
   previewRole: Role | "";
   canPreviewRoles: boolean;
   onPreviewRoleChange: (role: Role | "") => void;
@@ -88,6 +90,7 @@ export default function AppShell({
             sessionUser={sessionUser}
             haUserCandidates={haUserCandidates}
             unknownHaUser={unknownHaUser}
+            identityWarning={identityWarning}
             previewRole={previewRole}
             canPreviewRoles={canPreviewRoles}
             onPreviewRoleChange={onPreviewRoleChange}
@@ -116,6 +119,7 @@ export default function AppShell({
                 sessionUser={sessionUser}
                 haUserCandidates={haUserCandidates}
                 unknownHaUser={unknownHaUser}
+                identityWarning={identityWarning}
                 previewRole={previewRole}
                 canPreviewRoles={canPreviewRoles}
                 onPreviewRoleChange={onPreviewRoleChange}
@@ -152,6 +156,7 @@ function ShellNav({
   sessionUser,
   haUserCandidates,
   unknownHaUser,
+  identityWarning,
   previewRole,
   canPreviewRoles,
   onPreviewRoleChange,
@@ -162,6 +167,7 @@ function ShellNav({
   sessionUser: any;
   haUserCandidates: string[];
   unknownHaUser: string;
+  identityWarning: string;
   previewRole: Role | "";
   canPreviewRoles: boolean;
   onPreviewRoleChange: (role: Role | "") => void;
@@ -193,6 +199,11 @@ function ShellNav({
           {unknownHaUser && (
             <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
               Add this HA username as an alias to the right TPG user.
+            </div>
+          )}
+          {identityWarning && (
+            <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+              {identityWarning}
             </div>
           )}
           {canPreviewRoles && (

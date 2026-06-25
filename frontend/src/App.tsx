@@ -103,6 +103,7 @@ export default function App() {
       sessionUser={sessionUser}
       haUserCandidates={session?.ha_user_candidates || []}
       unknownHaUser={session?.unknown_ha_user || ""}
+      identityWarning={session?.identity_warning || ""}
       previewRole={previewRole}
       canPreviewRoles={canPreviewRoles}
       onPreviewRoleChange={setPreviewRole}

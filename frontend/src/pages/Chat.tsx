@@ -177,8 +177,8 @@ export default function Chat() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [config, setConfig] = useState<any>(null);
-  const [assistant, setAssistant] = useState("atlas");
-  const [user, setUser] = useState("shawn");
+  const [assistant, setAssistant] = useState("jarvis");
+  const [user, setUser] = useState("house_remote");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -242,12 +242,17 @@ export default function Chat() {
       .then(([sessionResult, configResult]) => {
         setSession(sessionResult);
         setConfig(configResult);
-        const defaultUser = sessionResult.detected_user?.id || configResult.assistants?.users?.[0]?.id || "shawn";
+        const defaultUser = (
+          sessionResult.detected_user?.id ||
+          configResult.assistants?.users?.find((u: any) => u.role === "kiosk")?.id ||
+          configResult.assistants?.users?.[0]?.id ||
+          "house_remote"
+        );
         const defaultAssistant = (
           sessionResult.default_assistant?.id ||
           configResult.assistants?.assistants?.find((a: any) => a.owner === defaultUser)?.id ||
           configResult.assistants?.assistants?.[0]?.id ||
-          "atlas"
+          "jarvis"
         );
         setUser(defaultUser);
         setAssistant(defaultAssistant);

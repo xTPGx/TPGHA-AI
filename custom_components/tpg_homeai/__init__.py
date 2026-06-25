@@ -83,6 +83,7 @@ from .coordinator import TPGHomeAICoordinator
 _LOGGER = logging.getLogger(__name__)
 PANEL_PATH = "tpg-homeai-app"
 LEGACY_ADDON_PANEL_PATH = "tpg-homeai"
+ADDON_INGRESS_PATH = "/api/hassio_ingress/3e5a55d6_tpg_homeai"
 
 PLATFORMS: list[Platform] = [
     Platform.CONVERSATION,
@@ -496,7 +497,7 @@ def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
             sidebar_title="TPG HomeAI",
             sidebar_icon="mdi:robot-happy",
             frontend_url_path=PANEL_PATH,
-            config={"url": entry.data[CONF_URL], "require_admin": False},
+            config={"url": ADDON_INGRESS_PATH, "require_admin": False},
             require_admin=False,
             sidebar_default_visible=True,
         )

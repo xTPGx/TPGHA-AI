@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.29
+
+- Stopped `/ui/session` from ever defaulting to Shawn/Owner when Home Assistant does not pass a trusted logged-in user identity.
+- Changed missing identity fallback to the shared `House Remote` / `Jarvis` kiosk profile and exposed an `identity_warning` so the UI explains the issue instead of silently showing the wrong person.
+- Added HA user-id header matching in addition to HA username matching for better ingress/proxy compatibility.
+- Pointed the custom HA sidebar iframe at Supervisor ingress instead of the raw backend URL so the panel stays inside the HA auth path for non-admin users.
+- Defaulted Chat's pre-session starter state to Jarvis/House Remote instead of Atlas/Shawn.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.28
 
 - Bundled the matching `custom_components/tpg_homeai` integration into the Home Assistant add-on image.
