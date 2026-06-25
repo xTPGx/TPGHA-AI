@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.47
+
+- Added Automation Builder v9 one-off date awareness so phrases like "tomorrow at 7 PM", "next Monday", "June 30", and "6/30" draft dated Home Assistant template conditions.
+- Kept recurring weekday behavior for recurring requests while preventing one-off date requests from silently becoming forever automations.
+- Removed date words from action parsing so dated scheduled tasks still resolve the intended device/action cleanly.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.46
 
 - Added Automation Builder v8 interval triggers so phrases like "every 15 minutes" and "every hour" draft native Home Assistant `time_pattern` automations.

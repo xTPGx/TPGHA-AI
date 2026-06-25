@@ -1176,6 +1176,26 @@ def main() -> int:
           and "persistent_notification.create" in automation_yaml
           and "platform: time\n" not in automation_yaml,
           automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "tomorrow at 7 PM",
+            "action_description": "turn off all lights",
+            "original_request": "Create scheduled task tomorrow at 7 PM turn off all lights.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v9 supports one-off date conditions",
+          r.status_code == 200
+          and "platform: time" in automation_yaml
+          and "at: '19:00:00'" in automation_yaml
+          and "condition: template" in automation_yaml
+          and "now().date().isoformat()" in automation_yaml
+          and "light.turn_off" in automation_yaml,
+          automation_yaml or str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

@@ -3,6 +3,7 @@ proposed Home Assistant automation YAML for human review/approval."""
 from __future__ import annotations
 
 import re
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
 import yaml
@@ -33,6 +34,19 @@ _STATE_CONDITION_RE = re.compile(
     r"(?:is|are|stays|remains)\s+(on|off|locked|unlocked|open|closed|home|away)\b",
     re.I,
 )
+_RELATIVE_DATE_RE = re.compile(r"\b(today|tonight|tomorrow)\b", re.I)
+_NEXT_WEEKDAY_RE = re.compile(
+    r"\b(next|this)\s+"
+    r"(monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat|sunday|sun)\b",
+    re.I,
+)
+_MONTH_DATE_RE = re.compile(
+    r"\b(?:on\s+)?"
+    r"(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|"
+    r"september|sep|sept|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b",
+    re.I,
+)
+_NUMERIC_DATE_RE = re.compile(r"\b(?:on\s+)?(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", re.I)
 _THRESHOLD_RE = re.compile(
     r"\b(?:is|goes|gets|drops|falls|rises|becomes|stays)?\s*"
     r"(above|over|greater than|more than|below|under|less than|lower than)\s+(\d{1,3})\b",
@@ -53,6 +67,20 @@ _DAY_MAP = {
     "sat": "sat",
     "sunday": "sun",
     "sun": "sun",
+}
+_MONTH_MAP = {
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
 }
 
 
@@ -403,6 +431,79 @@ def _time_window_conditions(text: str) -> list[dict[str, Any]]:
     return conditions
 
 
+def _date_conditions(text: str) -> list[dict[str, Any]]:
+    target = _target_date(text)
+    if not target:
+        return []
+    return [_date_condition(target)]
+
+
+def _target_date(text: str) -> date | None:
+    today = datetime.now().date()
+    weekday_match = _NEXT_WEEKDAY_RE.search(text)
+    if weekday_match:
+        modifier = weekday_match.group(1).lower()
+        day = _DAY_MAP[weekday_match.group(2).lower()]
+        return _next_weekday(today, day, include_today=(modifier == "this"))
+
+    relative = _RELATIVE_DATE_RE.search(text)
+    if relative:
+        value = relative.group(1).lower()
+        return today + timedelta(days=1 if value == "tomorrow" else 0)
+
+    month_match = _MONTH_DATE_RE.search(text)
+    if month_match:
+        month = _MONTH_MAP[month_match.group(1).lower()]
+        day = int(month_match.group(2))
+        return _upcoming_month_day(today, month, day)
+
+    numeric_match = _NUMERIC_DATE_RE.search(text)
+    if numeric_match:
+        month = int(numeric_match.group(1))
+        day = int(numeric_match.group(2))
+        year_text = numeric_match.group(3)
+        if year_text:
+            year = int(year_text)
+            if year < 100:
+                year += 2000
+            try:
+                return date(year, month, day)
+            except ValueError:
+                return None
+        return _upcoming_month_day(today, month, day)
+
+    return None
+
+
+def _next_weekday(today: date, day: str, include_today: bool) -> date:
+    target_idx = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].index(day)
+    delta = (target_idx - today.weekday()) % 7
+    if delta == 0 and not include_today:
+        delta = 7
+    return today + timedelta(days=delta)
+
+
+def _upcoming_month_day(today: date, month: int, day: int) -> date | None:
+    try:
+        target = date(today.year, month, day)
+    except ValueError:
+        return None
+    if target < today:
+        try:
+            target = date(today.year + 1, month, day)
+        except ValueError:
+            return None
+    return target
+
+
+def _date_condition(target: date) -> dict[str, Any]:
+    return {
+        "condition": "template",
+        "value_template": f"{{{{ now().date().isoformat() == '{target.isoformat()}' }}}}",
+        "alias": f"Only on {target.isoformat()}",
+    }
+
+
 def _state_conditions(ctx: ActionContext, text: str) -> list[dict[str, Any]]:
     conditions: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
@@ -510,9 +611,12 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
         actions = [{"delay": delay}, *actions]
 
     condition_source = " ".join([trigger_desc, action_source, original_request])
+    date_conditions = _date_conditions(condition_source)
+    recurrence_conditions = [] if date_conditions else _recurrence_conditions(condition_source)
     conditions = [
         *_presence_conditions(condition_source),
-        *_recurrence_conditions(condition_source),
+        *date_conditions,
+        *recurrence_conditions,
         *_time_window_conditions(condition_source),
         *_state_conditions(ctx, condition_source),
     ]
@@ -623,6 +727,10 @@ def _action_parts(text: str) -> list[str]:
 def _strip_schedule_words(text: str) -> str:
     text = re.sub(r"\b(create|make|add|build)\s+(a\s+)?(scheduled task|schedule|automation)\b[:,]?\s*", "", text, flags=re.I)
     text = _STATE_CONDITION_RE.sub("", text)
+    text = _NEXT_WEEKDAY_RE.sub("", text)
+    text = _RELATIVE_DATE_RE.sub("", text)
+    text = _MONTH_DATE_RE.sub("", text)
+    text = _NUMERIC_DATE_RE.sub("", text)
     text = _INTERVAL_RE.sub("", text)
     text = _AT_TIME_RE.sub("", text)
     text = _DELAY_RE.sub("", text)
