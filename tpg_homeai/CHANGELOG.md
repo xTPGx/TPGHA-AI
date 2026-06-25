@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.37
+
+- Added smart chat auto-scroll so new user/assistant messages stay visible while preserving the user's place when they scroll up through history.
+- Added a "Jump to latest" affordance when reading older chat history.
+- Added soft-archive delete for Recent chats: conversations disappear from the chat list without deleting the underlying command/audit transcript.
+- Added backend `DELETE /conversations/{conversation_id}` support and regression coverage proving archived conversations are hidden from lists while detail/export history remains preserved.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.36
 
 - Raised the add-on security rating from 7 to 8 by shipping a dedicated `apparmor.txt` profile (the add-on now runs under its own AppArmor confinement instead of the unconfined default).
