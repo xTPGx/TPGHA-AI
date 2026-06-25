@@ -3,7 +3,7 @@ import { api, CommandResponse } from "../api";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import DeveloperDetails from "../components/DeveloperDetails";
-import { homeAssistantSessionHints } from "../haAuth";
+import { homeAssistantSessionHints, startHomeAssistantUserBridge } from "../haAuth";
 
 interface Msg {
   id: string;
@@ -270,29 +270,45 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const applySession = (sessionResult: any, configResult = config) => {
+      if (cancelled) return;
+      setSession(sessionResult);
+      if (configResult) setConfig(configResult);
+      const defaultUser = (
+        sessionResult.detected_user?.id ||
+        configResult?.assistants?.users?.find((u: any) => u.role === "kiosk")?.id ||
+        configResult?.assistants?.users?.[0]?.id ||
+        "house_remote"
+      );
+      const defaultAssistant = (
+        sessionResult.default_assistant?.id ||
+        configResult?.assistants?.assistants?.find((a: any) => a.owner === defaultUser)?.id ||
+        configResult?.assistants?.assistants?.[0]?.id ||
+        "jarvis"
+      );
+      setUser(defaultUser);
+      setAssistant(defaultAssistant);
+      void refreshConversations(defaultAssistant, defaultUser);
+    };
     Promise.all([api.uiSession(homeAssistantSessionHints()), api.config()])
       .then(([sessionResult, configResult]) => {
-        setSession(sessionResult);
-        setConfig(configResult);
-        const defaultUser = (
-          sessionResult.detected_user?.id ||
-          configResult.assistants?.users?.find((u: any) => u.role === "kiosk")?.id ||
-          configResult.assistants?.users?.[0]?.id ||
-          "house_remote"
-        );
-        const defaultAssistant = (
-          sessionResult.default_assistant?.id ||
-          configResult.assistants?.assistants?.find((a: any) => a.owner === defaultUser)?.id ||
-          configResult.assistants?.assistants?.[0]?.id ||
-          "jarvis"
-        );
-        setUser(defaultUser);
-        setAssistant(defaultAssistant);
-        void refreshConversations(defaultAssistant, defaultUser);
+        applySession(sessionResult, configResult);
       })
       .catch(() => {
         /* keep safe starter defaults */
       });
+    const stopBridge = startHomeAssistantUserBridge((bridgeUser) => {
+      api.uiSession({ accessToken: homeAssistantSessionHints().accessToken, clientUser: bridgeUser })
+        .then((sessionResult) => applySession(sessionResult))
+        .catch(() => {
+          /* keep current session */
+        });
+    });
+    return () => {
+      cancelled = true;
+      stopBridge();
+    };
   }, []);
 
   useEffect(() => {

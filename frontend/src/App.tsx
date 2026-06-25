@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { api } from "./api";
-import { homeAssistantSessionHints } from "./haAuth";
+import { homeAssistantSessionHints, startHomeAssistantUserBridge } from "./haAuth";
 import AppShell, { NavGroupDef } from "./components/AppShell";
 import Dashboard from "./pages/Dashboard";
 import Entities from "./pages/Entities";
@@ -79,6 +79,13 @@ export default function App() {
     api.uiSession(homeAssistantSessionHints()).then((result) => {
       setSession(result);
     }).catch(() => setSession({ role: "guest", users: [] }));
+    return startHomeAssistantUserBridge((user) => {
+      api.uiSession({ accessToken: homeAssistantSessionHints().accessToken, clientUser: user })
+        .then((result) => setSession(result))
+        .catch(() => {
+          /* keep current session */
+        });
+    });
   }, []);
 
   const accessiblePaths = useMemo(() => {

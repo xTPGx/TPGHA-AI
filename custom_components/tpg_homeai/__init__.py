@@ -9,6 +9,7 @@ orchestrator is managed from Home Assistant rather than only the React UI.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -26,6 +27,7 @@ from homeassistant.core import (
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.components.http import StaticPathConfig
 
 from .const import (
     CONF_API_KEY,
@@ -84,6 +86,8 @@ _LOGGER = logging.getLogger(__name__)
 PANEL_PATH = "tpg-homeai-app"
 LEGACY_ADDON_PANEL_PATH = "tpg-homeai"
 ADDON_INGRESS_PATH = "/api/hassio_ingress/3e5a55d6_tpg_homeai"
+PANEL_MODULE_URL = "/tpg_homeai/panel.js"
+PANEL_MODULE_PATH = Path(__file__).with_name("panel.js")
 
 PLATFORMS: list[Platform] = [
     Platform.CONVERSATION,
@@ -371,7 +375,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    _register_sidebar_panel(hass, entry)
+    await _register_sidebar_panel(hass, entry)
     _register_services(hass)
     return True
 
@@ -477,7 +481,7 @@ COMMANDS_SCHEMA = vol.Schema({
 })
 
 
-def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     enabled = entry.options.get(CONF_ENABLE_SIDEBAR_PANEL,
                                 DEFAULT_ENABLE_SIDEBAR_PANEL)
     if not enabled:
@@ -486,14 +490,23 @@ def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
     try:
         from homeassistant.components import frontend
 
-        # Supervisor add-on ingress may register an admin-only panel at the
-        # legacy path. Keep the all-user custom panel on its own path so it
-        # does not compete with Supervisor panel ownership or mobile caching.
+        try:
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(PANEL_MODULE_URL, str(PANEL_MODULE_PATH), False),
+            ])
+        except RuntimeError:
+            # Reloads can leave the route registered; the existing route points
+            # at the same file shipped by this integration.
+            pass
+        frontend.add_extra_js_url(hass, PANEL_MODULE_URL)
+        # Supervisor add-on ingress is a raw iframe and does not reliably pass
+        # the active HA user to the app. The custom wrapper panel receives
+        # hass.user from Home Assistant and forwards that identity into TPG.
         frontend.async_remove_panel(hass, LEGACY_ADDON_PANEL_PATH)
         frontend.async_remove_panel(hass, PANEL_PATH)
         frontend.async_register_built_in_panel(
             hass,
-            component_name="iframe",
+            component_name="tpg-homeai-panel",
             sidebar_title="TPG HomeAI",
             sidebar_icon="mdi:robot-happy",
             frontend_url_path=PANEL_PATH,
@@ -509,6 +522,7 @@ def _remove_sidebar_panel(hass: HomeAssistant) -> None:
     try:
         from homeassistant.components import frontend
 
+        frontend.remove_extra_js_url(hass, PANEL_MODULE_URL)
         frontend.async_remove_panel(hass, LEGACY_ADDON_PANEL_PATH)
         frontend.async_remove_panel(hass, PANEL_PATH)
     except Exception:  # noqa: BLE001 - panel may not exist on this HA version

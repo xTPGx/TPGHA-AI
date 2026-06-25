@@ -4,10 +4,26 @@ export interface HomeAssistantSessionHints {
 }
 
 export function homeAssistantSessionHints(): HomeAssistantSessionHints {
+  const wrappedUser = userFromWrapperHash() || userFromWrapperStorage();
   return {
     accessToken: homeAssistantAccessToken(),
-    clientUser: liveHomeAssistantUser(),
+    clientUser: wrappedUser || liveHomeAssistantUser(),
   };
+}
+
+export function startHomeAssistantUserBridge(onUser: (user: Record<string, any>) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (event: MessageEvent) => {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data || {};
+    if (data.type !== "tpg-homeai-ha-user" || !data.user) return;
+    const user = sanitizeHaUser(data.user);
+    if (!Object.keys(user).length) return;
+    safeStorageSet(window.sessionStorage, "tpg-homeai-ha-user", JSON.stringify(user));
+    onUser(user);
+  };
+  window.addEventListener("message", handler);
+  return () => window.removeEventListener("message", handler);
 }
 
 export function homeAssistantAccessToken(): string {
@@ -49,6 +65,14 @@ function safeStorageGet(storage: Storage | undefined, key: string): string | nul
   }
 }
 
+function safeStorageSet(storage: Storage | undefined, key: string, value: string): void {
+  try {
+    storage?.setItem(key, value);
+  } catch {
+    /* ignored */
+  }
+}
+
 function tokenFromRaw(raw: string | null): string {
   if (!raw) return "";
   const trimmed = raw.trim();
@@ -87,4 +111,33 @@ function sanitizeHaUser(user: Record<string, any>): Record<string, any> {
     if (user[key] !== undefined && user[key] !== null) sanitized[key] = user[key];
   }
   return sanitized;
+}
+
+function userFromWrapperHash(): Record<string, any> | null {
+  if (typeof window === "undefined" || !window.location.hash) return null;
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const encoded = params.get("tpg_ha_user");
+  if (!encoded) return null;
+  try {
+    const raw = decodeURIComponent(escape(atob(encoded)));
+    const user = sanitizeHaUser(JSON.parse(raw));
+    if (Object.keys(user).length) {
+      safeStorageSet(window.sessionStorage, "tpg-homeai-ha-user", JSON.stringify(user));
+      return user;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function userFromWrapperStorage(): Record<string, any> | null {
+  try {
+    const raw = safeStorageGet(window.sessionStorage, "tpg-homeai-ha-user");
+    if (!raw) return null;
+    const user = sanitizeHaUser(JSON.parse(raw));
+    return Object.keys(user).length ? user : null;
+  } catch {
+    return null;
+  }
 }

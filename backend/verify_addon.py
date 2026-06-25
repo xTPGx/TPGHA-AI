@@ -89,6 +89,7 @@ def main() -> int:
     run_sh = (repo_root / "tpg_homeai" / "run.sh").read_text(encoding="utf-8")
     manifest = (repo_root / "custom_components" / "tpg_homeai" / "manifest.json").read_text(encoding="utf-8")
     ha_client = (repo_root / "custom_components" / "tpg_homeai" / "__init__.py").read_text(encoding="utf-8")
+    ha_panel = (repo_root / "custom_components" / "tpg_homeai" / "panel.js").read_text(encoding="utf-8")
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
     chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
@@ -105,20 +106,30 @@ def main() -> int:
     check("version metadata present", all(versions.values()), str(versions))
     check("version metadata aligned", len(set(versions.values())) == 1, str(versions))
     check("add-on changelog exists", (repo_root / "tpg_homeai" / "CHANGELOG.md").is_file())
-    check("ingress sidebar enabled for HA non-admin users",
-          "ingress: true" in addon_config and "panel_title:" in addon_config
-          and "panel_admin: false" in addon_config,
-          "panel_admin must be false so resident/shared HA users can open TPG HomeAI.")
-    check("custom integration sidebar panel is visible to HA non-admin users",
+    check("add-on ingress enabled without native sidebar ownership",
+          "ingress: true" in addon_config
+          and "panel_title:" not in addon_config
+          and "panel_admin:" not in addon_config,
+          "The custom integration wrapper must own the sidebar so it can pass the active HA user.")
+    check("custom integration wrapper panel is visible to HA non-admin users",
           'PANEL_PATH = "tpg-homeai-app"' in ha_client
           and "frontend_url_path=PANEL_PATH" in ha_client
           and "LEGACY_ADDON_PANEL_PATH" in ha_client
           and 'ADDON_INGRESS_PATH = "/api/hassio_ingress/3e5a55d6_tpg_homeai"' in ha_client
+          and 'PANEL_MODULE_URL = "/tpg_homeai/panel.js"' in ha_client
+          and "frontend.add_extra_js_url(hass, PANEL_MODULE_URL)" in ha_client
+          and 'component_name="tpg-homeai-panel"' in ha_client
           and 'config={"url": ADDON_INGRESS_PATH, "require_admin": False}' in ha_client
           and '"require_admin": False' in ha_client
           and "require_admin=False" in ha_client
           and "sidebar_default_visible=True" in ha_client,
-          "The HA iframe panel must not require administrator access and must use HA ingress, not raw backend.")
+          "The HA wrapper panel must not require administrator access and must use HA ingress, not raw backend.")
+    check("custom panel forwards hass.user to TPG iframe",
+          "set hass(value)" in ha_panel
+          and "this._hass?.user" in ha_panel
+          and "tpg_ha_user" in ha_panel
+          and "postMessage" in ha_panel,
+          "The custom HA panel must pass the live HA user into the iframe.")
     check("add-on ships custom integration files",
           "custom_components_template/tpg_homeai" in dockerfile,
           "The add-on image must include the matching custom integration.")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.34
+
+- Replaced the raw add-on iframe sidebar ownership with a Home Assistant custom panel wrapper.
+- The wrapper receives `hass.user` from Home Assistant and injects the active HA user into TPG HomeAI before the UI session is resolved.
+- Added frontend support for wrapper-delivered HA identity through URL hash, session storage, and live postMessage updates.
+- Kept add-on ingress enabled while removing the native add-on sidebar metadata so the custom integration owns the visible sidebar entry.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.33
 
 - Fixed TPG HomeAI UI identity so the live Home Assistant frontend user wins over stale stored browser tokens.
