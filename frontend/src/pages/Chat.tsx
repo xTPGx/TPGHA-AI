@@ -25,6 +25,8 @@ type SpeechRecognitionCtor = new () => {
   stop: () => void;
 };
 
+type MicState = "idle" | "recording" | "transcribing";
+
 const PROPOSAL_INTENTS = new Set(["create_simple_automation", "create_routine", "draft_dashboard"]);
 const SENSITIVE_INTENTS = new Set([
   "unlock_door",
@@ -53,6 +55,25 @@ function id() {
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
   const w = window as any;
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
+}
+
+function getPreferredAudioMimeType() {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return "";
+  return [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/aac",
+    "audio/mpeg",
+  ].find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function microphoneUnavailableMessage() {
+  const secureEnough = window.isSecureContext || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  if (!secureEnough) {
+    return "Microphone capture is blocked because Home Assistant is open over HTTP. On iPhone/iPad, use HTTPS/Nabu Casa or allow microphone access in the Home Assistant app.";
+  }
+  return "Microphone capture is not available in this browser. Use the Home Assistant app/browser microphone permission, or try HTTPS.";
 }
 
 function commandConfidence(command?: CommandResponse) {
@@ -187,12 +208,20 @@ export default function Chat() {
   const [note, setNote] = useState({ title: "Session note", body: "" });
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  const [micState, setMicState] = useState<MicState>("idle");
   const [speakResponses, setSpeakResponses] = useState(false);
   const [safePreview] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechSupported = useMemo(() => Boolean(getSpeechRecognition()), []);
+  const recorderSupported = useMemo(
+    () => Boolean(typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined"),
+    [],
+  );
   const users = session?.users || config?.assistants?.users || [];
   const assistants = session?.assistants || config?.assistants?.assistants || [];
   const selectedAssistant = assistants.find((a: any) => a.id === assistant);
@@ -232,6 +261,8 @@ export default function Chat() {
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop();
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       audioRef.current?.pause();
       window.speechSynthesis?.cancel();
     };
@@ -451,8 +482,97 @@ export default function Chat() {
     }
   };
 
-  const toggleListening = () => {
+  const stopRecorderTracks = () => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const transcribeRecording = async (blob: Blob) => {
+    if (blob.size < 64) {
+      setVoiceError("I did not receive enough microphone audio. Try holding the button a little longer.");
+      setMicState("idle");
+      setListening(false);
+      return;
+    }
+    setMicState("transcribing");
+    setListening(false);
+    try {
+      const extension = blob.type.includes("mp4") || blob.type.includes("aac") ? "m4a" : "webm";
+      const response = await api.voiceTranscribe(blob, `voice-input.${extension}`);
+      const transcript = String(response.text || "").trim();
+      if (!response.success || !transcript) {
+        setVoiceError(response.error || "I could not understand the microphone recording.");
+        return;
+      }
+      await send(transcript);
+    } catch (e: any) {
+      setVoiceError(e.message || "Voice transcription failed.");
+    } finally {
+      setMicState("idle");
+    }
+  };
+
+  const startRecorder = async () => {
+    if (!recorderSupported) return false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      mediaStreamRef.current = stream;
+      mediaChunksRef.current = [];
+      const mimeType = getPreferredAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) mediaChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        stopRecorderTracks();
+        setMicState("idle");
+        setListening(false);
+        setVoiceError("Microphone recording failed. Check microphone permission for Home Assistant.");
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(mediaChunksRef.current, { type });
+        stopRecorderTracks();
+        void transcribeRecording(blob);
+      };
+      recorder.start();
+      setMicState("recording");
+      setListening(true);
+      return true;
+    } catch (e: any) {
+      const name = String(e?.name || "");
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        setVoiceError(microphoneUnavailableMessage());
+        return true;
+      }
+      setVoiceError(e?.message ? `Microphone recording failed: ${e.message}` : microphoneUnavailableMessage());
+      return true;
+    }
+  };
+
+  const toggleListening = async () => {
     setVoiceError(null);
+    if (micState === "recording") {
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      } else {
+        recognitionRef.current?.stop();
+      }
+      setListening(false);
+      return;
+    }
+    if (micState === "transcribing") return;
+
+    const recordingStarted = await startRecorder();
+    if (recordingStarted) return;
+
     if (listening) {
       recognitionRef.current?.stop();
       setListening(false);
@@ -460,7 +580,7 @@ export default function Chat() {
     }
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
-      setVoiceError("Voice input is not supported in this browser.");
+      setVoiceError(microphoneUnavailableMessage());
       return;
     }
     const recognition = new SpeechRecognition();
@@ -480,13 +600,16 @@ export default function Chat() {
     };
     recognition.onerror = (event: any) => {
       setVoiceError(event.error ? `Voice input failed: ${event.error}` : "Voice input failed.");
+      setMicState("idle");
       setListening(false);
     };
     recognition.onend = () => {
+      setMicState("idle");
       setListening(false);
       const transcript = finalTranscript.trim();
       if (transcript) void send(transcript);
     };
+    setMicState("recording");
     setListening(true);
     recognition.start();
   };
@@ -545,12 +668,12 @@ export default function Chat() {
             </button>
             <button
               className={`chat-icon-btn ${listening ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
-              onClick={toggleListening}
-              disabled={busy || !speechSupported}
-              title={speechSupported ? "Use microphone" : "Voice input is not supported in this browser"}
+              onClick={() => void toggleListening()}
+              disabled={busy || micState === "transcribing"}
+              title={recorderSupported || speechSupported ? "Use microphone" : "Check microphone availability"}
               aria-label="Use microphone"
             >
-              Mic
+              {micState === "recording" ? "Stop" : micState === "transcribing" ? "..." : "Mic"}
             </button>
           </div>
         </header>
@@ -604,7 +727,7 @@ export default function Chat() {
                       void send();
                     }
                   }}
-                  placeholder={listening ? "Listening..." : "Message TPG HomeAI"}
+                  placeholder={listening ? "Listening... tap Stop to send" : "Message TPG HomeAI"}
                 />
                 <button className="chat-send-btn" onClick={() => void send()} disabled={busy || !text.trim()}>
                   {busy ? "..." : "Send"}

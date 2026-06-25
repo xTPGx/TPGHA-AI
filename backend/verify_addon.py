@@ -90,6 +90,8 @@ def main() -> int:
     manifest = (repo_root / "custom_components" / "tpg_homeai" / "manifest.json").read_text(encoding="utf-8")
     ha_client = (repo_root / "custom_components" / "tpg_homeai" / "__init__.py").read_text(encoding="utf-8")
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
+    chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+    api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
     docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
     manifest_version = re.search(r'"version":\s*"([^"]+)"', manifest)
@@ -128,6 +130,11 @@ def main() -> int:
     check("HA Assist uses chat brain, not command-only path",
           "async_chat(" in ha_conversation and "async_command(" not in ha_conversation,
           "Assist must use /chat for general conversation + guarded actions")
+    check("Chat mic uses recorder upload, not Web Speech only",
+          "MediaRecorder" in chat_frontend
+          and "voiceTranscribe" in chat_frontend
+          and "/voice/transcribe" in api_frontend,
+          "Mobile mic must record audio and upload it for OpenAI transcription.")
 
     print("PART 1 — API routing returns JSON, SPA never shadows API routes")
     r = client.get("/health")
@@ -591,6 +598,12 @@ def main() -> int:
           r.status_code == 200
           and r.json().get("profile", {}).get("provider") == "openai"
           and r.json().get("profile", {}).get("voice") == "onyx",
+          str(r.json()))
+    r = client.post("/voice/transcribe", files={"file": ("voice-input.webm", b"fake-audio", "audio/webm")})
+    check("/voice/transcribe returns JSON without OpenAI key", r.status_code == 200 and is_json(r), r.text)
+    check("/voice/transcribe explains missing OpenAI key",
+          r.json().get("success") is False
+          and "OpenAI API key" in r.json().get("error", ""),
           str(r.json()))
     from app.voice import _openai_speech_bytes, _safe_error_detail  # noqa: E402
 

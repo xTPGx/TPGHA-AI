@@ -33,9 +33,12 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function requestOnce<T>(base: string, path: string, init?: RequestInit): Promise<T> {
   const url = `${base}${path}`;
+  const isFormData = init?.body instanceof FormData;
+  const headers = new Headers(init?.headers);
+  if (!isFormData && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers,
   });
   // The backend always returns JSON for API routes. If we got HTML, the SPA
   // fallback intercepted the call — i.e. API routing is misconfigured.
@@ -184,6 +187,11 @@ export const api = {
     http<any>("/voice/preview", { method: "POST", body: JSON.stringify(body) }),
   voiceSpeak: (body: Record<string, any>) =>
     http<any>("/voice/speak", { method: "POST", body: JSON.stringify(body) }),
+  voiceTranscribe: (blob: Blob, filename = "voice-input.webm") => {
+    const form = new FormData();
+    form.append("file", blob, filename);
+    return http<any>("/voice/transcribe", { method: "POST", body: form });
+  },
   aiProviders: () => http<any>("/ai/providers"),
   memories: (status?: string, owner?: string) => {
     const params = new URLSearchParams();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.31
+
+- Replaced mobile chat microphone handling with a real browser recording path that uploads audio to `/voice/transcribe`.
+- Added OpenAI speech-to-text support with clear fallback/error messages when the API key, microphone permission, or HTTPS requirement is missing.
+- Kept Web Speech Recognition as a secondary fallback for browsers that support it.
+- Added `openai_transcribe_model` add-on configuration with default `gpt-4o-mini-transcribe`.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.30
 
 - Added backend-owned AI tool role policy so residents/kiosk/guests can keep normal conversation, brainstorming, device control, and schedule/automation drafting.

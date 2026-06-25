@@ -8,7 +8,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -77,6 +77,7 @@ from . import proactive as proactive_store
 from . import research as research_store
 from .router.resolver import Resolver
 from .settings import get_settings
+from .transcription import transcribe_audio
 from .voice import (
     list_voice_profiles,
     list_voice_source_readiness,
@@ -97,7 +98,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.30"
+APP_VERSION = "1.0.31"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -864,6 +865,16 @@ async def voice_speak(req: VoiceSpeakRequest):
         source_device_id=req.source_device_id,
         source_entity_id=req.source_entity_id,
         reply_mode=req.reply_mode,
+    )
+
+
+@app.post("/voice/transcribe")
+async def voice_transcribe(file: UploadFile = File(...)):
+    audio_bytes = await file.read()
+    return await transcribe_audio(
+        file.filename or "voice-input.webm",
+        file.content_type or "application/octet-stream",
+        audio_bytes,
     )
 
 
