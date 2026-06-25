@@ -1157,6 +1157,25 @@ def main() -> int:
           and "delay: 00:10:00" in automation_yaml
           and "fan.turn_off" in automation_yaml,
           automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "every 15 minutes",
+            "action_description": "notify me",
+            "original_request": "Create automation: every 15 minutes notify me.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v8 supports interval time-pattern triggers",
+          r.status_code == 200
+          and "platform: time_pattern" in automation_yaml
+          and "minutes: /15" in automation_yaml
+          and "persistent_notification.create" in automation_yaml
+          and "platform: time\n" not in automation_yaml,
+          automation_yaml or str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

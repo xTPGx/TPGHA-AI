@@ -166,6 +166,7 @@ TOOLS = [
         "door unlocks turn on the hall light', 'if the battery drops below 20 "
         "notify me', 'between 10 PM and 6 AM', 'only if the office light is off', "
         "'notify me when the garage opens', 'turn on the fan for 10 minutes', "
+        "'every 15 minutes notify me', 'every hour check the garage', "
         "and proactive suggestions.",
         {
             "trigger_description": {"type": "string"},

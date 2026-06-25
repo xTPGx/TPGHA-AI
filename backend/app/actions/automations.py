@@ -13,6 +13,10 @@ from . import ActionContext
 
 _TIME_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
 _AT_TIME_RE = re.compile(r"\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
+_INTERVAL_RE = re.compile(
+    r"\b(?:every|each)\s+(?:(\d{1,3})\s*)?(minute|minutes|min|mins|hour|hours|hr|hrs)\b",
+    re.I,
+)
 _BETWEEN_TIME_RE = re.compile(
     r"\b(?:between|from)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+"
     r"(?:and|to|until|-)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
@@ -101,6 +105,19 @@ def _guess_sun_trigger(text: str) -> dict[str, Any] | None:
     if "sunrise" in lower or "sun up" in lower or "sunup" in lower:
         return {"platform": "sun", "event": "sunrise"}
     return None
+
+
+def _guess_interval_trigger(text: str) -> dict[str, Any] | None:
+    m = _INTERVAL_RE.search(text)
+    if not m:
+        return None
+    amount = int(m.group(1) or 1)
+    unit = m.group(2).lower()
+    if amount < 1:
+        return None
+    if unit.startswith(("hour", "hr")):
+        return {"platform": "time_pattern", "hours": f"/{min(amount, 23)}"}
+    return {"platform": "time_pattern", "minutes": f"/{min(amount, 59)}"}
 
 
 def _guess_entity_trigger(ctx: ActionContext, text: str) -> dict[str, Any] | None:
@@ -463,6 +480,7 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     at_time = _guess_time(trigger_desc) or _guess_time(action_source)
     delay = _guess_delay(trigger_desc) or _guess_delay(action_source)
     trigger: dict[str, Any]
+    interval_trigger = _guess_interval_trigger(trigger_desc) or _guess_interval_trigger(action_source)
     sun_trigger = _guess_sun_trigger(trigger_desc) or _guess_sun_trigger(action_source)
     entity_trigger = _guess_entity_trigger(ctx, trigger_source)
     entity_is_event = bool(
@@ -472,7 +490,9 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
             or re.search(r"\b(when|whenever|once)\b", trigger_source, re.I)
         )
     )
-    if sun_trigger:
+    if interval_trigger:
+        trigger = interval_trigger
+    elif sun_trigger:
         trigger = sun_trigger
     elif entity_trigger and entity_is_event:
         trigger = entity_trigger
@@ -603,6 +623,7 @@ def _action_parts(text: str) -> list[str]:
 def _strip_schedule_words(text: str) -> str:
     text = re.sub(r"\b(create|make|add|build)\s+(a\s+)?(scheduled task|schedule|automation)\b[:,]?\s*", "", text, flags=re.I)
     text = _STATE_CONDITION_RE.sub("", text)
+    text = _INTERVAL_RE.sub("", text)
     text = _AT_TIME_RE.sub("", text)
     text = _DELAY_RE.sub("", text)
     text = _DURATION_RE.sub("", text)
@@ -865,6 +886,11 @@ def _describe_trigger(trigger: dict[str, Any]) -> str:
     if platform == "numeric_state":
         direction = "below" if "below" in trigger else "above"
         return f"When {trigger.get('entity_id')} is {direction} {trigger.get(direction)}"
+    if platform == "time_pattern":
+        if trigger.get("minutes"):
+            return f"Every {str(trigger['minutes']).lstrip('/')} minute(s)"
+        if trigger.get("hours"):
+            return f"Every {str(trigger['hours']).lstrip('/')} hour(s)"
     return platform or "Custom trigger"
 
 

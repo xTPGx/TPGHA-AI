@@ -104,7 +104,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.45"
+APP_VERSION = "1.0.46"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1375,6 +1375,11 @@ def _automation_trigger_label(trigger: dict[str, Any]) -> str:
         return f"At {trigger.get('at')}"
     if platform == "sun":
         return f"At {trigger.get('event')}"
+    if platform == "time_pattern":
+        if trigger.get("minutes"):
+            return f"Every {str(trigger.get('minutes')).lstrip('/')} minute(s)"
+        if trigger.get("hours"):
+            return f"Every {str(trigger.get('hours')).lstrip('/')} hour(s)"
     if platform == "state":
         return f"When {trigger.get('entity_id')} becomes {trigger.get('to')}"
     if platform == "numeric_state":

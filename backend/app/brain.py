@@ -208,8 +208,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add schedule mining from command history for time-of-day suggestions.",
         },
         {
-            "id": "automation_builder_v7",
-            "title": "Automation Builder v7",
+            "id": "automation_builder_v8",
+            "title": "Automation Builder v8",
             "status": "ready",
             "score": 100,
             "evidence": [
@@ -219,9 +219,10 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "State triggers and numeric sensor thresholds can be drafted from natural language.",
                 "Time windows and entity state guard conditions can be added from plain speech.",
                 "Notification actions and timed temporary actions can be composed from normal language.",
+                "Interval time-pattern triggers can be drafted from phrases like 'every 15 minutes'.",
                 "Automation drafts remain approval-first before being installed into Home Assistant.",
             ],
-            "next": "Add recurring interval triggers and calendar-aware schedule windows.",
+            "next": "Add calendar-aware schedule windows and recurring date rules.",
         },
         {
             "id": "ha_native_ui",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.46
+
+- Added Automation Builder v8 interval triggers so phrases like "every 15 minutes" and "every hour" draft native Home Assistant `time_pattern` automations.
+- Prioritized interval parsing ahead of loose time parsing so numbers in interval requests are not mistaken for clock times.
+- Added readable interval trigger summaries for automation previews and suggestion cards.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.45
 
 - Added notification automation drafting so requests like "notify me when the front door unlocks" create approval-first `persistent_notification.create` actions.
