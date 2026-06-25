@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -99,7 +100,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.32"
+APP_VERSION = "1.0.33"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -267,18 +268,29 @@ async def ui_session(request: Request):
 
 @app.post("/ui/session")
 async def ui_session_verified(request: Request, req: UISessionRequest):
-    return await _build_ui_session(request, ha_access_token=req.ha_access_token)
+    return await _build_ui_session(
+        request,
+        ha_access_token=req.ha_access_token,
+        ha_client_user=req.ha_client_user,
+    )
 
 
-async def _build_ui_session(request: Request, ha_access_token: str = ""):
+async def _build_ui_session(
+    request: Request,
+    ha_access_token: str = "",
+    ha_client_user: dict[str, Any] | None = None,
+):
     cfg = get_config()
     users = cfg.assistants.users
     verified_ha_user = await _verified_ha_current_user(ha_access_token)
     header_candidates = _user_header_candidates(request)
+    client_candidates = _ha_user_candidates_from_verified_user(ha_client_user)
     verified_candidates = _ha_user_candidates_from_verified_user(verified_ha_user)
-    all_candidates = verified_candidates or header_candidates
+    all_candidates = client_candidates or verified_candidates or header_candidates
     detected = _detect_user_from_candidates(all_candidates, users)
-    ha_admin = _ha_admin_from_verified_user(verified_ha_user)
+    ha_admin = _ha_admin_from_verified_user(ha_client_user) if client_candidates else None
+    if ha_admin is None:
+        ha_admin = _ha_admin_from_verified_user(verified_ha_user)
     if ha_admin is None:
         ha_admin = _ha_admin_from_headers(request)
     unknown_user = None
@@ -299,7 +311,11 @@ async def _build_ui_session(request: Request, ha_access_token: str = ""):
         "ha_user_candidates": sorted(all_candidates),
         "ha_admin": ha_admin,
         "identity_trusted": identity_trusted,
-        "identity_source": "ha_token" if (identity_trusted and verified_candidates) else ("ha_headers" if identity_trusted else "safe_fallback"),
+        "identity_source": (
+            "ha_parent"
+            if (identity_trusted and client_candidates)
+            else ("ha_token" if (identity_trusted and verified_candidates) else ("ha_headers" if identity_trusted else "safe_fallback"))
+        ),
         "identity_warning": "" if identity_trusted else (
             "Home Assistant did not pass a trusted logged-in user identity; "
             "TPG HomeAI is using the safest shared profile instead of owner access."

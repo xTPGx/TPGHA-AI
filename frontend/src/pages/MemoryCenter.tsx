@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import PageHeader from "../components/PageHeader";
+import { homeAssistantSessionHints } from "../haAuth";
 
 const SCOPES = ["house", "user", "room", "device"];
 
@@ -32,7 +33,7 @@ export default function MemoryCenter() {
   };
 
   useEffect(() => {
-    api.uiSession().then((result) => {
+    api.uiSession(homeAssistantSessionHints()).then((result) => {
       setSession(result);
       setForm((current) => ({ ...current, owner: result.detected_user?.id || "" }));
     }).catch(() => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import PageHeader from "../components/PageHeader";
+import { homeAssistantSessionHints } from "../haAuth";
 
 export default function Notebook() {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -53,7 +54,7 @@ export default function Notebook() {
   };
 
   useEffect(() => {
-    api.uiSession().then((result) => {
+    api.uiSession(homeAssistantSessionHints()).then((result) => {
       setSession(result);
       const defaultUser = result.detected_user?.id || "";
       const defaultAssistant = result.default_assistant?.id || "";

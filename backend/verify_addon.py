@@ -365,6 +365,35 @@ def main() -> int:
               and r.json().get("detected_user", {}).get("role") == "resident"
               and r.json().get("identity_source") == "ha_token",
               str(r.json()))
+        r = client.post("/ui/session", json={
+            "ha_access_token": "verified-token",
+            "ha_client_user": {
+                "id": "ha-shawn-live",
+                "name": "Shawn",
+                "username": "thatpalmerguy",
+                "is_admin": True,
+            },
+        })
+        check("/ui/session live HA parent user overrides stale token",
+              r.status_code == 200
+              and r.json().get("detected_user", {}).get("id") == "shawn"
+              and r.json().get("detected_user", {}).get("role") == "admin"
+              and r.json().get("identity_source") == "ha_parent",
+              str(r.json()))
+        r = client.post("/ui/session", json={
+            "ha_client_user": {
+                "id": "ha-kiosk-live",
+                "name": "Kiosk",
+                "username": "kiosk",
+                "is_admin": False,
+            },
+        })
+        check("/ui/session live HA parent user maps Kiosk to Jarvis",
+              r.status_code == 200
+              and r.json().get("detected_user", {}).get("id") == "house_remote"
+              and r.json().get("default_assistant", {}).get("id") == "jarvis"
+              and r.json().get("identity_source") == "ha_parent",
+              str(r.json()))
         current_user_payload = {"id": "ha-kiosk-verified", "name": "Kiosk", "username": "kiosk", "is_admin": False}
         r = client.post("/ui/session", json={"ha_access_token": "verified-token"})
         check("/ui/session verified HA token maps Kiosk shared profile",

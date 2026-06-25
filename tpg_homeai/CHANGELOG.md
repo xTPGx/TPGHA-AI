@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.33
+
+- Fixed TPG HomeAI UI identity so the live Home Assistant frontend user wins over stale stored browser tokens.
+- Removed broad localStorage token scanning that could reuse a previous Jordie/Kiosk/Shawn session in the HA iframe.
+- Updated Chat, Assistants, Memory, Notebook, and the app shell to send the same live HA session hint.
+- Added regression coverage for the exact stale-token case where HA is logged in as Shawn but an old token resolves Jordie.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.32
 
 - Fixed TPG HomeAI UI identity detection so stale generic proxy headers cannot force all Home Assistant logins into the wrong TPG profile.

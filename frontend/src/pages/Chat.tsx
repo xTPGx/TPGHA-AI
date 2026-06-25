@@ -3,7 +3,7 @@ import { api, CommandResponse } from "../api";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import DeveloperDetails from "../components/DeveloperDetails";
-import { homeAssistantAccessToken } from "../haAuth";
+import { homeAssistantSessionHints } from "../haAuth";
 
 interface Msg {
   id: string;
@@ -270,7 +270,7 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
-    Promise.all([api.uiSession(homeAssistantAccessToken()), api.config()])
+    Promise.all([api.uiSession(homeAssistantSessionHints()), api.config()])
       .then(([sessionResult, configResult]) => {
         setSession(sessionResult);
         setConfig(configResult);

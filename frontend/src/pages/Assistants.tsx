@@ -5,6 +5,7 @@ import Button from "../components/Button";
 import DeveloperDetails from "../components/DeveloperDetails";
 import PageHeader from "../components/PageHeader";
 import ToggleRow from "../components/ToggleRow";
+import { homeAssistantSessionHints } from "../haAuth";
 import VoiceSources from "./VoiceSources";
 
 const emptyAssistant = {
@@ -40,7 +41,7 @@ export default function Assistants() {
       api.config(),
       api.voiceVoices(),
       api.voiceProfiles(),
-      api.uiSession(),
+      api.uiSession(homeAssistantSessionHints()),
     ]);
     setCfg(config);
     setVoices(voiceCatalog.voices || []);

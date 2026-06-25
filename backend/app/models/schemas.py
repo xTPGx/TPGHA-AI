@@ -355,6 +355,7 @@ class VoiceSpeakRequest(BaseModel):
 
 class UISessionRequest(BaseModel):
     ha_access_token: str = ""
+    ha_client_user: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConfirmRequest(BaseModel):
