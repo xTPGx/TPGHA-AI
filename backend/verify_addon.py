@@ -92,6 +92,7 @@ def main() -> int:
     ha_panel = (repo_root / "custom_components" / "tpg_homeai" / "panel.js").read_text(encoding="utf-8")
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
     chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+    ha_auth = (repo_root / "frontend" / "src" / "haAuth.ts").read_text(encoding="utf-8")
     setup_frontend = (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
     dashboard_builder_frontend = (repo_root / "frontend" / "src" / "pages" / "DashboardBuilder.tsx").read_text(encoding="utf-8")
     suggestions_frontend = (repo_root / "frontend" / "src" / "pages" / "Suggestions.tsx").read_text(encoding="utf-8")
@@ -152,6 +153,21 @@ def main() -> int:
           and "microphoneReadinessReport" in chat_frontend
           and "Localhost only works on the device running the browser" in chat_frontend,
           "Voice failures should explain HTTP/HTTPS, app permission, and localhost behavior.")
+    check("Chat voice session has runtime status and cancel",
+          "VoiceSessionBar" in chat_frontend
+          and "recordingSeconds" in chat_frontend
+          and "cancelVoiceInput" in chat_frontend
+          and "discardRecordingRef" in chat_frontend,
+          "Mic input should expose listening/transcribing state and a true cancel path.")
+    check("frontend no longer sends stale cached HA identity",
+          "clientUser: freshUser || {}" in ha_auth
+          and "cachedStorageUserIgnored" in ha_auth,
+          "sessionStorage can belong to a previous HA login and must not identify the active user.")
+    check("custom HA panel refreshes iframe when HA user changes",
+          "_maybeRefreshForUser" in ha_panel
+          and "_startIdentityHeartbeat" in ha_panel
+          and "_userSignature" in ha_panel,
+          "The sidebar panel must repost/reload the active HA user instead of sticking to a previous iframe session.")
     check("Setup shows voice runtime and local mic readiness",
           "voiceRuntime" in setup_frontend
           and "This browser/app mic" in setup_frontend

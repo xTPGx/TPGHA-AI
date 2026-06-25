@@ -6,13 +6,13 @@ export interface HomeAssistantSessionHints {
 export function homeAssistantSessionHints(): HomeAssistantSessionHints {
   // Prefer the freshest identity. A wrapper hash (if a custom panel is used) and
   // the live parent hass.user reflect the *active* HA login. sessionStorage is a
-  // last resort because it can hold a previous user's identity — never let it
-  // override the active session. The backend treats Supervisor ingress headers
-  // as authoritative regardless, so these are only hints/fallbacks.
+  // debug cache only because it can hold a previous user's identity. Never send
+  // cached storage as an identity hint; a stale shared-tablet cache is worse
+  // than falling back safely to the shared profile.
   const freshUser = userFromWrapperHash() || liveHomeAssistantUser();
   return {
     accessToken: homeAssistantAccessToken(),
-    clientUser: freshUser || userFromWrapperStorage(),
+    clientUser: freshUser || {},
   };
 }
 
@@ -27,7 +27,7 @@ export function debugClientHints(): Record<string, any> {
     inIframe: window.parent && window.parent !== window,
     hashUser: userFromWrapperHash(),
     liveParentUser: liveHomeAssistantUser(),
-    storageUser: userFromWrapperStorage(),
+    cachedStorageUserIgnored: userFromWrapperStorage(),
     accessTokenPresent: Boolean(homeAssistantAccessToken()),
   };
 }

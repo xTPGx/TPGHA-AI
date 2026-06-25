@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.41
+
+- Removed stale browser `sessionStorage` as an active Home Assistant identity source so a previous Shawn/Jordie/Kiosk login cannot keep poisoning the current TPG profile.
+- Made the Home Assistant sidebar panel detect active HA user changes, refresh the iframe hash, and keep posting the current HA user into TPG HomeAI.
+- Added Chat voice session runtime UI with listening/transcribing status, elapsed recording time, last transcript display, and a real cancel path that discards captured audio instead of sending it.
+- Added verifier coverage for stale identity prevention, panel identity refresh, and voice session cancel/status behavior.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.40
 
 - Added actionable Chat microphone diagnostics for blocked permissions, HTTP/insecure origins, localhost confusion, missing microphones, and unsupported browsers.

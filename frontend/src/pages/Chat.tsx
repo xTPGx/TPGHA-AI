@@ -401,6 +401,8 @@ export default function Chat() {
   const [speakResponses, setSpeakResponses] = useState(false);
   const [safePreview] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [lastTranscript, setLastTranscript] = useState("");
   const [panelMode, setPanelMode] = useState(() => readPanelMode());
   const [panelListening, setPanelListening] = useState(false);
   const [panelHeard, setPanelHeard] = useState("");
@@ -411,6 +413,7 @@ export default function Chat() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
+  const discardRecordingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -484,6 +487,16 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     forceScrollRef.current = false;
   }, [messages, busy]);
+
+  useEffect(() => {
+    if (micState !== "recording") {
+      setRecordingSeconds(0);
+      return;
+    }
+    setRecordingSeconds(0);
+    const timer = window.setInterval(() => setRecordingSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [micState]);
 
   const handleChatScroll = (event: UIEvent<HTMLElement>) => {
     const el = event.currentTarget;
@@ -842,6 +855,8 @@ export default function Chat() {
         setVoiceError(response.error || "I could not understand the microphone recording.");
         return;
       }
+      setLastTranscript(transcript);
+      setText(transcript);
       await send(transcript);
     } catch (e: any) {
       setVoiceError(e.message || "Voice transcription failed.");
@@ -862,6 +877,7 @@ export default function Chat() {
       });
       mediaStreamRef.current = stream;
       mediaChunksRef.current = [];
+      discardRecordingRef.current = false;
       const mimeType = getPreferredAudioMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = recorder;
@@ -875,6 +891,14 @@ export default function Chat() {
         setVoiceError("Microphone recording failed. Check microphone permission for Home Assistant.");
       };
       recorder.onstop = () => {
+        if (discardRecordingRef.current) {
+          discardRecordingRef.current = false;
+          mediaChunksRef.current = [];
+          stopRecorderTracks();
+          setMicState("idle");
+          setListening(false);
+          return;
+        }
         const type = recorder.mimeType || mimeType || "audio/webm";
         const blob = new Blob(mediaChunksRef.current, { type });
         stopRecorderTracks();
@@ -908,6 +932,7 @@ export default function Chat() {
     }
     if (micState === "transcribing") return;
 
+    discardRecordingRef.current = false;
     const recordingStarted = await startRecorder();
     if (recordingStarted) return;
 
@@ -944,12 +969,40 @@ export default function Chat() {
     recognition.onend = () => {
       setMicState("idle");
       setListening(false);
+      if (discardRecordingRef.current) {
+        discardRecordingRef.current = false;
+        return;
+      }
       const transcript = finalTranscript.trim();
-      if (transcript) void send(transcript);
+      if (transcript) {
+        setLastTranscript(transcript);
+        void send(transcript);
+      }
     };
     setMicState("recording");
     setListening(true);
     recognition.start();
+  };
+
+  const cancelVoiceInput = () => {
+    setVoiceError(null);
+    discardRecordingRef.current = true;
+    try {
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      /* ignore */
+    }
+    mediaChunksRef.current = [];
+    stopRecorderTracks();
+    setListening(false);
+    setMicState("idle");
   };
 
   const sidebar = (
@@ -1037,6 +1090,15 @@ export default function Chat() {
               Diagnose mic
             </button>
           </div>
+        )}
+        {(micState !== "idle" || lastTranscript) && (
+          <VoiceSessionBar
+            micState={micState}
+            listening={listening}
+            recordingSeconds={recordingSeconds}
+            lastTranscript={lastTranscript}
+            cancelVoiceInput={cancelVoiceInput}
+          />
         )}
 
         {activeTab === "notebook" ? (
@@ -1140,6 +1202,58 @@ export default function Chat() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function VoiceSessionBar({
+  micState,
+  listening,
+  recordingSeconds,
+  lastTranscript,
+  cancelVoiceInput,
+}: {
+  micState: MicState;
+  listening: boolean;
+  recordingSeconds: number;
+  lastTranscript: string;
+  cancelVoiceInput: () => void;
+}) {
+  const label = micState === "recording"
+    ? `Listening ${recordingSeconds}s`
+    : micState === "transcribing"
+      ? "Transcribing"
+      : "Last voice input";
+  return (
+    <div className="mx-4 mt-4 rounded-2xl border border-white/10 bg-[#111827]/80 p-3 text-sm text-slate-200">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`h-2.5 w-2.5 rounded-full ${listening ? "animate-pulse bg-rose-400" : "bg-sky-400"}`} />
+        <span className="font-semibold">{label}</span>
+        {micState === "recording" && (
+          <div className="flex items-end gap-1" aria-hidden="true">
+            {[0, 1, 2, 3].map((bar) => (
+              <span
+                key={bar}
+                className="w-1 rounded bg-sky-300/80"
+                style={{ height: `${10 + ((recordingSeconds + bar) % 4) * 5}px` }}
+              />
+            ))}
+          </div>
+        )}
+        {micState !== "idle" && (
+          <button
+            className="ml-auto rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-rose-300/40 hover:bg-rose-500/10 hover:text-rose-100"
+            onClick={cancelVoiceInput}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+      {lastTranscript && (
+        <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-400">
+          Heard: <span className="text-slate-200">{lastTranscript}</span>
+        </div>
+      )}
     </div>
   );
 }

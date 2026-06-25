@@ -3,6 +3,7 @@ const DEFAULT_INGRESS_URL = "/api/hassio_ingress/3e5a55d6_tpg_homeai";
 class TPGHomeAIPanel extends HTMLElement {
   set hass(value) {
     this._hass = value;
+    this._maybeRefreshForUser();
     this._syncUser();
   }
 
@@ -22,6 +23,14 @@ class TPGHomeAIPanel extends HTMLElement {
   connectedCallback() {
     this._render();
     this._syncUser();
+    this._startIdentityHeartbeat();
+  }
+
+  disconnectedCallback() {
+    if (this._identityTimer) {
+      clearInterval(this._identityTimer);
+      this._identityTimer = null;
+    }
   }
 
   _render() {
@@ -30,6 +39,7 @@ class TPGHomeAIPanel extends HTMLElement {
     }
     const ingressUrl = this._panel?.config?.url || DEFAULT_INGRESS_URL;
     const user = this._safeUser();
+    this._lastUserSignature = this._userSignature(user);
     const userHash = user ? `#tpg_ha_user=${encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(user)))))}` : "";
     this.shadowRoot.innerHTML = `
       <style>
@@ -65,6 +75,33 @@ class TPGHomeAIPanel extends HTMLElement {
       type: "tpg-homeai-ha-user",
       user,
     }, window.location.origin);
+  }
+
+  _maybeRefreshForUser() {
+    const frame = this.shadowRoot?.getElementById("tpg-frame");
+    if (!frame) return;
+    const user = this._safeUser();
+    const signature = this._userSignature(user);
+    if (!signature || signature === this._lastUserSignature) return;
+    this._lastUserSignature = signature;
+    const ingressUrl = this._panel?.config?.url || DEFAULT_INGRESS_URL;
+    const userHash = `#tpg_ha_user=${encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(user)))))}`;
+    frame.setAttribute("src", `${ingressUrl}${userHash}`);
+  }
+
+  _startIdentityHeartbeat() {
+    if (this._identityTimer) return;
+    this._identityTimer = setInterval(() => {
+      this._maybeRefreshForUser();
+      this._syncUser();
+    }, 2000);
+  }
+
+  _userSignature(user) {
+    if (!user) return "";
+    return [user.id, user.username, user.name, user.display_name, user.is_admin, user.is_owner]
+      .map((value) => String(value ?? ""))
+      .join("|");
   }
 
   _safeUser() {
