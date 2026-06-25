@@ -14,6 +14,7 @@ from .db.database import get_session
 from .db.models import CommandLog
 from .homeassistant.services import safe_get_states
 from .models.schemas import Assistant, User
+from .house_assets import approved_asset_context
 from .research import format_search_context, search_web, should_search
 from .router.resolver import Resolver
 
@@ -98,6 +99,9 @@ def _house_context(config, states: dict[str, Any], message: str) -> str:
         displays = ", ".join(display.name for display in config.devices.displays) or "none"
         parts.append(f"Configured rooms: {rooms}.")
         parts.append(f"Configured displays/tablets: {displays}.")
+        asset_context = approved_asset_context()
+        if asset_context:
+            parts.append(asset_context)
         parts.append(
             "Dashboard builder can draft Lovelace YAML from approved rooms/devices. "
             "Blueprint/floor-plan uploads should be reviewed and converted into approved room/zone context before automation use."

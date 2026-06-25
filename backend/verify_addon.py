@@ -144,6 +144,11 @@ def main() -> int:
           and "voiceTranscribe" in chat_frontend
           and "/voice/transcribe" in api_frontend,
           "Mobile mic must record audio and upload it for OpenAI transcription.")
+    check("house knowledge assets are first-class API + UI",
+          "/house/assets" in backend_main
+          and "houseAssets" in api_frontend
+          and (repo_root / "frontend" / "src" / "pages" / "HouseKnowledge.tsx").is_file(),
+          "Floor plans, blueprints, room photos, and notes need a managed upload/approval layer.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -636,6 +641,49 @@ def main() -> int:
     check("/knowledge/voice-sources has list", "voice_sources" in r.json(), str(r.json()))
     check("/knowledge/voice-sources includes route readiness",
           "counts" in r.json() and r.json()["counts"].get("total", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/house/assets")
+    check("/house/assets returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    r = client.post(
+        "/house/assets",
+        data={
+            "title": "Office floor plan",
+            "asset_type": "floorplan",
+            "room": "Office",
+            "uploaded_by": "shawn",
+            "description": "Office layout note with desk, speaker, display, and light switch.",
+        },
+        files={"file": ("office-floorplan.txt", b"Office floor plan: desk, speaker, display, light switch.", "text/plain")},
+    )
+    check("/house/assets uploads draft asset",
+          r.status_code == 200 and is_json(r) and r.json().get("asset", {}).get("status") == "draft",
+          r.text)
+    house_asset_id = r.json().get("asset", {}).get("id")
+    check("/house/assets analyzes uploaded asset",
+          bool(r.json().get("asset", {}).get("analysis", {}).get("summary")),
+          str(r.json()))
+    r = client.post(f"/house/assets/{house_asset_id}/approve")
+    check("/house/assets/{id}/approve activates asset",
+          r.status_code == 200 and r.json().get("asset", {}).get("status") == "approved",
+          r.text)
+    r = client.get("/house/assets?status=approved")
+    check("/house/assets lists approved assets",
+          any(a.get("id") == house_asset_id for a in r.json().get("assets", [])),
+          str(r.json()))
+    r = client.get(f"/house/assets/{house_asset_id}/file")
+    check("/house/assets/{id}/file returns original file",
+          r.status_code == 200 and b"Office floor plan" in r.content,
+          f"status={r.status_code} body={r.text[:100] if hasattr(r, 'text') else ''}")
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "conversation_id": "house-asset-context",
+        "message": "What room candidates are in my approved office floorplan asset?",
+    })
+    check("/chat includes approved house assets in context",
+          "Approved house knowledge assets" in r.json().get("data", {}).get("house_context", ""),
           str(r.json()))
 
     r = client.get("/voice/deployment")

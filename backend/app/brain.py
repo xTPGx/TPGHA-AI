@@ -11,7 +11,7 @@ from typing import Any
 from .ai.client import get_ai_client
 from .config_loader import config_error, get_config
 from .db.database import get_session
-from .db.models import CommandLog, ConversationState, MemoryItem, Suggestion
+from .db.models import CommandLog, ConversationState, HouseAsset, MemoryItem, Suggestion
 from .discovery import capabilities
 from .house_state import build_mode_brain, build_wake_word_deployment
 from .router.action_policy import CONFIDENCE_REVIEW_THRESHOLD
@@ -28,6 +28,12 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         ).count()
         pending_suggestions = session.query(Suggestion).filter(
             Suggestion.status.in_(["suggested", "draft", "edited"])
+        ).count()
+        approved_assets = session.query(HouseAsset).filter(
+            HouseAsset.status == "approved"
+        ).count()
+        draft_assets = session.query(HouseAsset).filter(
+            HouseAsset.status == "draft"
         ).count()
 
     settings = get_settings()
@@ -128,6 +134,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Read-only web search is available for current/research questions and can feed general chat context.",
             ],
             "next": "Add uploaded file/floor-plan workspace with approval-first extraction into house context.",
+        },
+        {
+            "id": "house_knowledge_assets",
+            "title": "House Knowledge Assets",
+            "status": "ready" if approved_assets else "partial",
+            "score": 100 if approved_assets else (80 if draft_assets else 60),
+            "evidence": [
+                "Floor plans, blueprints, room photos, and house notes can be uploaded into a managed asset library.",
+                "Draft assets are analyzed and reviewed before they become active AI context.",
+                f"{approved_assets} approved house knowledge assets and {draft_assets} drafts.",
+                "Approved assets are injected into general chat context for dashboard, room, zone, and floor-plan requests.",
+            ],
+            "next": "Upload and approve the real house floor plan, room photos, and tablet/dashboard layout notes.",
         },
         {
             "id": "voice_layer",
@@ -239,6 +258,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "diagnostic_entities": diagnostic,
             "pending_approvals": pending,
             "unavailable_devices": unavailable,
+            "approved_house_assets": approved_assets,
+            "draft_house_assets": draft_assets,
         },
         "health": health or {},
     }
@@ -268,6 +289,13 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
     ha_health = (health or {}).get("home_assistant", {})
     backend_health = (health or {}).get("backend", {})
     openai_health = (health or {}).get("openai", {})
+    with get_session() as session:
+        approved_assets = session.query(HouseAsset).filter(
+            HouseAsset.status == "approved"
+        ).count()
+        draft_assets = session.query(HouseAsset).filter(
+            HouseAsset.status == "draft"
+        ).count()
 
     gates = [
         _gate(
@@ -392,6 +420,21 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
             ],
             [],
             "Brainstorming and research sessions stay inside Home Assistant and can be exported when needed.",
+        ),
+        _gate(
+            "house_knowledge",
+            "House Knowledge Assets",
+            True,
+            approved_assets > 0,
+            [
+                "House assets can store floor plans, room photos, blueprints, and planning notes.",
+                "Uploaded assets are analyzed as drafts and must be approved before becoming active AI context.",
+                f"{approved_assets} approved house knowledge assets and {draft_assets} draft assets.",
+            ],
+            _missing([
+                (approved_assets <= 0, "Upload and approve at least one real floor plan, blueprint, room photo, or house layout note."),
+            ]),
+            "The assistant has at least one approved durable reference for the physical layout of the house.",
         ),
         _gate(
             "proactive_suggestions",

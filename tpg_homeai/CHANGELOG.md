@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.38
+
+- Added a House Knowledge workspace for floor plans, blueprints, room photos, and layout notes.
+- Added `/house/assets` upload/list/detail/file/approve/ignore APIs with durable storage under the add-on config directory.
+- Added approval-first asset analysis: drafts can be reviewed, and only approved assets become active AI house context.
+- Injected approved house assets into general Chat context for room, zone, dashboard, map, blueprint, and floor-plan questions.
+- Added House Knowledge to the admin/manager UI, Setup checklist, Jarvis Brain readiness map, and backend regression coverage.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.37
 
 - Added smart chat auto-scroll so new user/assistant messages stay visible while preserving the user's place when they scroll up through history.

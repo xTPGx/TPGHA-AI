@@ -22,6 +22,7 @@ import MemoryCenter from "./pages/MemoryCenter";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
 import IdentityDebug from "./pages/IdentityDebug";
+import HouseKnowledge from "./pages/HouseKnowledge";
 
 type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
 
@@ -48,6 +49,7 @@ const navGroups: NavGroupDef[] = [
       { to: "/jarvis", label: "Brain", roles: ["admin", "manager", "resident"] },
       { to: "/assistants", label: "Assistants", roles: ["admin", "manager", "resident"] },
       { to: "/memory-center", label: "Memory", roles: ["admin", "manager", "resident"] },
+      { to: "/house-knowledge", label: "House Knowledge", roles: ["admin", "manager"] },
       { to: "/users", label: "Users", roles: ["admin"] },
       { to: "/permissions", label: "Permissions", roles: ["admin"] },
       { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
@@ -128,6 +130,7 @@ export default function App() {
           <Route path="/house-brain" element={<Navigate to="/jarvis" replace />} />
           <Route path="/profiles" element={canAccess("/profiles") ? <DeviceProfiles /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/memory-center" element={canAccess("/memory-center") ? <MemoryCenter /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/house-knowledge" element={canAccess("/house-knowledge") ? <HouseKnowledge /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/dashboard-builder" element={canAccess("/dashboard-builder") ? <DashboardBuilder /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/voice-settings" element={<Navigate to="/assistants" replace />} />
           <Route path="/voice-sources" element={<Navigate to="/assistants" replace />} />

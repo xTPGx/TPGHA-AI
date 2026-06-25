@@ -154,3 +154,29 @@ class ArchivedConversation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     conversation_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     archived_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class HouseAsset(Base):
+    """Uploaded floor plans, room photos, blueprints, and house notes.
+
+    These are approval-first knowledge inputs. Draft assets can be reviewed and
+    analyzed, but only approved rows are injected into the conversational house
+    context.
+    """
+
+    __tablename__ = "house_asset"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    asset_type: Mapped[str] = mapped_column(String(64), default="floorplan")
+    room: Mapped[str] = mapped_column(String(64), default="")
+    original_filename: Mapped[str] = mapped_column(String(255), default="")
+    stored_filename: Mapped[str] = mapped_column(String(255), default="")
+    content_type: Mapped[str] = mapped_column(String(128), default="")
+    storage_path: Mapped[str] = mapped_column(String(512), default="")
+    status: Mapped[str] = mapped_column(String(32), default="draft")
+    description: Mapped[str] = mapped_column(Text, default="")
+    analysis: Mapped[str] = mapped_column(Text, default="{}")
+    uploaded_by: Mapped[str] = mapped_column(String(64), default="")

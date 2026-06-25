@@ -192,6 +192,18 @@ export const api = {
   deviceProfiles: () => http<any>("/knowledge/device-profiles"),
   deviceAdapters: () => http<any>("/knowledge/device-adapters"),
   voiceSources: () => http<any>("/knowledge/voice-sources"),
+  houseAssets: (status?: string) =>
+    http<any>(`/house/assets${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  uploadHouseAsset: (file: File, meta: Record<string, string>) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    for (const [key, value] of Object.entries(meta)) form.append(key, value || "");
+    return http<any>("/house/assets", { method: "POST", body: form });
+  },
+  approveHouseAsset: (id: number) =>
+    http<any>(`/house/assets/${id}/approve`, { method: "POST" }),
+  ignoreHouseAsset: (id: number) =>
+    http<any>(`/house/assets/${id}/ignore`, { method: "POST" }),
   voiceProfiles: () => http<any>("/voice/profiles"),
   voiceVoices: () => http<any>("/voice/voices"),
   voiceDeployment: () => http<any>("/voice/deployment"),

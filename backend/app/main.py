@@ -10,7 +10,7 @@ import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -77,6 +77,7 @@ from .outcomes import build_device_profiles
 from . import memory as memory_store
 from . import notebook as notebook_store
 from . import proactive as proactive_store
+from . import house_assets as house_assets_store
 from . import research as research_store
 from .router.resolver import Resolver
 from .settings import get_settings
@@ -101,13 +102,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.37"
+APP_VERSION = "1.0.38"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
-    "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
+    "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
 
@@ -169,7 +170,7 @@ def _auth_guard_response(request: Request) -> JSONResponse | None:
 # names such as discovery/chat/suggestions/ha; those must serve index.html.
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "ui", "config", "command", "confirm",
-    "confirmations", "automation", "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain",
+    "confirmations", "automation", "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain",
     "ai", "voice", "test", "tools", "docs", "redoc", "openapi.json",
 )
 
@@ -961,6 +962,75 @@ async def device_adapters(include_registries: bool = True):
 async def voice_sources():
     cfg = get_config()
     return list_voice_source_readiness(cfg)
+
+
+# --------------------------------------------------------------- house assets
+@app.get("/house/assets")
+async def house_assets(status: str | None = None):
+    return {"assets": house_assets_store.list_assets(status=status)}
+
+
+@app.post("/house/assets")
+async def house_asset_upload(
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    asset_type: str = Form("floorplan"),
+    room: str = Form(""),
+    uploaded_by: str = Form(""),
+    description: str = Form(""),
+):
+    try:
+        data = await file.read()
+        asset = house_assets_store.upload_asset(
+            data=data,
+            original_filename=file.filename or "house-asset",
+            content_type=file.content_type or "application/octet-stream",
+            title=title,
+            asset_type=asset_type,
+            room=room,
+            uploaded_by=uploaded_by,
+            description=description,
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    return {"asset": asset}
+
+
+@app.get("/house/assets/{asset_id}")
+async def house_asset_detail(asset_id: int):
+    asset = house_assets_store.get_asset(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="House asset not found.")
+    return {"asset": asset}
+
+
+@app.get("/house/assets/{asset_id}/file")
+async def house_asset_file(asset_id: int):
+    asset = house_assets_store.get_asset(asset_id)
+    path = house_assets_store.asset_file_path(asset_id)
+    if not asset or not path:
+        raise HTTPException(status_code=404, detail="House asset file not found.")
+    return FileResponse(
+        path,
+        media_type=asset.get("content_type") or "application/octet-stream",
+        filename=asset.get("original_filename") or path.name,
+    )
+
+
+@app.post("/house/assets/{asset_id}/approve")
+async def house_asset_approve(asset_id: int):
+    try:
+        return {"asset": house_assets_store.approve_asset(asset_id)}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+
+
+@app.post("/house/assets/{asset_id}/ignore")
+async def house_asset_ignore(asset_id: int):
+    try:
+        return {"asset": house_assets_store.ignore_asset(asset_id)}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 @app.get("/brain/layers")

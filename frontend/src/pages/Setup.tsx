@@ -8,21 +8,24 @@ export default function Setup() {
   const [cfg, setCfg] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
+  const [houseAssets, setHouseAssets] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = async () => {
     try {
-      const [h, c, done, v] = await Promise.all([
+      const [h, c, done, v, assets] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
         api.voiceDeployment(),
+        api.houseAssets("approved"),
       ]);
       setHealth(h);
       setCfg(c);
       setCompletion(done);
       setVoice(v);
+      setHouseAssets(assets);
       setError("");
     } catch (e: any) {
       setError(e.message || String(e));
@@ -91,6 +94,12 @@ export default function Setup() {
       ok: (cfg?.permissions?.sensitive_actions?.length || 0) > 0,
       detail: `${cfg?.permissions?.sensitive_actions?.length || 0} sensitive actions gated`,
       to: "/permissions",
+    },
+    {
+      title: "House knowledge assets",
+      ok: (houseAssets?.assets?.length || 0) > 0,
+      detail: `${houseAssets?.assets?.length || 0} approved floor plans, blueprints, photos, or notes`,
+      to: "/house-knowledge",
     },
   ];
 
