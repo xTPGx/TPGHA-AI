@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.49
+
+- Added the Reliability Brain with live `/knowledge/reliability` scoring from recent post-action outcomes.
+- Expanded action verification to check Home Assistant states and key attributes for fans, media players, volume, climate temperature, locks, lights, switches, and generic service plans.
+- Added richer outcome summaries, diagnostics, confidence, device intelligence, and recovery steps to command responses and repair suggestions.
+- Enhanced device profiles with reliability grades, last outcome, common failure hints, and per-entity service strategies such as fan preset-vs-percentage control.
+- Added Jarvis Brain readiness evidence for Reliability Brain + Device Intelligence.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.48
 
 - Added Automation Builder v10 holiday and season-aware conditions so requests like "weekdays during summer" and "on Christmas" draft reviewable Home Assistant template guards.

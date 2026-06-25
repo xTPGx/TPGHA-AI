@@ -74,7 +74,7 @@ from .actions.automation_installer import install_automation_yaml
 from .knowledge import build_house_graph
 from .brain import build_brain_layers, build_completion_status
 from .device_adapters import build_device_adapters
-from .outcomes import build_device_profiles
+from .outcomes import build_device_profiles, build_reliability_summary
 from . import memory as memory_store
 from . import notebook as notebook_store
 from . import proactive as proactive_store
@@ -104,7 +104,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.48"
+APP_VERSION = "1.0.49"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -952,6 +952,11 @@ async def physical_devices(include_registries: bool = True):
 async def device_profiles(include_registries: bool = True):
     graph = await build_house_graph(include_registries=include_registries)
     return build_device_profiles(graph)
+
+
+@app.get("/knowledge/reliability")
+async def reliability_summary(limit: int = 100):
+    return build_reliability_summary(limit=limit)
 
 
 @app.get("/knowledge/device-adapters")

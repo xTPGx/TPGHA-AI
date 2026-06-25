@@ -647,6 +647,9 @@ def main() -> int:
     brain = r.json()
     check("/brain/layers has Jarvis layers", len(brain.get("layers", [])) >= 7,
           str(brain))
+    check("/brain/layers includes reliability brain",
+          any(layer.get("id") == "reliability_brain" for layer in brain.get("layers", [])),
+          str(brain))
 
     r = client.get("/brain/completion?include_registries=false")
     check("/brain/completion returns JSON", r.status_code == 200 and is_json(r),
@@ -692,6 +695,19 @@ def main() -> int:
     check("/knowledge/device-profiles returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/knowledge/device-profiles has counts", "counts" in r.json(), str(r.json()))
+    profiles_payload = r.json()
+    first_profile = (profiles_payload.get("profiles") or [{}])[0]
+    check("/knowledge/device-profiles includes reliability",
+          profiles_payload.get("counts", {}).get("profiles", 0) == 0
+          or ("reliability" in first_profile and "service_strategy" in first_profile),
+          str(profiles_payload))
+
+    r = client.get("/knowledge/reliability")
+    check("/knowledge/reliability returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/knowledge/reliability has live score",
+          "score" in r.json() and "status_counts" in r.json(),
+          str(r.json()))
 
     r = client.get("/knowledge/device-adapters?include_registries=false")
     check("/knowledge/device-adapters returns JSON", r.status_code == 200 and is_json(r),

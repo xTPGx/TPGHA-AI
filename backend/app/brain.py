@@ -15,6 +15,7 @@ from .db.models import CommandLog, ConversationState, HouseAsset, MemoryItem, Su
 from .discovery import capabilities
 from .house_assets import build_spatial_brain
 from .house_state import build_mode_brain, build_wake_word_deployment
+from .outcomes import build_reliability_summary
 from .router.action_policy import CONFIDENCE_REVIEW_THRESHOLD
 from .settings import get_settings
 
@@ -51,6 +52,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     mode_brain = build_mode_brain(config)
     wake_word = build_wake_word_deployment(config)
     spatial_brain = build_spatial_brain()
+    reliability = build_reliability_summary(limit=250)
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -111,6 +113,20 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 f"{pending} pending approvals and {unavailable} unavailable entities.",
             ],
             "next": "Use HA device registry IDs to merge every phone/TV/fan into physical device cards.",
+        },
+        {
+            "id": "reliability_brain",
+            "title": "Reliability Brain + Device Intelligence",
+            "status": "ready" if reliability.get("grade") != "needs_attention" else "partial",
+            "score": int(round(float(reliability.get("score", 1.0)) * 100)),
+            "evidence": [
+                "Executed actions are followed by Home Assistant state/attribute verification.",
+                "Fan speed, media playback, volume, climate temperature, locks, lights, switches, and generic service plans have grounded outcome checks.",
+                "Device profiles include reliability score, last outcome, service strategy, and common failure hints.",
+                f"{reliability.get('checked_commands', 0)} recent command outcomes checked.",
+                f"{reliability.get('open_repair_suggestions', 0)} open repair suggestions from failed verification.",
+            ],
+            "next": "Mine repeated repair suggestions into approved permanent device service profiles.",
         },
         {
             "id": "conversation_memory",
