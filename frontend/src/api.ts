@@ -103,6 +103,7 @@ export const api = {
     })
       : http<any>("/ui/session");
   },
+  uiSessionDebug: () => http<any>("/ui/session/debug"),
   health: () => http<any>("/health"),
   config: () => http<any>("/config"),
   reloadConfig: () => http<any>("/config/reload", { method: "POST" }),

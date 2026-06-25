@@ -93,6 +93,7 @@ def main() -> int:
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
     chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
+    backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
     docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
     manifest_version = re.search(r'"version":\s*"([^"]+)"', manifest)
@@ -106,30 +107,27 @@ def main() -> int:
     check("version metadata present", all(versions.values()), str(versions))
     check("version metadata aligned", len(set(versions.values())) == 1, str(versions))
     check("add-on changelog exists", (repo_root / "tpg_homeai" / "CHANGELOG.md").is_file())
-    check("add-on ingress enabled without native sidebar ownership",
+    check("add-on ingress owns the sidebar natively for all users",
           "ingress: true" in addon_config
-          and "panel_title:" not in addon_config
-          and "panel_admin:" not in addon_config,
-          "The custom integration wrapper must own the sidebar so it can pass the active HA user.")
-    check("custom integration wrapper panel is visible to HA non-admin users",
-          'PANEL_PATH = "tpg-homeai-app"' in ha_client
-          and "frontend_url_path=PANEL_PATH" in ha_client
-          and "LEGACY_ADDON_PANEL_PATH" in ha_client
-          and 'ADDON_INGRESS_PATH = "/api/hassio_ingress/3e5a55d6_tpg_homeai"' in ha_client
-          and 'PANEL_MODULE_URL = "/tpg_homeai/panel.js"' in ha_client
-          and "frontend.add_extra_js_url(hass, PANEL_MODULE_URL)" in ha_client
-          and 'component_name="tpg-homeai-panel"' in ha_client
-          and 'config={"url": ADDON_INGRESS_PATH, "require_admin": False}' in ha_client
-          and '"require_admin": False' in ha_client
-          and "require_admin=False" in ha_client
-          and "sidebar_default_visible=True" in ha_client,
-          "The HA wrapper panel must not require administrator access and must use HA ingress, not raw backend.")
-    check("custom panel forwards hass.user to TPG iframe",
-          "set hass(value)" in ha_panel
-          and "this._hass?.user" in ha_panel
-          and "tpg_ha_user" in ha_panel
-          and "postMessage" in ha_panel,
-          "The custom HA panel must pass the live HA user into the iframe.")
+          and "panel_title:" in addon_config
+          and "panel_icon:" in addon_config
+          and "panel_admin: false" in addon_config,
+          "The add-on must expose a native ingress sidebar panel (visible to "
+          "non-admins) so the Supervisor injects X-Remote-User-* for the active "
+          "HA user on every request.")
+    check("custom integration does not register a competing wrapper panel",
+          "_remove_sidebar_panel(hass)" in ha_client
+          and 'component_name="tpg-homeai-panel"' not in ha_client
+          and "frontend.add_extra_js_url(hass, PANEL_MODULE_URL)" not in ha_client,
+          "The stale-session custom-element wrapper must be retired; the native "
+          "Supervisor ingress panel owns the sidebar.")
+    check("backend resolves identity from Supervisor ingress headers",
+          "x-remote-user-id" in backend_main
+          and "x-remote-user-name" in backend_main
+          and "x-remote-user-display-name" in backend_main
+          and "_ingress_user_candidates" in backend_main,
+          "The backend must trust X-Remote-User-* ingress headers as the "
+          "authoritative active-user identity.")
     check("add-on ships custom integration files",
           "custom_components_template/tpg_homeai" in dockerfile,
           "The add-on image must include the matching custom integration.")
@@ -354,6 +352,46 @@ def main() -> int:
               and s.get("payload", {}).get("username") == "new ha user"
               for s in r.json().get("suggestions", [])),
           str(r.json()))
+
+    # HA Supervisor ingress headers are the authoritative identity source.
+    r = client.get("/ui/session", headers={"x-remote-user-name": "Shawn"})
+    check("/ui/session maps ingress X-Remote-User-Name to owner",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "shawn"
+          and r.json().get("detected_user", {}).get("role") == "admin"
+          and r.json().get("identity_trusted") is True
+          and r.json().get("identity_source") == "ha_ingress",
+          str(r.json()))
+    r = client.get("/ui/session", headers={"x-remote-user-name": "Jordie"})
+    check("/ui/session maps ingress X-Remote-User-Name to resident",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "jordie"
+          and r.json().get("detected_user", {}).get("role") == "resident"
+          and r.json().get("identity_source") == "ha_ingress",
+          str(r.json()))
+    r = client.get("/ui/session", headers={"x-remote-user-display-name": "Jordie"})
+    check("/ui/session maps ingress X-Remote-User-Display-Name",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "jordie"
+          and r.json().get("identity_source") == "ha_ingress",
+          str(r.json()))
+    r = client.get("/ui/session", headers={
+        "x-remote-user-name": "Shawn",
+        "x-ha-user-name": "Jordie",
+    })
+    check("/ui/session ingress header wins over legacy/stale header",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "shawn"
+          and r.json().get("identity_source") == "ha_ingress",
+          str(r.json()))
+    r = client.get("/ui/session/debug", headers={"x-remote-user-name": "Shawn"})
+    dbg = r.json()
+    check("/ui/session/debug reports ingress candidate + match",
+          r.status_code == 200
+          and "shawn" in dbg.get("candidates", {}).get("ingress", [])
+          and dbg.get("matches", {}).get("ingress") == "shawn"
+          and dbg.get("version"),
+          str(dbg))
 
     current_user_payload = {"id": "ha-shawn-verified", "name": "Shawn", "username": "thatpalmerguy", "is_admin": True}
 

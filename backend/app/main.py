@@ -100,7 +100,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.34"
+APP_VERSION = "1.0.35"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -275,6 +275,62 @@ async def ui_session_verified(request: Request, req: UISessionRequest):
     )
 
 
+@app.get("/ui/session/debug")
+async def ui_session_debug(request: Request):
+    """Visible diagnostics for identity resolution in a real HA install.
+
+    Echoes the identity-relevant request headers HA/Supervisor inject, the
+    candidate identity values parsed from each source, and which TPG user each
+    source resolves to. No secrets are returned.
+    """
+    cfg = get_config()
+    users = cfg.assistants.users
+    relevant_prefixes = (
+        "x-remote-user", "x-hass", "x-ingress", "x-ha-", "x-tpg", "x-forwarded",
+    )
+    headers = {
+        k: v for k, v in request.headers.items()
+        if any(k.lower().startswith(p) for p in relevant_prefixes)
+    }
+    ingress_c = _ingress_user_candidates(request)
+    header_c = _user_header_candidates(request)
+    ingress_match = _detect_user_from_candidates(ingress_c, users)
+    header_match = _detect_user_from_candidates(header_c, users)
+    return {
+        "version": APP_VERSION,
+        "path": request.scope.get("path"),
+        "is_ingress_request": bool(
+            request.headers.get("x-ingress-path")
+            or request.headers.get("x-hass-source")
+            or ingress_c
+        ),
+        "x_ingress_path": request.headers.get("x-ingress-path", ""),
+        "x_hass_source": request.headers.get("x-hass-source", ""),
+        "x_hass_is_admin": request.headers.get("x-hass-is-admin", ""),
+        "headers": headers,
+        "candidates": {
+            "ingress": sorted(ingress_c),
+            "legacy_headers": sorted(header_c),
+        },
+        "matches": {
+            "ingress": ingress_match.id if ingress_match else None,
+            "legacy_headers": header_match.id if header_match else None,
+        },
+        "admin_from_headers": _ha_admin_from_headers(request),
+        "tpg_users": [
+            {
+                "id": u.id,
+                "name": u.name,
+                "role": u.role,
+                "ha_user_id": u.ha_user_id,
+                "ha_username": u.ha_username,
+                "aliases": u.aliases,
+            }
+            for u in users
+        ],
+    }
+
+
 async def _build_ui_session(
     request: Request,
     ha_access_token: str = "",
@@ -283,20 +339,51 @@ async def _build_ui_session(
     cfg = get_config()
     users = cfg.assistants.users
     verified_ha_user = await _verified_ha_current_user(ha_access_token)
-    header_candidates = _user_header_candidates(request)
+
+    # Identity sources, ordered from most to least trustworthy. The HA Supervisor
+    # injects X-Remote-User-* headers on every ingress request for the *active*
+    # logged-in user; these are server-side and cannot be spoofed by stale
+    # browser storage, so they are authoritative. The browser-supplied
+    # ha_client_user (live parent hass.user) is next, then a verified access
+    # token, then legacy proxy headers.
+    ingress_candidates = _ingress_user_candidates(request)
     client_candidates = _ha_user_candidates_from_verified_user(ha_client_user)
     verified_candidates = _ha_user_candidates_from_verified_user(verified_ha_user)
-    all_candidates = client_candidates or verified_candidates or header_candidates
-    detected = _detect_user_from_candidates(all_candidates, users)
-    ha_admin = _ha_admin_from_verified_user(ha_client_user) if client_candidates else None
+    header_candidates = _user_header_candidates(request)
+    candidate_sources: list[tuple[str, set[str]]] = [
+        ("ha_ingress", ingress_candidates),
+        ("ha_parent", client_candidates),
+        ("ha_token", verified_candidates),
+        ("ha_headers", header_candidates),
+    ]
+    all_candidates: set[str] = set()
+    for _, cands in candidate_sources:
+        all_candidates |= cands
+
+    detected: User | None = None
+    identity_source = "safe_fallback"
+    for source_name, cands in candidate_sources:
+        if not cands:
+            continue
+        match = _detect_user_from_candidates(cands, users)
+        if match is not None:
+            detected = match
+            identity_source = source_name
+            break
+
+    ha_admin = _ha_admin_from_headers(request) or None
+    if ha_admin is None and client_candidates:
+        ha_admin = _ha_admin_from_verified_user(ha_client_user)
     if ha_admin is None:
         ha_admin = _ha_admin_from_verified_user(verified_ha_user)
-    if ha_admin is None:
-        ha_admin = _ha_admin_from_headers(request)
     unknown_user = None
     if not detected and all_candidates:
-        unknown_user = sorted(all_candidates)[0]
-        memory_store.propose_user_setup_suggestion(unknown_user)
+        for _, cands in candidate_sources:
+            if cands:
+                unknown_user = sorted(cands)[0]
+                break
+        if unknown_user:
+            memory_store.propose_user_setup_suggestion(unknown_user)
     active = detected or _safe_default_ui_user(users)
     identity_trusted = detected is not None
     effective_role = "admin" if (identity_trusted and ha_admin) else (active.role if active else "guest")
@@ -311,11 +398,7 @@ async def _build_ui_session(
         "ha_user_candidates": sorted(all_candidates),
         "ha_admin": ha_admin,
         "identity_trusted": identity_trusted,
-        "identity_source": (
-            "ha_parent"
-            if (identity_trusted and client_candidates)
-            else ("ha_token" if (identity_trusted and verified_candidates) else ("ha_headers" if identity_trusted else "safe_fallback"))
-        ),
+        "identity_source": identity_source,
         "identity_warning": "" if identity_trusted else (
             "Home Assistant did not pass a trusted logged-in user identity; "
             "TPG HomeAI is using the safest shared profile instead of owner access."
@@ -1255,6 +1338,25 @@ def _detect_user_from_candidates(candidates: set[str], users: list[User]) -> Use
     return None
 
 
+def _ingress_user_candidates(request: Request) -> set[str]:
+    """Identity injected by the HA Supervisor ingress proxy.
+
+    On every ingress request, the Supervisor adds X-Remote-User-Id,
+    X-Remote-User-Name and X-Remote-User-Display-Name for the active logged-in
+    HA user (see supervisor/api/ingress.py). HA core also adds X-Hass-User-ID
+    on some paths. These are server-side, per-request, and cannot be forged by
+    stale browser storage, so they are the authoritative identity source.
+    """
+    header_names = (
+        "x-remote-user-id",
+        "x-remote-user-name",
+        "x-remote-user-display-name",
+        "x-hass-user-id",
+    )
+    values = [request.headers.get(name, "") for name in header_names]
+    return {v.strip().lower() for v in values if v and v.strip()}
+
+
 def _user_header_candidates(request: Request) -> set[str]:
     header_names = (
         "x-ha-user",
@@ -1300,6 +1402,7 @@ def _ha_admin_from_headers(request: Request) -> bool:
         "x-ha-user-is-admin",
         "x-ha-is-admin",
         "x-hass-user-is-admin",
+        "x-hass-is-admin",
         "x-home-assistant-user-is-admin",
         "x-tpg-ha-user-is-admin",
     )

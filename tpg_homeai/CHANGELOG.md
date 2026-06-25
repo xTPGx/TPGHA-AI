@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.35
+
+- Fixed the active Home Assistant user not being resolved (e.g. logging in as Shawn but seeing Jordie/Chatty).
+- The backend now treats the Home Assistant Supervisor ingress headers (`X-Remote-User-Id`, `X-Remote-User-Name`, `X-Remote-User-Display-Name`) as the authoritative, per-request identity of the active logged-in user. These are server-side and cannot be overridden by stale browser storage.
+- Identity precedence reordered to: Supervisor ingress headers, then live HA parent user, then verified token, then legacy proxy headers. Browser `sessionStorage` is now only a last-resort hint.
+- Retired the custom-element sidebar wrapper that iframed a hardcoded ingress path and reused a stale ingress session (the root cause of the wrong-user bug). The add-on now publishes a native Supervisor ingress sidebar panel (`panel_title`/`panel_icon`/`panel_admin: false`), which creates a fresh per-user session on every open.
+- Added a `/ui/session/debug` endpoint and an in-app "Identity Debug" page (visible to all roles) that show the app version, request path, ingress headers, parsed candidates per source, the resolved TPG user, and `identity_source` so identity can be verified inside a real Home Assistant install.
+- Fixed admin-header detection to also honor `X-Hass-Is-Admin`.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.34
 
 - Replaced the raw add-on iframe sidebar ownership with a Home Assistant custom panel wrapper.

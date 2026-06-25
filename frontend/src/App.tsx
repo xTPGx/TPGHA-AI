@@ -21,6 +21,7 @@ import DeviceProfiles from "./pages/DeviceProfiles";
 import MemoryCenter from "./pages/MemoryCenter";
 import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
+import IdentityDebug from "./pages/IdentityDebug";
 
 type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
 
@@ -62,6 +63,7 @@ const navGroups: NavGroupDef[] = [
       { to: "/profiles", label: "Device Profiles", roles: ["admin"] },
       { to: "/tester", label: "Command Tester", roles: ["admin"] },
       { to: "/capabilities", label: "Capability Map", roles: ["admin"] },
+      { to: "/identity-debug", label: "Identity Debug", roles: ["admin", "manager", "resident", "kiosk", "guest"] },
     ],
   },
 ];
@@ -98,6 +100,7 @@ export default function App() {
     paths.add("/house-brain");
     paths.add("/voice-settings");
     paths.add("/voice-sources");
+    paths.add("/identity-debug");
     return paths;
   }, [role]);
 
@@ -139,6 +142,7 @@ export default function App() {
           <Route path="/music" element={canAccess("/music") ? <Music /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/capabilities" element={canAccess("/capabilities") ? <CapabilityMap /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/permissions" element={canAccess("/permissions") ? <Permissions /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/identity-debug" element={<IdentityDebug />} />
           <Route path="*" element={<Navigate to={fallbackPath} replace />} />
       </Routes>
     </AppShell>

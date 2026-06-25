@@ -482,40 +482,20 @@ COMMANDS_SCHEMA = vol.Schema({
 
 
 async def _register_sidebar_panel(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    enabled = entry.options.get(CONF_ENABLE_SIDEBAR_PANEL,
-                                DEFAULT_ENABLE_SIDEBAR_PANEL)
-    if not enabled:
-        _remove_sidebar_panel(hass)
-        return
-    try:
-        from homeassistant.components import frontend
+    """Ensure the Supervisor add-on ingress panel owns the sidebar.
 
-        try:
-            await hass.http.async_register_static_paths([
-                StaticPathConfig(PANEL_MODULE_URL, str(PANEL_MODULE_PATH), False),
-            ])
-        except RuntimeError:
-            # Reloads can leave the route registered; the existing route points
-            # at the same file shipped by this integration.
-            pass
-        frontend.add_extra_js_url(hass, PANEL_MODULE_URL)
-        # Supervisor add-on ingress is a raw iframe and does not reliably pass
-        # the active HA user to the app. The custom wrapper panel receives
-        # hass.user from Home Assistant and forwards that identity into TPG.
-        frontend.async_remove_panel(hass, LEGACY_ADDON_PANEL_PATH)
-        frontend.async_remove_panel(hass, PANEL_PATH)
-        frontend.async_register_built_in_panel(
-            hass,
-            component_name="tpg-homeai-panel",
-            sidebar_title="TPG HomeAI",
-            sidebar_icon="mdi:robot-happy",
-            frontend_url_path=PANEL_PATH,
-            config={"url": ADDON_INGRESS_PATH, "require_admin": False},
-            require_admin=False,
-            sidebar_default_visible=True,
-        )
-    except Exception as err:  # noqa: BLE001 - sidebar is best-effort
-        _LOGGER.debug("Could not register TPG HomeAI sidebar panel: %s", err)
+    The add-on declares panel_title/panel_icon with ingress in config.yaml, so
+    the Supervisor publishes a native ingress sidebar panel. That ingress proxy
+    creates a fresh session for the *active* HA user on every open and injects
+    X-Remote-User-* headers, which the backend uses to resolve identity.
+
+    The previous custom-element wrapper (tpg-homeai-panel) iframed a hardcoded
+    ingress path and reused whatever stale ingress session cookie existed, which
+    is why TPG kept showing the wrong user regardless of who logged in. Remove
+    any wrapper panel/JS we registered before so only the Supervisor ingress
+    panel remains.
+    """
+    _remove_sidebar_panel(hass)
 
 
 def _remove_sidebar_panel(hass: HomeAssistant) -> None:
