@@ -58,6 +58,28 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
+function readPanelMode(): boolean {
+  try {
+    return localStorage.getItem("tpg.panelMode") === "1";
+  } catch {
+    return false;
+  }
+}
+
+// Returns the command text following a wake word, or "" if no wake word was
+// heard. "Jarvis, turn off the office light" -> "turn off the office light".
+function extractCommandAfterWakeWord(heard: string, wakeWords: string[]): string {
+  const lower = heard.toLowerCase();
+  for (const word of wakeWords) {
+    if (!word) continue;
+    const idx = lower.indexOf(word);
+    if (idx === -1) continue;
+    const rest = heard.slice(idx + word.length).replace(/^[\s,.:!?-]+/, "").trim();
+    return rest;
+  }
+  return "";
+}
+
 function getPreferredAudioMimeType() {
   if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return "";
   return [
@@ -193,6 +215,91 @@ function quickPrompt(text: string) {
   return text;
 }
 
+// Minimal, dependency-free markdown for assistant messages: fenced code
+// blocks, bullet/numbered lists, and inline bold/italic/code. Renders to React
+// nodes (no dangerouslySetInnerHTML) so it stays XSS-safe.
+function renderInline(text: string, keyBase: string): (string | JSX.Element)[] {
+  const nodes: (string | JSX.Element)[] = [];
+  const regex = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`)/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    const key = `${keyBase}-i${i++}`;
+    if (match[2] !== undefined) nodes.push(<strong key={key}>{match[2]}</strong>);
+    else if (match[3] !== undefined) nodes.push(<em key={key}>{match[3]}</em>);
+    else if (match[4] !== undefined) nodes.push(<code key={key} className="rounded bg-black/40 px-1 py-0.5 text-[0.85em]">{match[4]}</code>);
+    last = regex.lastIndex;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+function Markdown({ text }: { text: string }) {
+  const lines = (text || "").split("\n");
+  const blocks: JSX.Element[] = [];
+  let i = 0;
+  let key = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim().startsWith("```")) {
+      const code: string[] = [];
+      i += 1;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        code.push(lines[i]);
+        i += 1;
+      }
+      i += 1;
+      blocks.push(
+        <pre key={`b${key++}`} className="code-scroll my-2 whitespace-pre-wrap">{code.join("\n")}</pre>,
+      );
+      continue;
+    }
+    if (/^\s*([-*])\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*([-*])\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*([-*])\s+/, ""));
+        i += 1;
+      }
+      blocks.push(
+        <ul key={`b${key++}`} className="my-1 list-disc space-y-1 pl-5">
+          {items.map((it, n) => <li key={n}>{renderInline(it, `${key}-${n}`)}</li>)}
+        </ul>,
+      );
+      continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+        i += 1;
+      }
+      blocks.push(
+        <ol key={`b${key++}`} className="my-1 list-decimal space-y-1 pl-5">
+          {items.map((it, n) => <li key={n}>{renderInline(it, `${key}-${n}`)}</li>)}
+        </ol>,
+      );
+      continue;
+    }
+    if (line.trim() === "") {
+      i += 1;
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() !== "" && !lines[i].trim().startsWith("```") && !/^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
+      para.push(lines[i]);
+      i += 1;
+    }
+    blocks.push(
+      <p key={`b${key++}`} className="whitespace-pre-wrap break-words leading-relaxed">
+        {renderInline(para.join("\n"), `${key}`)}
+      </p>,
+    );
+  }
+  return <div className="space-y-2 text-sm">{blocks}</div>;
+}
+
 export default function Chat() {
   const [conversationId, setConversationId] = useState(() => id());
   const [activeTab, setActiveTab] = useState<"chat" | "notebook">("chat");
@@ -213,6 +320,12 @@ export default function Chat() {
   const [speakResponses, setSpeakResponses] = useState(false);
   const [safePreview] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState(() => readPanelMode());
+  const [panelListening, setPanelListening] = useState(false);
+  const [panelHeard, setPanelHeard] = useState("");
+  const [panelRoom, setPanelRoom] = useState(() => localStorage.getItem("tpg.panelRoom") || "");
+  const panelRecognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
+  const sendRef = useRef<(override?: string, room?: string) => void>(() => {});
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -227,6 +340,11 @@ export default function Chat() {
   const assistants = session?.assistants || config?.assistants?.assistants || [];
   const selectedAssistant = assistants.find((a: any) => a.id === assistant);
   const selectedUser = users.find((u: any) => u.id === user);
+  const wakeWords = useMemo(() => {
+    const configured = (selectedAssistant?.wake_words || []) as string[];
+    const base = configured.length ? configured : ["jarvis", "atlas", "chatty", "hey jarvis", "computer"];
+    return base.map((w) => String(w || "").trim().toLowerCase()).filter(Boolean);
+  }, [selectedAssistant]);
 
   const refreshConversations = async (assistantId = assistant, userId = user) => {
     if (!assistantId || !userId) return;
@@ -262,6 +380,11 @@ export default function Chat() {
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop();
+      try {
+        panelRecognitionRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       audioRef.current?.pause();
@@ -353,9 +476,9 @@ export default function Chat() {
     setMessages((m) => [...m, { id: id(), role: "assistant", ...msg }]);
   };
 
-  const executeChat = async (message: string, appendUser = false) => {
+  const executeChat = async (message: string, appendUser = false, room = panelRoom) => {
     if (appendUser) setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
-    const r = await api.chat(assistant, user, message, conversationId);
+    const r = await api.chat(assistant, user, message, conversationId, room || undefined);
     const command = r.command as CommandResponse | undefined;
     const response = r.response || command?.message || "Done.";
     appendAssistant({
@@ -369,7 +492,7 @@ export default function Chat() {
     void refreshConversations();
   };
 
-  const send = async (override?: string) => {
+  const send = async (override?: string, room = panelRoom) => {
     const message = (override ?? text).trim();
     if (!message) return;
     setText("");
@@ -378,7 +501,7 @@ export default function Chat() {
     setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
     try {
       if (safePreview) {
-        const preview = await api.chatPreview(assistant, user, message, conversationId);
+        const preview = await api.chatPreview(assistant, user, message, conversationId, room || undefined);
         const command = preview.command as CommandResponse | undefined;
         if (shouldPauseForReview(command)) {
           const response = preview.response || command?.message || "Preview ready.";
@@ -387,13 +510,87 @@ export default function Chat() {
           return;
         }
       }
-      await executeChat(message, false);
+      await executeChat(message, false, room);
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {
       setBusy(false);
     }
   };
+
+  sendRef.current = (override?: string, room?: string) => void send(override, room);
+
+  useEffect(() => {
+    localStorage.setItem("tpg.panelMode", panelMode ? "1" : "0");
+  }, [panelMode]);
+
+  useEffect(() => {
+    localStorage.setItem("tpg.panelRoom", panelRoom);
+  }, [panelRoom]);
+
+  // Always-listening panel mode: a continuous recognizer listens for the
+  // assistant's wake word and forwards the rest of the phrase as a command.
+  // Works on Chrome/Android; iOS Safari can't keep the mic open in the
+  // background, so it stays on tap-to-talk (push-to-talk) instead.
+  useEffect(() => {
+    if (!panelMode) {
+      setPanelListening(false);
+      return;
+    }
+    const SpeechRecognition = getSpeechRecognition();
+    if (!SpeechRecognition) {
+      setVoiceError(
+        "Always-listening panel mode needs the Web Speech API (Chrome/Android). On iPhone/iPad, use the Mic button (tap to talk).",
+      );
+      setPanelMode(false);
+      return;
+    }
+    let stopped = false;
+    const recognition = new SpeechRecognition();
+    panelRecognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        if (!event.results[i].isFinal) continue;
+        const heard = String(event.results[i][0].transcript || "").trim();
+        if (!heard) continue;
+        setPanelHeard(heard);
+        const command = extractCommandAfterWakeWord(heard, wakeWords);
+        if (command) sendRef.current(command, panelRoom);
+      }
+    };
+    recognition.onerror = () => {
+      /* transient (no-speech/aborted); onend restarts. */
+    };
+    recognition.onend = () => {
+      if (!stopped && panelMode) {
+        try {
+          recognition.start();
+        } catch {
+          /* already started */
+        }
+      } else {
+        setPanelListening(false);
+      }
+    };
+    try {
+      recognition.start();
+      setPanelListening(true);
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      stopped = true;
+      setPanelListening(false);
+      try {
+        recognition.stop();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [panelMode, wakeWords.join("|"), panelRoom]);
 
   const executePreview = async (msg: Msg) => {
     if (!msg.originalText) return;
@@ -649,22 +846,22 @@ export default function Chat() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 bg-[#070d18] text-slate-100">
-      <aside className="hidden w-[18rem] shrink-0 border-r border-white/10 bg-[#090f1c] md:block">
+    <div className="relative flex h-full min-h-0 bg-[#0a0a0a] text-slate-100">
+      <aside className="hidden w-[18rem] shrink-0 border-r border-white/10 bg-[#0f0f0f] md:block">
         {sidebar}
       </aside>
 
       {historyOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button className="absolute inset-0 bg-black/60" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" />
-          <aside className="relative h-full w-[min(21rem,88vw)] border-r border-white/10 bg-[#090f1c] shadow-2xl">
+          <aside className="relative h-full w-[min(21rem,88vw)] border-r border-white/10 bg-[#0f0f0f] shadow-2xl">
             {sidebar}
           </aside>
         </div>
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[#070d18]/95 px-3 backdrop-blur sm:px-5">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[#0a0a0a]/95 px-3 backdrop-blur sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <button className="chat-icon-btn md:hidden" onClick={() => setHistoryOpen(true)} aria-label="Open chat history">
               <span className="block h-0.5 w-5 rounded bg-current" />
@@ -678,11 +875,20 @@ export default function Chat() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              className={`chat-pill ${activeTab === "notebook" ? "border-sky-400/50 bg-sky-400/15 text-sky-100" : ""}`}
+              className={`chat-pill ${activeTab === "notebook" ? "border-white/25 bg-white/10 text-white" : ""}`}
               onClick={() => setActiveTab(activeTab === "notebook" ? "chat" : "notebook")}
             >
               {activeTab === "notebook" ? "Chat" : "Notes"}
             </button>
+            {speechSupported && (
+              <button
+                className={`chat-pill ${panelMode ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100" : ""}`}
+                onClick={() => setPanelMode(!panelMode)}
+                title="Always-listening panel mode (say the wake word)"
+              >
+                {panelMode ? "Panel on" : "Panel"}
+              </button>
+            )}
             <button
               className={`chat-icon-btn ${listening ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
               onClick={() => void toggleListening()}
@@ -728,12 +934,48 @@ export default function Chat() {
                       cancel={cancel}
                     />
                   ))}
+                  {busy && messages[messages.length - 1]?.role === "user" && (
+                    <div className="flex justify-start">
+                      <div className="chat-assistant-bubble flex items-center gap-1.5">
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.1s]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
 
-            <div className="shrink-0 border-t border-white/10 bg-[#070d18]/95 px-3 py-3 backdrop-blur sm:px-6">
-              <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-white/10 bg-[#0b1220] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.32)]">
+            <div className="shrink-0 border-t border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:px-6">
+              {panelMode && (
+                <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-xs">
+                  <span className={`inline-flex h-2.5 w-2.5 rounded-full ${panelListening ? "animate-pulse bg-emerald-400" : "bg-slate-600"}`} />
+                  <span className="text-slate-400">
+                    {panelListening
+                      ? `Listening for "${wakeWords[0] || "the wake word"}"…`
+                      : "Panel mode paused"}
+                  </span>
+                  <input
+                    className="ml-auto w-32 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-white/30"
+                    value={panelRoom}
+                    onChange={(e) => setPanelRoom(e.target.value)}
+                    placeholder="Room (optional)"
+                    title="Room context for hands-free commands"
+                  />
+                  {panelHeard && <span className="w-full truncate text-slate-500">heard: {panelHeard}</span>}
+                </div>
+              )}
+              <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-white/10 bg-[#171717] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.4)]">
+                <button
+                  className={`chat-icon-btn shrink-0 ${micState === "recording" ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
+                  onClick={() => void toggleListening()}
+                  disabled={busy || micState === "transcribing"}
+                  title={recorderSupported || speechSupported ? "Hold to talk" : "Check microphone availability"}
+                  aria-label="Use microphone"
+                >
+                  {micState === "recording" ? "Stop" : micState === "transcribing" ? "..." : "Mic"}
+                </button>
                 <textarea
                   className="min-h-[3rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"
                   value={text}
@@ -791,7 +1033,7 @@ function ConversationRail({
         <div className="text-sm font-semibold text-slate-100">Workspace</div>
         <button className="chat-pill" onClick={close}>Close</button>
       </div>
-      <button className="mb-3 min-h-11 rounded-xl bg-sky-500 px-4 text-sm font-semibold text-white transition hover:bg-sky-400" onClick={newChat}>
+      <button className="mb-3 min-h-11 rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-white/90" onClick={newChat}>
         New chat
       </button>
       <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
@@ -828,7 +1070,7 @@ function ConversationRail({
           <button
             key={item.conversation_id}
             className={`group w-full rounded-xl px-3 py-2.5 text-left transition ${
-              item.conversation_id === conversationId ? "bg-sky-400/14 text-slate-100" : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100"
+              item.conversation_id === conversationId ? "bg-white/10 text-slate-100" : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100"
             }`}
             onClick={() => void loadConversation(item.conversation_id)}
           >
@@ -861,7 +1103,7 @@ function EmptyState({ assistantName, onPrompt }: { assistantName: string; onProm
         {prompts.map((prompt) => (
           <button
             key={prompt}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-slate-300 transition hover:border-sky-400/40 hover:bg-sky-400/10 hover:text-slate-100"
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
             onClick={() => onPrompt(quickPrompt(prompt))}
           >
             {prompt}
@@ -894,8 +1136,12 @@ function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[min(42rem,92%)] ${isUser ? "chat-user-bubble" : "chat-assistant-bubble"}`}>
-        {message.mode && !isUser && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">{message.mode}</div>}
-        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
+        {message.mode && !isUser && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{message.mode}</div>}
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
+        ) : (
+          <Markdown text={message.text} />
+        )}
 
         {message.command && (
           <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-300">

@@ -9,11 +9,14 @@ This is the orchestration core. It:
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import json
 import re
 import time
 from typing import Any, Optional
+
+from sqlalchemy import desc
 
 from ..actions import ActionContext
 from ..actions import automations as automations_action
@@ -27,7 +30,7 @@ from ..actions import lights as lights_action
 from ..actions import locks as locks_action
 from ..actions import music as music_action
 from ..actions import security as security_action
-from ..ai.client import ToolCall, get_ai_client, pre_route
+from ..ai.client import ToolCall, get_ai_client, pre_route, split_compound_command
 from ..ai.tools import TOOL_NAMES
 from ..config_loader import get_config
 from ..db.database import get_session
@@ -45,7 +48,12 @@ from ..models.results import ActionResult, CommandResponse
 from ..outcomes import verify_action_outcome
 from .permissions import PermissionEngine, get_confirmation_store
 from .permissions import PendingConfirmation
-from .action_policy import evaluate_action_policy
+from .action_policy import (
+    CONFIDENCE_REVIEW_THRESHOLD,
+    READ_ONLY_INTENTS,
+    SENSITIVE_INTENTS,
+    evaluate_action_policy,
+)
 from .conversation_context import context_tool_call, load_context, save_context
 from .resolver import Resolver
 
@@ -79,6 +87,50 @@ ADMIN_OR_MANAGER_TOOLS = {
     "draft_dashboard",
 }
 
+# Stateful device tools that should ask before acting on a low-confidence
+# target match. Sensitive tools (unlock/open) already require confirmation, so
+# they are deliberately excluded here.
+_CONFIDENCE_GATED_TOOLS = {
+    "turn_on_light",
+    "turn_off_light",
+    "turn_on_fan",
+    "turn_off_fan",
+    "set_fan_percentage",
+    "set_climate",
+    "control_device",
+    "play_music",
+    "set_volume",
+}
+
+
+def source_identity_override(
+    config: Any, command_context: Optional[dict[str, Any]]
+) -> tuple[Optional[str], Optional[str]]:
+    """Map a voice source (satellite/panel) to its room assistant + user.
+
+    A satellite forwards its source_device_id/source_entity_id; if a configured
+    voice_source matches and names an assistant, that assistant (the room's
+    Atlas/Chatty/Jarvis) is used instead of the caller's fixed default.
+    """
+    cc = command_context or {}
+    sdid = str(cc.get("source_device_id") or "").strip().lower()
+    seid = str(cc.get("source_entity_id") or "").strip().lower()
+    if not sdid and not seid:
+        return (None, None)
+    for source in getattr(config.devices, "voice_sources", []) or []:
+        matched = False
+        if sdid and source.source_device_id and source.source_device_id.lower() == sdid:
+            matched = True
+        elif seid and source.source_entity_id and source.source_entity_id.lower() == seid:
+            matched = True
+        else:
+            aliases = {a.lower() for a in (source.aliases or [])}
+            if (sdid and sdid in aliases) or (seid and seid in aliases):
+                matched = True
+        if matched:
+            return (source.assistant, source.user)
+    return (None, None)
+
 
 async def build_context(
     assistant_name: Optional[str],
@@ -86,6 +138,12 @@ async def build_context(
     command_context: Optional[dict[str, Any]] = None,
 ) -> ActionContext:
     config = get_config()
+    # Route by origin: a known voice source picks the room's assistant/user.
+    src_assistant, src_user = source_identity_override(config, command_context)
+    if src_assistant:
+        assistant_name = src_assistant
+    if src_user and not user_name:
+        user_name = src_user
     live = await safe_get_states()
     resolver = Resolver(config, live)
 
@@ -155,7 +213,18 @@ async def handle_command(
     message: str,
     conversation_id: Optional[str] = None,
     command_context: Optional[dict[str, Any]] = None,
+    *,
+    allow_multi_step: bool = True,
 ) -> CommandResponse:
+    # Multi-step: "dim the lights and play jazz" -> run each clause in order,
+    # each independently gated (trust, confirmation, confidence).
+    if allow_multi_step:
+        steps = split_compound_command(message)
+        if len(steps) > 1:
+            return await _handle_multi_step(
+                assistant_name, user_name, steps, conversation_id, command_context
+            )
+
     ctx = await build_context(assistant_name, user_name, command_context)
 
     if ctx.assistant is None:
@@ -188,6 +257,16 @@ async def handle_command(
     if role_denied is not None:
         return role_denied
 
+    trust_level = _voice_source_trust(ctx)
+    trust_denied = _trust_denied_response(ctx, tool_call, tool_dict, trust_level)
+    if trust_denied is not None:
+        trust_denied.conversation_id = conversation_id
+        return trust_denied
+
+    gated = await _low_confidence_gate(ctx, tool_call, tool_dict, conversation_id)
+    if gated is not None:
+        return gated
+
     _attach_original_request(tool_call, tool_dict, message)
     handler = _HANDLERS[tool_call.name]
     result: ActionResult = await handler(ctx, tool_call.arguments)
@@ -196,7 +275,9 @@ async def handle_command(
     result.data = {
         **(result.data or {}),
         "outcome": outcome,
-        "policy": evaluate_action_policy(result, tool_dict, preview=False),
+        "policy": evaluate_action_policy(
+            result, tool_dict, preview=False, trust_level=trust_level
+        ),
     }
     if correction_memory:
         result.data["memory_draft"] = correction_memory
@@ -222,6 +303,63 @@ async def handle_command(
     resp = _to_response(ctx, result, tool_dict)
     resp.conversation_id = conversation_id
     return resp
+
+
+async def _handle_multi_step(
+    assistant_name: str,
+    user_name: Optional[str],
+    steps: list[str],
+    conversation_id: Optional[str],
+    command_context: Optional[dict[str, Any]],
+) -> CommandResponse:
+    """Run compound sub-commands sequentially and aggregate the result."""
+    step_results: list[CommandResponse] = []
+    for step in steps:
+        resp = await handle_command(
+            assistant_name, user_name, step, conversation_id, command_context,
+            allow_multi_step=False,
+        )
+        step_results.append(resp)
+
+    assistant_id = next((r.assistant for r in step_results if r.assistant), assistant_name)
+    user_id = next((r.user for r in step_results if r.user), user_name)
+    pending = next((r for r in step_results if r.requires_confirmation), None)
+
+    messages = []
+    for step, r in zip(steps, step_results):
+        messages.append(r.message or f"(no response for '{step}')")
+    combined = " ".join(m.strip() for m in messages if m.strip())
+
+    return CommandResponse(
+        success=all(r.success for r in step_results),
+        assistant=assistant_id,
+        user=user_id,
+        conversation_id=conversation_id,
+        intent="multi_step",
+        executed=any(r.executed for r in step_results),
+        requires_confirmation=pending is not None,
+        confirmation_message=(pending.confirmation_message if pending else None),
+        confirmation_token=(pending.confirmation_token if pending else None),
+        message=combined or "Done.",
+        data={
+            "multi_step": True,
+            "steps": [
+                {
+                    "command": step,
+                    "intent": r.intent,
+                    "success": r.success,
+                    "executed": r.executed,
+                    "requires_confirmation": r.requires_confirmation,
+                    "confirmation_token": r.confirmation_token,
+                    "message": r.message,
+                    "resolved": r.resolved,
+                    "error": r.error,
+                }
+                for step, r in zip(steps, step_results)
+            ],
+        },
+        error=next((r.error for r in step_results if r.error), None),
+    )
 
 
 async def handle_preview(
@@ -336,7 +474,15 @@ def _select_tool(
         tool_call = pre_route(message)
     if tool_call is None:
         ai = get_ai_client()
-        tool_call = ai.select_tool(message, ctx.config, ctx.assistant, ctx.user)
+        tool_call = ai.select_tool(
+            message, ctx.config, ctx.assistant, ctx.user,
+            house_context=_house_state_summary(ctx),
+            conversation_context=_recent_turns_transcript(
+                ctx.assistant.id if ctx.assistant else "",
+                ctx.user.id if ctx.user else user_name,
+                conversation_id,
+            ),
+        )
 
     tool_call = _repair_direction_conflict(message, tool_call)
     if tool_call is not None and tool_call.name == "explain_last_action":
@@ -344,6 +490,86 @@ def _select_tool(
         tool_call.arguments["conversation_id"] = conversation_id or ""
     tool_call = _apply_room_context(ctx, tool_call)
     return tool_call, (tool_call.to_dict() if tool_call else None)
+
+
+def _house_state_summary(ctx: ActionContext, *, max_items: int = 8) -> str:
+    """Compact live house snapshot to ground tool selection.
+
+    Lets requests like "turn off the light that's on" or presence-aware replies
+    work without a separate lookup. Reads the already-loaded live states.
+    """
+    live = getattr(ctx.resolver, "live_states", {}) or {}
+    if not live:
+        return ""
+    lights_on: list[str] = []
+    media_playing: list[str] = []
+    people_home: list[str] = []
+    open_covers: list[str] = []
+    for eid, ent in live.items():
+        try:
+            domain = eid.split(".", 1)[0]
+            state = str(getattr(ent, "state", "") or "").lower()
+            name = getattr(ent, "friendly_name", None) or eid
+        except Exception:
+            continue
+        if domain in {"light", "switch"} and state == "on":
+            lights_on.append(name)
+        elif domain == "media_player" and state == "playing":
+            media_playing.append(name)
+        elif domain in {"person", "device_tracker"} and state == "home":
+            people_home.append(name)
+        elif domain == "cover" and state == "open":
+            open_covers.append(name)
+
+    def _fmt(label: str, items: list[str]) -> str:
+        if not items:
+            return ""
+        shown = items[:max_items]
+        extra = f" (+{len(items) - len(shown)} more)" if len(items) > len(shown) else ""
+        return f"- {label}: {', '.join(shown)}{extra}"
+
+    lines = [
+        _fmt("Lights/switches currently on", lights_on),
+        _fmt("Media currently playing", media_playing),
+        _fmt("People home", people_home),
+        _fmt("Covers open", open_covers),
+    ]
+    body = "\n".join(line for line in lines if line)
+    return body or "- No lights on, no media playing right now."
+
+
+def _recent_turns_transcript(
+    assistant: str,
+    user: Optional[str],
+    conversation_id: Optional[str],
+    *,
+    limit: int = 4,
+) -> str:
+    """Build a short transcript of recent turns for follow-up grounding."""
+    if not conversation_id:
+        return ""
+    try:
+        with get_session() as session:
+            rows = (
+                session.query(CommandLog)
+                .filter(CommandLog.conversation_id == conversation_id)
+                .order_by(desc(CommandLog.id))
+                .limit(limit)
+                .all()
+            )
+    except Exception:  # pragma: no cover - history is best-effort
+        return ""
+    if not rows:
+        return ""
+    lines: list[str] = []
+    for row in reversed(rows):
+        msg = (row.message or "").strip()
+        reply = (row.response_message or "").strip()
+        if msg:
+            lines.append(f"User: {msg}")
+        if reply:
+            lines.append(f"Assistant: {reply}")
+    return "\n".join(lines[-(limit * 2):])
 
 
 def _attach_original_request(
@@ -784,6 +1010,287 @@ def _role_denied_response(
             error="role_not_allowed",
         )
     return None
+
+
+def _voice_source_trust(ctx: ActionContext) -> str:
+    """Resolve the trust level of the command's origin.
+
+    Direct UI/API/HA Assist calls (no voice-source context) are 'trusted'. A
+    mapped `voice_sources` entry supplies its configured trust_level. Callers
+    may also pass an explicit trust_level in command_context.
+    """
+    cc = getattr(ctx, "command_context", {}) or {}
+    explicit = str(cc.get("trust_level") or "").strip().lower()
+    if explicit in {"trusted", "household", "guest", "outside"}:
+        return explicit
+
+    sdid = str(cc.get("source_device_id") or "").strip().lower()
+    seid = str(cc.get("source_entity_id") or "").strip().lower()
+    if not sdid and not seid:
+        return "trusted"
+
+    for source in getattr(ctx.config.devices, "voice_sources", []) or []:
+        if sdid and source.source_device_id and source.source_device_id.lower() == sdid:
+            return source.trust_level
+        if seid and source.source_entity_id and source.source_entity_id.lower() == seid:
+            return source.trust_level
+        aliases = {a.lower() for a in (source.aliases or [])}
+        if (sdid and sdid in aliases) or (seid and seid in aliases):
+            return source.trust_level
+    # Known external origin but not mapped: treat as household (normal control
+    # allowed; sensitive actions still require confirmation downstream).
+    return "household"
+
+
+def _trust_denied_response(
+    ctx: ActionContext,
+    tool_call: ToolCall,
+    tool_dict: Optional[dict[str, Any]],
+    trust_level: str,
+) -> CommandResponse | None:
+    """Block sensitive/state-changing actions from untrusted voice sources.
+
+    - 'outside' sources may only ask questions (read-only intents).
+    - 'guest' sources may control normal devices but never security/access.
+    Enforced before execution so an untrusted mic can't unlock a door.
+    """
+    trust = (trust_level or "trusted").lower()
+    if trust in {"trusted", "household"}:
+        return None
+
+    name = tool_call.name
+    is_read_only = name in READ_ONLY_INTENTS
+    is_sensitive = name in SENSITIVE_INTENTS
+
+    reason = ""
+    risk = "high"
+    if trust == "outside" and not is_read_only:
+        reason = "outside_source_blocked"
+    elif trust == "guest" and is_sensitive:
+        reason = "guest_source_sensitive_blocked"
+        risk = "critical"
+    if not reason:
+        return None
+
+    msg = (
+        f"That request came from a '{trust}' voice source, so I can't run "
+        "security or device-changing actions from there."
+    )
+    return CommandResponse(
+        success=False,
+        assistant=(ctx.assistant.id if ctx.assistant else None),
+        user=(ctx.user.id if ctx.user else None),
+        intent=name,
+        executed=False,
+        message=msg,
+        tool_call=tool_dict,
+        data={
+            "policy": {
+                "decision": "denied",
+                "risk": risk,
+                "confidence": 1.0,
+                "requires_review": False,
+                "can_auto_execute": False,
+                "preview": False,
+                "trust_level": trust,
+                "reasons": [reason],
+            }
+        },
+        error="untrusted_source",
+    )
+
+
+def _confidence_value(resolved: Optional[dict[str, Any]]) -> float:
+    value = (resolved or {}).get("confidence")
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return 1.0
+
+
+async def _run_preview_pass(
+    ctx: ActionContext, tool_call: ToolCall
+) -> tuple[ActionResult, "RecordingHA"]:
+    """Run a handler in dry-run mode to learn confidence + planned calls."""
+    recorder = RecordingHA(ctx.resolver.live_states)
+    pctx = dataclasses.replace(
+        ctx,
+        ha=recorder,
+        confirmations=PreviewConfirmationStore(),
+        dry_run=True,
+    )
+    result = await _HANDLERS[tool_call.name](pctx, dict(tool_call.arguments or {}))
+    return result, recorder
+
+
+def _disambiguation_response(
+    ctx: ActionContext,
+    tool_call: ToolCall,
+    tool_dict: Optional[dict[str, Any]],
+    resolved: dict[str, Any],
+    conversation_id: Optional[str],
+) -> CommandResponse | None:
+    """Ask which device when the resolver reports a near-equal tie."""
+    if not resolved.get("ambiguous"):
+        return None
+    alts = [a for a in (resolved.get("alternatives") or []) if isinstance(a, dict)][:3]
+    if len(alts) < 2:
+        return None
+    names = [str(a.get("name") or a.get("entity_id")) for a in alts]
+    options = " or ".join(filter(None, (", ".join(names[:-1]), names[-1]))) if len(names) > 2 else " or ".join(names)
+    msg = f"Did you mean {options}? Tell me which one and I'll do it."
+    resp = CommandResponse(
+        success=True,
+        assistant=(ctx.assistant.id if ctx.assistant else None),
+        user=(ctx.user.id if ctx.user else None),
+        intent=tool_call.name,
+        resolved=resolved,
+        executed=False,
+        message=msg,
+        tool_call=tool_dict,
+        data={
+            "policy": {
+                "decision": "clarify",
+                "risk": "low",
+                "confidence": _confidence_value(resolved),
+                "requires_review": True,
+                "can_auto_execute": False,
+                "preview": False,
+                "trust_level": _voice_source_trust(ctx),
+                "reasons": ["needs_disambiguation"],
+            },
+            "disambiguation": {"options": alts},
+        },
+        error="needs_disambiguation",
+    )
+    resp.conversation_id = conversation_id
+    return resp
+
+
+async def _low_confidence_gate(
+    ctx: ActionContext,
+    tool_call: ToolCall,
+    tool_dict: Optional[dict[str, Any]],
+    conversation_id: Optional[str],
+) -> CommandResponse | None:
+    """Ask before acting when the resolved device match is below threshold.
+
+    Runs the handler once in dry-run mode (no HA writes) to learn the resolved
+    confidence and the exact service call. Sub-threshold stateful actions become
+    a confirmation (single planned call) or a clarification (ambiguous), so the
+    assistant never silently acts on a weak guess.
+    """
+    if tool_call.name not in _CONFIDENCE_GATED_TOOLS:
+        return None
+    try:
+        preview_result, recorder = await _run_preview_pass(ctx, tool_call)
+    except Exception:  # pragma: no cover - never let the gate break a command
+        logger.debug("Low-confidence preview gate failed; proceeding", exc_info=True)
+        return None
+
+    # Sensitive/handler-driven confirmations are handled by the real run.
+    if preview_result.requires_confirmation:
+        return None
+
+    resolved = preview_result.resolved or {}
+    would_execute = bool(preview_result.executed or recorder.calls)
+
+    # Disambiguation: two near-equal device matches -> ask which one.
+    disambig = _disambiguation_response(ctx, tool_call, tool_dict, resolved, conversation_id)
+    if disambig is not None and would_execute:
+        return disambig
+
+    confidence = _confidence_value(resolved)
+    if not would_execute or confidence >= CONFIDENCE_REVIEW_THRESHOLD:
+        return None
+
+    target = resolved.get("name") or resolved.get("entity_id") or "that device"
+    pct = int(round(confidence * 100))
+    calls = recorder.calls
+
+    if len(calls) == 1:
+        call = calls[0]
+        plan = {
+            "domain": call.get("domain"),
+            "service": call.get("service"),
+            "data": call.get("data") or {},
+        }
+        ttl = int(getattr(ctx.config.permissions, "confirmation_ttl_seconds", 120) or 120)
+        msg = (
+            f"I'm only about {pct}% sure you mean {target}. "
+            "Want me to go ahead?"
+        )
+        pc = ctx.confirmations.create(
+            intent=tool_call.name,
+            params=dict(tool_call.arguments or {}),
+            message=msg,
+            ttl=ttl,
+            assistant=(ctx.assistant.id if ctx.assistant else None),
+            user=(ctx.user.id if ctx.user else None),
+            plan=plan,
+            risk_level="low",
+            target=str(target),
+            pin_required=False,
+        )
+        resp = CommandResponse(
+            success=True,
+            assistant=(ctx.assistant.id if ctx.assistant else None),
+            user=(ctx.user.id if ctx.user else None),
+            intent=tool_call.name,
+            resolved=resolved,
+            executed=False,
+            requires_confirmation=True,
+            confirmation_message=msg,
+            confirmation_token=pc.token,
+            message=msg,
+            tool_call=tool_dict,
+            data={
+                "policy": {
+                    "decision": "review_required",
+                    "risk": "low",
+                    "confidence": confidence,
+                    "requires_review": True,
+                    "can_auto_execute": False,
+                    "preview": False,
+                    "trust_level": _voice_source_trust(ctx),
+                    "reasons": ["low_target_confidence_gate"],
+                },
+                "preview": {"would_execute": True, "service_calls": calls},
+            },
+        )
+        resp.conversation_id = conversation_id
+        return resp
+
+    # Multiple planned calls + low confidence -> ask for specifics, don't guess.
+    msg = (
+        "I'm not sure which device you meant. Could you be more specific? "
+        f"(closest match: {target})"
+    )
+    resp = CommandResponse(
+        success=False,
+        assistant=(ctx.assistant.id if ctx.assistant else None),
+        user=(ctx.user.id if ctx.user else None),
+        intent=tool_call.name,
+        resolved=resolved,
+        executed=False,
+        message=msg,
+        tool_call=tool_dict,
+        data={
+            "policy": {
+                "decision": "clarify",
+                "risk": "low",
+                "confidence": confidence,
+                "requires_review": True,
+                "can_auto_execute": False,
+                "preview": False,
+                "trust_level": _voice_source_trust(ctx),
+                "reasons": ["ambiguous_low_confidence"],
+            }
+        },
+        error="needs_clarification",
+    )
+    resp.conversation_id = conversation_id
+    return resp
 
 
 def _to_response(ctx: ActionContext, result: ActionResult, tool_dict: Optional[dict]) -> CommandResponse:

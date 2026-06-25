@@ -22,6 +22,7 @@ if command -v bashio >/dev/null 2>&1; then
   OLLAMA_MODEL="$(bashio::config 'ollama_model')"
   VOICE_PUBLIC_BASE_URL="$(bashio::config 'voice_public_base_url')"
   SECURITY_PIN="$(bashio::config 'security_pin')"
+  API_TOKEN="$(bashio::config 'api_token')"
   CONFIG_DIR_OPT="$(bashio::config 'config_dir')"
   DB_URL="$(bashio::config 'database_url')"
   LOG_LEVEL="$(bashio::config 'log_level')"
@@ -42,6 +43,7 @@ else
   OLLAMA_MODEL="$(jq -r '.ollama_model // ""' "${OPTIONS_FILE}")"
   VOICE_PUBLIC_BASE_URL="$(jq -r '.voice_public_base_url // ""' "${OPTIONS_FILE}")"
   SECURITY_PIN="$(jq -r '.security_pin // ""' "${OPTIONS_FILE}")"
+  API_TOKEN="$(jq -r '.api_token // ""' "${OPTIONS_FILE}")"
   CONFIG_DIR_OPT="$(jq -r '.config_dir // "/config/tpg_homeai"' "${OPTIONS_FILE}")"
   DB_URL="$(jq -r '.database_url // "sqlite:////config/tpg_homeai/tpg_homeai.db"' "${OPTIONS_FILE}")"
   LOG_LEVEL="$(jq -r '.log_level // "info"' "${OPTIONS_FILE}")"
@@ -54,7 +56,7 @@ else
 fi
 
 # bashio/jq may yield the literal "null" for empty values.
-for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OLLAMA_URL OLLAMA_MODEL VOICE_PUBLIC_BASE_URL SECURITY_PIN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
+for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OLLAMA_URL OLLAMA_MODEL VOICE_PUBLIC_BASE_URL SECURITY_PIN API_TOKEN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
            SCAN_ON_START SCAN_INTERVAL NOTIFY_NEW NOTIFY_UNAVAIL \
            AUTO_LOW_RISK AUTO_DOMAINS; do
   if [ "$(eval echo \$$var)" = "null" ]; then eval "$var=''"; fi
@@ -83,6 +85,7 @@ export OLLAMA_BASE_URL="${OLLAMA_URL}"
 export OLLAMA_MODEL="${OLLAMA_MODEL}"
 export VOICE_PUBLIC_BASE_URL="${VOICE_PUBLIC_BASE_URL}"
 export TPG_SECURITY_PIN="${SECURITY_PIN}"
+export TPG_API_TOKEN="${API_TOKEN}"
 export CONFIG_DIR="${CONFIG_DIR_OPT}"
 export DATABASE_URL="${DB_URL}"
 export LOG_LEVEL="${LOG_LEVEL}"
@@ -110,13 +113,15 @@ for f in discovered.yaml ignored.yaml; do
 done
 
 # Keep the matching HA custom integration installed from the add-on image. The
-# add-on ingress panel is often admin-only in practice; the custom integration
-# registers the all-user /tpg-homeai-app sidebar panel and HA services.
+# sidebar panel is served natively by the add-on's Supervisor ingress (see
+# panel_title/panel_icon in config.yaml). The custom integration adds the HA
+# services, conversation agent, and entities; it no longer registers its own
+# wrapper panel.
 if [ -d "/app/custom_components_template/tpg_homeai" ]; then
   mkdir -p "/config/custom_components"
   rm -rf "/config/custom_components/tpg_homeai"
   cp -R "/app/custom_components_template/tpg_homeai" "/config/custom_components/tpg_homeai"
-  echo "[tpg_homeai] synced custom integration to /config/custom_components/tpg_homeai | restart Home Assistant if the sidebar panel is missing"
+  echo "[tpg_homeai] synced custom integration to /config/custom_components/tpg_homeai | restart Home Assistant if services are missing"
 fi
 
 # Map HA log level -> uvicorn log level.

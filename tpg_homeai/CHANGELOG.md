@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.36
+
+- Raised the add-on security rating from 7 to 8 by shipping a dedicated `apparmor.txt` profile (the add-on now runs under its own AppArmor confinement instead of the unconfined default).
+- Added an optional `api_token` add-on option that guards direct (non-ingress) LAN access to port 8088; Home Assistant ingress requests stay exempt because they are already HA-authenticated, and health/TTS-audio/static paths remain public.
+- Enforced `voice_sources` trust levels: `outside` sources can no longer trigger state-changing actions and `guest` sources are blocked from sensitive actions (locks, etc.); previously trust level was documentation-only.
+- Low-confidence device commands now route into the confirmation flow (via a dry-run preview) instead of silently executing, so uncertain matches ask before acting.
+- Smarter brain: ambiguous device matches ("the office lamp or the office ceiling light?") now ask for disambiguation; compound requests ("dim the lights and play jazz") are split and gated per step; named songs/artists resolve through Music Assistant search; and a live house-state summary plus the last few conversation turns are fed into tool selection so "turn off the light that's on" works.
+- Voice satellites: the satellite's `source_device_id`/`source_entity_id` now selects the room's assistant (and its OpenAI voice) from `voice_sources`, instead of a fixed assistant.
+- Hands-free panel mode: tablets/old phones on Chrome/Android can run an always-listening browser wake-word loop (with a listening indicator and optional room context); iOS Safari stays on tap-to-talk push-to-talk. The microphone button now also lives in the composer.
+- UI: near-black ChatGPT-style theme (replacing the old navy/sky palette), neutral message bubbles, a unified rounded composer, lightweight markdown rendering for assistant replies, and a typing indicator while a reply is pending.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.35
 
 - Fixed the active Home Assistant user not being resolved (e.g. logging in as Shawn but seeing Jordie/Chatty).

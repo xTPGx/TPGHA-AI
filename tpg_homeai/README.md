@@ -45,6 +45,7 @@ backend runs in **degraded** mode (surfaced in `/health`) rather than failing.
 | `home_assistant_url` | Leave as `http://supervisor/core` to use the Supervisor proxy. |
 | `home_assistant_token` | Leave **blank** to use the add-on's Supervisor token automatically. Only set a long-lived token if you run against a remote HA. |
 | `openai_api_key` | **Required** for full AI understanding. Without it, the backend uses a deterministic fallback parser (fewer capabilities). |
+| `api_token` | Optional bearer token guarding **direct** (non-ingress) access to port 8088. Leave blank for current behavior. When set, LAN callers must send `Authorization: Bearer <token>`; Home Assistant ingress requests stay exempt (already HA-authenticated), and `/health` + public TTS audio + static assets remain reachable. |
 | `config_dir` | Where YAML config + the database live. Default `/config/tpg_homeai`. |
 | `database_url` | SQLite path for command history / discovery state. Default `sqlite:////config/tpg_homeai/tpg_homeai.db`. |
 | `log_level` | `debug` / `info` / `warning` / `error`. |
@@ -66,6 +67,41 @@ blank and the add-on uses its Supervisor token to reach the HA API via
 
 Create a key at <https://platform.openai.com/api-keys> and paste it into
 `openai_api_key`. It is stored only in the add-on options and is never logged.
+
+## Voice & hands-free
+
+TPG HomeAI supports three voice surfaces, all using OpenAI for the brain, STT,
+and TTS:
+
+- **Home Assistant voice satellites** (Voice PE / ESP32 / Wyoming): in
+  *Settings → Voice assistants*, create an Assist pipeline that uses **TPG
+  HomeAI** as the conversation agent. The satellite's `source_device_id` /
+  `source_entity_id` is matched against your `voice_sources`, so each room's
+  satellite automatically uses that room's assistant and voice
+  (e.g. Atlas / Chatty / Jarvis) and can reply on the room speaker.
+- **Tablets / old phones (always-listening panel)**: open the web UI on the
+  device and toggle **Panel** in the chat header. On Chrome / Android this runs
+  a continuous browser wake-word loop ("Jarvis…", "Atlas…", etc.) with a
+  listening indicator and optional room context. iOS Safari cannot keep the mic
+  open in the background, so iPhones/iPads stay on tap-to-talk.
+- **Desktop / iOS push-to-talk**: tap the **Mic** button in the composer to
+  record; audio is uploaded to OpenAI STT. MIME fallbacks cover Safari
+  (`audio/mp4`) and Chrome (`audio/webm`), and the UI surfaces clear
+  idle/recording/transcribing/error states plus secure-context guidance.
+
+`voice_sources` also carry a **trust level**. `outside` sources cannot trigger
+state-changing actions, and `guest` sources are blocked from sensitive actions
+(locks, etc.); `trusted`/`household` sources behave normally.
+
+## Security
+
+- The add-on ships a dedicated **AppArmor profile** (`apparmor.txt`), so it runs
+  under its own confinement instead of the unconfined default (Home Assistant
+  security rating 7 → 8).
+- Set `api_token` to require a bearer token on direct port-8088 access; Home
+  Assistant ingress stays exempt because it is already authenticated.
+- Low-confidence or ambiguous device commands are routed into a
+  confirmation/clarification flow instead of executing on a guess.
 
 ## After starting
 

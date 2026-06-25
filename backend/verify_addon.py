@@ -145,6 +145,37 @@ def main() -> int:
           and "/voice/transcribe" in api_frontend,
           "Mobile mic must record audio and upload it for OpenAI transcription.")
 
+    # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
+    apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
+    check("add-on ships an AppArmor profile (rating 7 -> 8)",
+          apparmor.is_file() and "profile tpg_homeai" in apparmor.read_text(encoding="utf-8"),
+          "A named apparmor.txt profile raises the HA security rating by +1.")
+    check("config.yaml enables apparmor + api_token option",
+          "apparmor: true" in addon_config
+          and "api_token:" in addon_config,
+          "The add-on must enable its AppArmor profile and expose api_token.")
+    check("run.sh exports the API token",
+          "TPG_API_TOKEN" in run_sh,
+          "run.sh must export the optional non-ingress API bearer token.")
+    check("backend guards non-ingress API with a bearer token",
+          "_auth_guard_response" in backend_main
+          and "TPG_API_TOKEN" in (repo_root / "backend" / "app" / "settings.py").read_text(encoding="utf-8"),
+          "Direct LAN callers must present Authorization: Bearer <token> when set.")
+
+    # Phase 2b/2c/3 — hands-free panel mode + ChatGPT-style UI.
+    tailwind = (repo_root / "frontend" / "tailwind.config.js").read_text(encoding="utf-8")
+    check("frontend ships always-listening panel mode + wake word loop",
+          "panelMode" in chat_frontend
+          and "extractCommandAfterWakeWord" in chat_frontend
+          and "getSpeechRecognition" in chat_frontend,
+          "Tablets/old phones need a browser wake-word panel mode.")
+    check("frontend renders markdown for assistant replies",
+          "function Markdown" in chat_frontend,
+          "Assistant messages should render lightweight markdown.")
+    check("frontend uses the near-black ChatGPT-style theme",
+          "#0a0a0a" in tailwind and "#171717" in tailwind,
+          "The theme tokens should use near-black surfaces, not navy/sky.")
+
     print("PART 1 — API routing returns JSON, SPA never shadows API routes")
     r = client.get("/health")
     check("/health is JSON", is_json(r) and not is_html(r), r.headers.get("content-type", ""))

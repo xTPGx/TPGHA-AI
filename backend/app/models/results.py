@@ -18,6 +18,9 @@ class ResolveResult(BaseModel):
     reason: str = ""
     # Full resolved object payload (room, camera, etc.) for downstream use.
     data: dict[str, Any] = Field(default_factory=dict)
+    # Near-equal runner-up matches, used for "did you mean X or Y?" prompts.
+    alternatives: list[dict[str, Any]] = Field(default_factory=list)
+    ambiguous: bool = False
 
     @classmethod
     def miss(cls, kind: str, reason: str) -> "ResolveResult":

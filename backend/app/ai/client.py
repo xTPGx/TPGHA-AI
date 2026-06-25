@@ -89,10 +89,17 @@ class AIClient:
         config: AppConfig,
         assistant: Optional[Assistant],
         user: Optional[User],
+        *,
+        house_context: str = "",
+        conversation_context: str = "",
     ) -> Optional[ToolCall]:
         if self._client is not None:
             try:
-                return self._select_via_openai(message, config, assistant, user)
+                return self._select_via_openai(
+                    message, config, assistant, user,
+                    house_context=house_context,
+                    conversation_context=conversation_context,
+                )
             except Exception as exc:  # pragma: no cover - network/runtime
                 logger.warning("OpenAI call failed (%s); using fallback.", type(exc).__name__)
         if self.settings.ollama_base_url and self.settings.ollama_model:
@@ -143,12 +150,20 @@ class AIClient:
         config: AppConfig,
         assistant: Optional[Assistant],
         user: Optional[User],
+        *,
+        house_context: str = "",
+        conversation_context: str = "",
     ) -> Optional[ToolCall]:
+        extra = approved_memory_context()
+        if house_context:
+            extra = f"{extra}\n\nLive house state (for grounding device/room references):\n{house_context}"
+        if conversation_context:
+            extra = f"{extra}\n\nRecent conversation (most recent last):\n{conversation_context}"
         system = build_system_prompt(
             config,
             assistant,
             user,
-            extra_context=approved_memory_context(),
+            extra_context=extra,
         )
         resp = self._client.chat.completions.create(  # type: ignore[union-attr]
             model=self.settings.openai_model,
@@ -462,6 +477,51 @@ def pre_route(message: str) -> Optional["ToolCall"]:
         return generic_power
 
     return None
+
+
+# Verbs that mark a clause as an actionable device command. Used to decide
+# whether a conjunction ("and"/"then") joins two real commands worth splitting.
+_ACTION_VERBS = (
+    "turn", "switch", "power", "set", "dim", "brighten", "play", "stop", "pause",
+    "resume", "lock", "unlock", "open", "close", "show", "pull up", "start",
+    "raise", "lower", "increase", "decrease", "mute", "unmute", "arm", "disarm",
+    "shut", "activate", "run", "make it",
+)
+
+# Schedule-ish phrasing must stay whole so it routes to automation creation.
+_COMPOUND_SPLIT_RE = re.compile(
+    r"\s*(?:,?\s+then\s+|,?\s+and\s+also\s+|,?\s+and\s+|\s*;\s*)", re.I
+)
+
+
+def _clause_is_actionable(clause: str) -> bool:
+    c = clause.strip().lower()
+    if not c:
+        return False
+    return any(re.search(rf"\b{re.escape(v)}\b", c) for v in _ACTION_VERBS)
+
+
+def split_compound_command(message: str) -> list[str]:
+    """Split "dim the lights and play jazz" into independent sub-commands.
+
+    Returns a single-element list when the message is not a clear compound of
+    two or more actionable clauses, so normal single-command routing is
+    unaffected. Scheduling/automation phrasing is never split.
+    """
+    text = (message or "").strip()
+    if not text:
+        return [text]
+    if _looks_scheduled(text.lower()):
+        return [text]
+    # Avoid splitting when "and"/"then" is clearly inside one target list with a
+    # single trailing verb (e.g. "turn on the kitchen and dining lights").
+    parts = [p.strip(" ,.") for p in _COMPOUND_SPLIT_RE.split(text) if p.strip(" ,.")]
+    if len(parts) < 2:
+        return [text]
+    actionable = [p for p in parts if _clause_is_actionable(p)]
+    if len(actionable) < 2:
+        return [text]
+    return actionable
 
 
 def _looks_like_dashboard_draft(text: str) -> bool:

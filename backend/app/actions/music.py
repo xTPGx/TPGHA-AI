@@ -76,6 +76,16 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
         default_media.media_type if default_media else "music")
     ma_entity_id = str(spk.data.get("music_assistant_entity_id") or "").strip() or spk.entity_id
 
+    # Named song/artist/playlist with no preset media_id: resolve a concrete
+    # Music Assistant URI via the search service so playback is reliable instead
+    # of passing a raw text string to play_media.
+    search_match: Optional[dict[str, Any]] = None
+    if query:
+        search_match = await _resolve_media_via_search(ctx, query, media_type)
+        if search_match and search_match.get("uri"):
+            media_id = search_match["uri"]
+            media_type = search_match.get("media_type") or media_type
+
     resolved = {
         "user": user.id,
         "music_account": acct.id,
@@ -90,6 +100,12 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
         "confidence": min(acct.confidence, spk.confidence),
         "reason": f"{acct.reason} {spk.reason}",
     }
+    if search_match:
+        resolved["search_match"] = {
+            "name": search_match.get("name"),
+            "uri": search_match.get("uri"),
+            "media_type": search_match.get("media_type"),
+        }
     if privacy_note:
         resolved["privacy_note"] = privacy_note
 
@@ -171,7 +187,7 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
                                 message=msg, resolved=resolved,
                                 data=data, error="ha_call_failed")
 
-    what = f'"{query}"' if query else f'"{media_id}"'
+    what = f'"{(search_match or {}).get("name") or query}"' if query else f'"{media_id}"'
     backend = "Music Assistant"
     if data.get("playback_backend") == "media_player_fallback":
         backend = "Home Assistant media player fallback"
@@ -184,6 +200,65 @@ async def play_music(ctx: ActionContext, params: dict[str, Any]) -> ActionResult
     return ActionResult(success=True, intent=intent, executed=True,
                         message=message, resolved=resolved,
                         data=data)
+
+
+# Music Assistant search-result category -> singular media_type, in preference
+# order used when the request did not pin a specific media_type.
+_SEARCH_CATEGORIES = (
+    ("tracks", "track"),
+    ("albums", "album"),
+    ("artists", "artist"),
+    ("playlists", "playlist"),
+    ("radio", "radio"),
+)
+_MEDIA_TYPE_TO_CATEGORY = {
+    "track": "tracks",
+    "album": "albums",
+    "artist": "artists",
+    "playlist": "playlists",
+    "radio": "radio",
+}
+
+
+async def _resolve_media_via_search(
+    ctx: ActionContext, query: str, media_type: str
+) -> Optional[dict[str, Any]]:
+    """Resolve a named song/artist/playlist to a concrete Music Assistant URI.
+
+    Best-effort: any failure (no MA, dry-run recorder, empty result) returns
+    None so play_music falls back to passing the raw query to play_media.
+    """
+    requested = (media_type or "music").lower()
+    search_type = requested if requested in _MEDIA_TYPE_TO_CATEGORY else None
+    try:
+        raw = await ctx.ha.music_assistant_search(query, limit=8, media_type=search_type)
+    except Exception:  # pragma: no cover - never let search break playback
+        return None
+
+    response = raw.get("service_response") if isinstance(raw, dict) else None
+    if not isinstance(response, dict):
+        response = raw if isinstance(raw, dict) else {}
+
+    # Honor an explicit requested type first, then fall back through the order.
+    order = list(_SEARCH_CATEGORIES)
+    if requested in _MEDIA_TYPE_TO_CATEGORY:
+        cat = _MEDIA_TYPE_TO_CATEGORY[requested]
+        order = [(cat, requested)] + [c for c in order if c[0] != cat]
+
+    for category, singular in order:
+        items = response.get(category)
+        if isinstance(items, list) and items:
+            item = items[0]
+            if not isinstance(item, dict):
+                continue
+            uri = item.get("uri") or item.get("media_id")
+            if uri:
+                return {
+                    "uri": str(uri),
+                    "name": item.get("name") or item.get("title") or query,
+                    "media_type": singular,
+                }
+    return None
 
 
 def _clean_media_query(value: Any) -> str:

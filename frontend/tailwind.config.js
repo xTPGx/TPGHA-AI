@@ -5,9 +5,23 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Near-black ChatGPT-style surfaces.
+        surface: {
+          DEFAULT: "#0a0a0a",
+          raised: "#171717",
+          overlay: "#212121",
+          border: "#2a2a2a",
+        },
+        // Monochrome accent (replaces the old sky/blue brand). Used as a dark
+        // neutral button base with white text.
         brand: {
-          DEFAULT: "#38bdf8",
-          dark: "#0ea5e9",
+          DEFAULT: "#343541",
+          dark: "#262730",
+        },
+        // Light accent for primary actions (ChatGPT-style near-white send).
+        accent: {
+          DEFAULT: "#f5f5f5",
+          muted: "#d4d4d4",
         },
       },
     },

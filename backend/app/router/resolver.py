@@ -507,17 +507,47 @@ class Resolver:
 
         # Rank by score, then prefer available entities.
         cands.sort(key=lambda c: (c[0], 1 if self._is_available(c[1]) else 0), reverse=True)
-        score, entity_id, friendly, reason = cands[0]
+        # Collapse duplicate entity_ids, keeping the best score per entity.
+        best_by_entity: dict[str, tuple[float, str, str]] = {}
+        for sc, eid, fr, rs in cands:
+            if eid not in best_by_entity or sc > best_by_entity[eid][0]:
+                best_by_entity[eid] = (sc, fr, rs)
+        ranked = sorted(
+            ((sc, eid, fr, rs) for eid, (sc, fr, rs) in best_by_entity.items()),
+            key=lambda c: (c[0], 1 if self._is_available(c[1]) else 0),
+            reverse=True,
+        )
+        score, entity_id, friendly, reason = ranked[0]
         if score < 0.45:
             return ResolveResult.miss("target", f"No confident match for '{name}'.")
         domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
         avail = "available" if self._is_available(entity_id) else "unavailable"
+
+        alternatives = [
+            {
+                "entity_id": eid,
+                "name": fr or eid,
+                "confidence": round(sc, 2),
+                "available": self._is_available(eid),
+            }
+            for sc, eid, fr, _rs in ranked[:4]
+        ]
+        # Ambiguous when the top two distinct devices are a near tie with
+        # different friendly names (e.g. "office lamp" vs "office ceiling light").
+        ambiguous = (
+            len(ranked) >= 2
+            and ranked[0][0] >= 0.6
+            and (ranked[0][0] - ranked[1][0]) <= 0.05
+            and _norm(ranked[0][2] or ranked[0][1]) != _norm(ranked[1][2] or ranked[1][1])
+        )
         return ResolveResult(
             matched=True, kind="target", entity_id=entity_id, name=friendly or entity_id,
             confidence=round(score, 2),
             reason=f"Matched via {reason} ({avail}).",
             data={"entity_id": entity_id, "domain": domain, "friendly_name": friendly,
                   "available": self._is_available(entity_id)},
+            alternatives=alternatives,
+            ambiguous=ambiguous,
         )
 
     # --------------------------------------------------------------- utils

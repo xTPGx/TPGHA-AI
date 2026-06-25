@@ -6,6 +6,7 @@ import datetime
 import json
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -100,7 +101,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.35"
+APP_VERSION = "1.0.36"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -109,6 +110,58 @@ _API_PREFIXES = (
     "dashboards", "debug", "knowledge", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
     "openapi.json",
 )
+
+# Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
+# set (health checks, public TTS audio for room speakers, static UI + docs).
+_PUBLIC_NO_AUTH_PREFIXES = (
+    "/health", "/voice/audio", "/assets", "/docs", "/redoc", "/openapi.json",
+    "/favicon", "/logo", "/icon", "/manifest", "/robots",
+)
+
+
+def _request_is_ingress(request: Request) -> bool:
+    """True when the request arrived through Home Assistant's Supervisor ingress.
+
+    Ingress requests are already authenticated by Home Assistant, so the
+    optional bearer guard only applies to direct LAN access on port 8088.
+    """
+    h = request.headers
+    if h.get("x-ingress-path") or h.get("x-hass-source") or h.get("x-remote-user-id"):
+        return True
+    raw = request.scope.get("path", "")
+    return "hassio_ingress" in raw
+
+
+def _is_public_no_auth(path: str) -> bool:
+    p = (path or "/").lower()
+    if p == "/" or p == "":
+        return True
+    return any(p.startswith(prefix) for prefix in _PUBLIC_NO_AUTH_PREFIXES)
+
+
+def _auth_guard_response(request: Request) -> JSONResponse | None:
+    """Optional bearer-token guard for non-ingress (direct port) requests.
+
+    No-op unless TPG_API_TOKEN is configured. Ingress + public paths are exempt.
+    """
+    token = (get_settings().api_token or "").strip()
+    if not token:
+        return None
+    if request.method == "OPTIONS":
+        return None
+    if _request_is_ingress(request):
+        return None
+    if _is_public_no_auth(request.scope.get("path", "")):
+        return None
+    header = request.headers.get("authorization", "")
+    supplied = header[7:].strip() if header[:7].lower() == "bearer " else ""
+    if supplied and secrets.compare_digest(supplied, token):
+        return None
+    return JSONResponse(
+        {"detail": "Unauthorized: missing or invalid API token."},
+        status_code=401,
+    )
+
 
 # HA ingress normally forwards backend calls as /<addon_slug>/api/...
 # Some HA/proxy paths may arrive as /<addon_slug>/health, so keep a small
@@ -175,6 +228,9 @@ app.add_middleware(
 @app.middleware("http")
 async def api_prefix_compatibility(request: Request, call_next):
     """Accept /api and HA ingress /<addon_slug>/api calls."""
+    guard = _auth_guard_response(request)
+    if guard is not None:
+        return guard
     path = request.scope.get("path", "")
     parts = path.lstrip("/").split("/", 2)
     if len(parts) >= 3 and parts[0] == "api" and parts[1] == "hassio_ingress":
@@ -596,9 +652,13 @@ async def chat(req: ChatRequest):
     )
     resp.conversation_id = req.conversation_id
     if resp.error == "no_tool_selected":
+        # Use the room's assistant/user when the request came from a voice source.
+        src_assistant, src_user = intent_router.source_identity_override(
+            get_config(), _command_context(req)
+        )
         general = await answer_general(
-            req.assistant,
-            req.user,
+            src_assistant or req.assistant,
+            req.user or src_user,
             req.message,
             conversation_id=req.conversation_id,
         )

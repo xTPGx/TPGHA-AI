@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     )
     auto_approve_domains: str = Field(default="", alias="AUTO_APPROVE_DOMAINS")
     security_pin: str = Field(default="", alias="TPG_SECURITY_PIN")
+    # Optional bearer token guarding non-ingress (direct port 8088) API access.
+    # Empty (default) = no enforcement, preserving existing behavior. When set,
+    # direct LAN callers must send `Authorization: Bearer <token>`; Home
+    # Assistant ingress requests are exempt (already HA-authenticated).
+    api_token: str = Field(default="", alias="TPG_API_TOKEN")
     ha_connect_timeout_seconds: float = Field(
         default=10.0, alias="HA_CONNECT_TIMEOUT_SECONDS"
     )
@@ -119,6 +124,7 @@ class Settings(BaseSettings):
             "ollama_model": self.ollama_model,
             "voice_public_base_url_configured": bool(self.voice_public_base_url),
             "security_pin_configured": bool(self.security_pin),
+            "api_token_configured": bool(self.api_token),
             "home_assistant_url": self.home_assistant_url,
             "ha_configured": self.ha_configured,
             "config_dir": self.config_dir,

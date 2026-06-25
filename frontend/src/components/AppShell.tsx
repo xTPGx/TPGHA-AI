@@ -48,8 +48,8 @@ export default function AppShell({
   }, [open]);
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden bg-[#070d18] text-slate-100">
-      <header className="compact-header sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 px-3 py-2 backdrop-blur xl:hidden">
+    <div className="app-shell min-h-screen overflow-x-hidden bg-[#0a0a0a] text-slate-100">
+      <header className="compact-header sticky top-0 z-40 border-b border-white/10 bg-[#0f0f0f]/95 px-3 py-2 backdrop-blur xl:hidden">
         <div className="flex min-h-12 items-center justify-between gap-3">
           {canGoBack && (
             <button
@@ -72,17 +72,17 @@ export default function AppShell({
             </span>
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-sky-300">TPG HomeAI</div>
+            <div className="truncate text-sm font-bold text-slate-100">TPG HomeAI</div>
             <div className="truncate text-xs text-slate-500">{sessionUser?.name || "House"} · {roleLabel(role)}</div>
           </div>
-          <div className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2.5 py-1 text-xs text-sky-200">
+          <div className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs text-slate-200">
             AI
           </div>
         </div>
       </header>
 
       <div className="flex min-h-screen min-w-0">
-        <aside className="wide-sidebar hidden w-[16.5rem] shrink-0 border-r border-white/10 bg-[#080d18]/95 p-3 backdrop-blur xl:block">
+        <aside className="wide-sidebar hidden w-[16.5rem] shrink-0 border-r border-white/10 bg-[#0f0f0f]/95 p-3 backdrop-blur xl:block">
           <ShellNav
             navGroups={navGroups}
             role={role}
@@ -104,10 +104,10 @@ export default function AppShell({
               onClick={() => setOpen(false)}
               aria-label="Close navigation"
             />
-            <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-slate-800 bg-slate-950 p-4 shadow-2xl">
+            <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-white/10 bg-[#0f0f0f] p-4 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <div className="text-lg font-bold text-sky-300">TPG HomeAI</div>
+                  <div className="text-lg font-bold text-slate-100">TPG HomeAI</div>
                   <div className="text-xs text-slate-500">Smart-home AI</div>
                 </div>
                 <button className="btn-ghost min-h-11" onClick={() => setOpen(false)}>Close</button>
@@ -176,14 +176,14 @@ function ShellNav({
   return (
     <div className="flex min-h-full flex-col">
       <div className="mb-5 hidden xl:block">
-        <div className="text-base font-bold text-sky-300">TPG HomeAI</div>
+        <div className="text-base font-bold text-slate-100">TPG HomeAI</div>
         <div className="text-xs text-slate-500">House intelligence</div>
       </div>
 
       {sessionUser && (
         <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.035] p-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-400/15 text-xs font-bold text-sky-200">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-xs font-bold text-slate-100">
               {(sessionUser.name || "H").slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -234,9 +234,9 @@ function ShellNav({
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `min-h-10 rounded-xl px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-sky-300/70 ${
+                    `min-h-10 rounded-xl px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/30 ${
                       isActive
-                        ? "bg-sky-400/14 text-sky-100"
+                        ? "bg-white/12 text-white"
                         : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                     }`
                   }

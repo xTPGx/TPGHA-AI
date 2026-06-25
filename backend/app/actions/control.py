@@ -183,7 +183,8 @@ async def control_device(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
     plan = caps.plan_for(domain, action, value, res.entity_id, res.name or "")
     resolved = {"target": target, "entity_id": res.entity_id, "domain": domain,
                 "action": action, "value": value, "available": res.data.get("available"),
-                "reason": res.reason, "confidence": res.confidence}
+                "reason": res.reason, "confidence": res.confidence,
+                "alternatives": res.alternatives, "ambiguous": res.ambiguous}
     if not plan.ok:
         return ActionResult.fail(intent, plan.reason or f"Can't '{action}' a {domain}.",
                                  resolved=resolved)

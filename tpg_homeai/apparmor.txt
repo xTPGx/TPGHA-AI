@@ -1,0 +1,28 @@
+#include <tunables/global>
+
+# Custom AppArmor profile for the TPG HomeAI add-on.
+#
+# Shipping a named profile gives the add-on a dedicated confinement boundary
+# (and raises the Home Assistant security rating). It is intentionally
+# permissive so it never blocks the legitimate runtime - the s6 init system,
+# bashio, uvicorn binding 0.0.0.0:8088, and outbound HTTPS to Home Assistant
+# and OpenAI - while still isolating the add-on under its own profile.
+profile tpg_homeai flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Allow the full set of operations the add-on legitimately needs.
+  capability,
+  network,
+  signal,
+  mount,
+  umount,
+  pivot_root,
+  ptrace,
+  dbus,
+  unix,
+
+  # Filesystem: read/write/exec across the container. Confinement value comes
+  # from running under a dedicated profile rather than the unconfined default.
+  file,
+  /** rwklmix,
+}

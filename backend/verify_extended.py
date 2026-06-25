@@ -273,6 +273,61 @@ async def main():
     check("P10 dashboard display loads without entity_id",
           config_loader.config_error() is None and len(cfg_ok.devices.displays) == 1)
 
+    # ------------------------------------------- PHASE 0: trust-level gating
+    from app.models.results import ActionResult, ResolveResult
+    from app.router.action_policy import evaluate_action_policy
+
+    state_change = ActionResult(success=True, intent="control_device", executed=True,
+                                resolved={"confidence": 1.0, "entity_id": "light.office"})
+    pol_trusted = evaluate_action_policy(state_change, {"name": "control_device"},
+                                         trust_level="trusted")
+    check("PH0 trusted state-change executes",
+          pol_trusted["decision"] == "execute_now", str(pol_trusted))
+    pol_outside = evaluate_action_policy(state_change, {"name": "control_device"},
+                                         trust_level="outside")
+    check("PH0 outside source blocked from state change",
+          pol_outside["decision"] == "denied"
+          and "outside_source_state_change_blocked" in pol_outside["reasons"],
+          str(pol_outside))
+
+    sensitive = ActionResult(success=True, intent="unlock_door", executed=False,
+                             resolved={"confidence": 1.0, "entity_id": "lock.front_door"})
+    pol_guest = evaluate_action_policy(sensitive, {"name": "unlock_door"},
+                                       trust_level="guest")
+    check("PH0 guest blocked from sensitive action",
+          pol_guest["decision"] == "denied"
+          and "untrusted_source_sensitive_blocked" in pol_guest["reasons"],
+          str(pol_guest))
+    pol_trusted_sensitive = evaluate_action_policy(sensitive, {"name": "unlock_door"},
+                                                   trust_level="trusted")
+    check("PH0 trusted sensitive still confirms",
+          pol_trusted_sensitive["decision"] == "confirmation_required",
+          str(pol_trusted_sensitive))
+
+    # --------------------------------------- PHASE 1: compound command split
+    from app.ai.client import split_compound_command
+    compound = split_compound_command("dim the lights and play jazz in the kitchen")
+    check("PH1 compound command splits into steps", len(compound) >= 2, str(compound))
+    single = split_compound_command("turn off the office fan")
+    check("PH1 single command is not split", len(single) == 1, str(single))
+    scheduled = split_compound_command("at 10 pm turn off the lights and lock the door")
+    check("PH1 scheduled phrasing is not split", len(scheduled) == 1, str(scheduled))
+
+    # --------------------------------------- PHASE 1: music search is wired in
+    from app.actions import music as music_actions
+    check("PH1 music search helper wired into play_music",
+          hasattr(music_actions, "_resolve_media_via_search"),
+          "play_music should resolve named media via Music Assistant search.")
+
+    # ------------------------------- PHASE 1: ambiguity surfaced by resolver
+    amb = ResolveResult(matched=True, kind="device", entity_id="light.office_lamp",
+                        confidence=0.72, ambiguous=True,
+                        alternatives=[{"entity_id": "light.office_lamp"},
+                                      {"entity_id": "light.office_ceiling"}])
+    check("PH1 ResolveResult carries ambiguity + alternatives",
+          amb.ambiguous is True and len(amb.alternatives) == 2,
+          str(amb))
+
     print("\n--- SUMMARY ---")
     passed = sum(1 for s, _, _ in results if s == PASS)
     print(f"{passed}/{len(results)} checks passed.")

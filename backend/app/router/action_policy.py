@@ -71,12 +71,18 @@ LOW_RISK_DOMAINS = {
 
 CONFIDENCE_REVIEW_THRESHOLD = 0.80
 
+# Voice/panel trust levels that may NOT auto-execute certain actions. These are
+# enforced (pre-execution) in the intent router; the policy decision below also
+# reflects them so dashboards/HA Assist see a consistent decision.
+RESTRICTED_TRUST_LEVELS = {"guest", "outside"}
+
 
 def evaluate_action_policy(
     result: ActionResult | CommandResponse,
     tool_call: dict[str, Any] | None = None,
     *,
     preview: bool = False,
+    trust_level: str = "trusted",
 ) -> dict[str, Any]:
     """Return the action policy decision for a command result."""
     intent = result.intent or ""
@@ -85,41 +91,60 @@ def evaluate_action_policy(
     confidence = _confidence(resolved)
     service_names = _service_names(data, tool_call)
     risk = _risk(intent, resolved, service_names, tool_call)
+    sensitive = _is_sensitive(intent, resolved, service_names, tool_call)
+    trust = (trust_level or "trusted").lower()
     reasons: list[str] = []
 
     if result.requires_confirmation:
         reasons.append("handler_requires_confirmation")
         return _decision(
-            "confirmation_required", risk, confidence, reasons, preview=preview
+            "confirmation_required", risk, confidence, reasons, preview=preview,
+            trust_level=trust,
         )
 
     if intent in PROPOSAL_INTENTS:
         reasons.append("creates_or_changes_future_behavior")
-        return _decision("proposal_required", "medium", confidence, reasons, preview=preview)
+        return _decision("proposal_required", "medium", confidence, reasons,
+                         preview=preview, trust_level=trust)
 
-    if _is_sensitive(intent, resolved, service_names, tool_call):
+    if sensitive:
+        # Untrusted sources can never run security/access actions.
+        if trust in RESTRICTED_TRUST_LEVELS:
+            reasons.append("untrusted_source_sensitive_blocked")
+            return _decision("denied", "critical", confidence, reasons,
+                             preview=preview, trust_level=trust)
         reasons.append("sensitive_security_or_access_action")
         return _decision(
-            "confirmation_required", "critical", confidence, reasons, preview=preview
+            "confirmation_required", "critical", confidence, reasons,
+            preview=preview, trust_level=trust,
         )
 
     if not result.success:
         reasons.append(result.error or "command_failed")
         decision = "clarify" if not result.executed else "review_required"
-        return _decision(decision, risk, confidence, reasons, preview=preview)
+        return _decision(decision, risk, confidence, reasons, preview=preview,
+                         trust_level=trust)
 
     if _would_execute(result, data, tool_call):
+        if trust == "outside":
+            reasons.append("outside_source_state_change_blocked")
+            return _decision("denied", risk, confidence, reasons,
+                             preview=preview, trust_level=trust)
         if confidence < CONFIDENCE_REVIEW_THRESHOLD:
             reasons.append("low_target_confidence")
-            return _decision("review_required", risk, confidence, reasons, preview=preview)
+            return _decision("review_required", risk, confidence, reasons,
+                             preview=preview, trust_level=trust)
         if not _has_target(resolved) and service_names:
             reasons.append("missing_resolved_target")
-            return _decision("review_required", risk, confidence, reasons, preview=preview)
+            return _decision("review_required", risk, confidence, reasons,
+                             preview=preview, trust_level=trust)
         reasons.append("confident_low_risk_or_allowed_action")
-        return _decision("execute_now", risk, confidence, reasons, preview=preview)
+        return _decision("execute_now", risk, confidence, reasons, preview=preview,
+                         trust_level=trust)
 
     reasons.append("conversation_or_status_only")
-    return _decision("answer_only", risk, confidence, reasons, preview=preview)
+    return _decision("answer_only", risk, confidence, reasons, preview=preview,
+                     trust_level=trust)
 
 
 def should_pause_for_review(policy: dict[str, Any]) -> bool:
@@ -133,6 +158,7 @@ def _decision(
     reasons: list[str],
     *,
     preview: bool,
+    trust_level: str = "trusted",
 ) -> dict[str, Any]:
     return {
         "decision": decision,
@@ -146,6 +172,7 @@ def _decision(
         },
         "can_auto_execute": decision == "execute_now",
         "preview": preview,
+        "trust_level": trust_level,
         "reasons": reasons,
     }
 
