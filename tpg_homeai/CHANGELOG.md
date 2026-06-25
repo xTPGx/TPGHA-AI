@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.30
+
+- Added backend-owned AI tool role policy so residents/kiosk/guests can keep normal conversation, brainstorming, device control, and schedule/automation drafting.
+- Blocked non-admin users from AI-driven dashboard/view builder actions with an explicit `role_not_allowed` response instead of relying on hidden UI menus.
+- Kept Shawn/Owner/Admin and manager roles able to draft dashboards and use the full management toolset.
+- Added regression checks that Jordie can create scheduled automation proposals but cannot draft dashboards through Chat.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.29
 
 - Stopped `/ui/session` from ever defaulting to Shawn/Owner when Home Assistant does not pass a trusted logged-in user identity.

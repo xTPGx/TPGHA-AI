@@ -697,6 +697,32 @@ def main() -> int:
           str(body))
 
     r = client.post("/chat", json={
+        "assistant": "chatty",
+        "user": "jordie",
+        "message": "Create scheduled task. Turn off all lights at 10 PM.",
+    })
+    check("/chat resident can draft scheduled automations",
+          r.status_code == 200
+          and r.json().get("mode") == "proposal"
+          and r.json().get("command", {}).get("intent") == "create_simple_automation",
+          str(r.json()))
+
+    r = client.post("/chat", json={
+        "assistant": "chatty",
+        "user": "jordie",
+        "message": "Build a dashboard for the office with voice controls.",
+    })
+    check("/chat resident cannot draft dashboards",
+          r.status_code == 200
+          and r.json().get("success") is False
+          and r.json().get("command", {}).get("intent") == "draft_dashboard"
+          and r.json().get("command", {}).get("error") == "role_not_allowed",
+          str(r.json()))
+    check("/chat resident dashboard denial is role policy",
+          r.json().get("command", {}).get("data", {}).get("policy", {}).get("decision") == "denied",
+          str(r.json()))
+
+    r = client.post("/chat", json={
         "assistant": "atlas",
         "user": "shawn",
         "conversation_id": "verify-notebook-session",

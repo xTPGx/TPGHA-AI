@@ -75,6 +75,10 @@ _HANDLERS = {
     "query_device": control_action.query_device,
 }
 
+ADMIN_OR_MANAGER_TOOLS = {
+    "draft_dashboard",
+}
+
 
 async def build_context(
     assistant_name: Optional[str],
@@ -180,6 +184,10 @@ async def handle_command(
             tool_call=tool_dict, error="tool_not_allowed",
         )
 
+    role_denied = _role_denied_response(ctx, tool_call, tool_dict)
+    if role_denied is not None:
+        return role_denied
+
     _attach_original_request(tool_call, tool_dict, message)
     handler = _HANDLERS[tool_call.name]
     result: ActionResult = await handler(ctx, tool_call.arguments)
@@ -258,6 +266,11 @@ async def handle_preview(
             message=f"Tool '{tool_call.name}' is not allowed.",
             tool_call=tool_dict, error="tool_not_allowed",
         )
+
+    role_denied = _role_denied_response(ctx, tool_call, tool_dict)
+    if role_denied is not None:
+        role_denied.conversation_id = conversation_id
+        return role_denied
 
     _attach_original_request(tool_call, tool_dict, message)
     recorder = RecordingHA(ctx.resolver.live_states)
@@ -728,6 +741,49 @@ def cancel_confirmation(token: str) -> CommandResponse:
         message="Confirmation cancelled." if ok else "No such pending confirmation.",
         error=None if ok else "invalid_confirmation",
     )
+
+
+def _role_denied_response(
+    ctx: ActionContext,
+    tool_call: ToolCall,
+    tool_dict: Optional[dict[str, Any]],
+) -> CommandResponse | None:
+    """Server-side AI tool authorization by user role.
+
+    UI menus are convenience only. This keeps HA Assist, Chat, preview, and
+    direct command calls aligned: residents can talk, brainstorm, control
+    permitted devices, and draft schedules/automations, but dashboard/view
+    builder tools stay admin/manager-only.
+    """
+    role = (ctx.user.role if ctx.user else "guest").lower()
+    if tool_call.name in ADMIN_OR_MANAGER_TOOLS and role not in {"admin", "manager"}:
+        return CommandResponse(
+            success=False,
+            assistant=(ctx.assistant.id if ctx.assistant else None),
+            user=(ctx.user.id if ctx.user else None),
+            intent=tool_call.name,
+            executed=False,
+            message=(
+                "That is an owner/admin management action. I can brainstorm the idea "
+                "with you, but dashboard and view changes need Shawn/Owner/Admin."
+            ),
+            tool_call=tool_dict,
+            data={
+                "policy": {
+                    "decision": "denied",
+                    "risk": "medium",
+                    "confidence": 1.0,
+                    "requires_review": False,
+                    "can_auto_execute": False,
+                    "preview": False,
+                    "reasons": ["role_not_allowed"],
+                    "required_role": "admin_or_manager",
+                    "actual_role": role,
+                }
+            },
+            error="role_not_allowed",
+        )
+    return None
 
 
 def _to_response(ctx: ActionContext, result: ActionResult, tool_dict: Optional[dict]) -> CommandResponse:
