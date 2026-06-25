@@ -1117,6 +1117,19 @@ async def conversation_detail(conversation_id: str):
     return notebook_store.conversation_detail(conversation_id)
 
 
+@app.delete("/conversations/{conversation_id}")
+async def conversation_archive(conversation_id: str):
+    try:
+        archived = notebook_store.archive_conversation(conversation_id)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    return {
+        "archived": True,
+        "conversation_id": archived["conversation_id"],
+        "already_archived": archived["already_archived"],
+    }
+
+
 @app.post("/conversations/{conversation_id}/notes")
 async def conversation_note(conversation_id: str, req: ConversationNoteRequest):
     if req.conversation_id and req.conversation_id != conversation_id:

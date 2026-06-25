@@ -8,14 +8,20 @@ from typing import Any
 from sqlalchemy import desc, func
 
 from .db.database import get_session
-from .db.models import CommandLog, ConversationNote
+from .db.models import ArchivedConversation, CommandLog, ConversationNote
 
 
 def list_conversations(limit: int = 50, assistant: str | None = None,
                        user: str | None = None) -> list[dict[str, Any]]:
     limit = max(1, min(200, int(limit or 50)))
     with get_session() as session:
+        archived_ids = {
+            row.conversation_id
+            for row in session.query(ArchivedConversation.conversation_id).all()
+        }
         query = session.query(CommandLog).filter(CommandLog.conversation_id != "")
+        if archived_ids:
+            query = query.filter(~CommandLog.conversation_id.in_(archived_ids))
         if assistant:
             query = query.filter(CommandLog.assistant == assistant)
         if user:
@@ -50,6 +56,46 @@ def list_conversations(limit: int = 50, assistant: str | None = None,
             "last_message": last.response_message or last.message,
         })
     return sorted(conversations, key=lambda item: item.get("updated_at") or "", reverse=True)[:limit]
+
+
+def archive_conversation(conversation_id: str) -> dict[str, Any]:
+    conversation_id = (conversation_id or "").strip()
+    if not conversation_id:
+        raise ValueError("Conversation ID is required.")
+    with get_session() as session:
+        existing = session.query(ArchivedConversation).filter(
+            ArchivedConversation.conversation_id == conversation_id
+        ).first()
+        if existing:
+            return {
+                "conversation_id": conversation_id,
+                "archived_at": existing.archived_at.isoformat() if existing.archived_at else None,
+                "already_archived": True,
+            }
+        archived = ArchivedConversation(conversation_id=conversation_id)
+        session.add(archived)
+        session.commit()
+        session.refresh(archived)
+        return {
+            "conversation_id": conversation_id,
+            "archived_at": archived.archived_at.isoformat() if archived.archived_at else None,
+            "already_archived": False,
+        }
+
+
+def unarchive_conversation(conversation_id: str) -> bool:
+    conversation_id = (conversation_id or "").strip()
+    if not conversation_id:
+        return False
+    with get_session() as session:
+        row = session.query(ArchivedConversation).filter(
+            ArchivedConversation.conversation_id == conversation_id
+        ).first()
+        if not row:
+            return False
+        session.delete(row)
+        session.commit()
+        return True
 
 
 def conversation_detail(conversation_id: str) -> dict[str, Any]:

@@ -226,6 +226,8 @@ export const api = {
   },
   conversation: (conversationId: string) =>
     http<any>(`/conversations/${encodeURIComponent(conversationId)}`),
+  deleteConversation: (conversationId: string) =>
+    http<any>(`/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" }),
   addConversationNote: (conversationId: string, body: Record<string, any>) =>
     http<any>(`/conversations/${encodeURIComponent(conversationId)}/notes`, {
       method: "POST",

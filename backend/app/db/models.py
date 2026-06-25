@@ -140,3 +140,17 @@ class ConversationNote(Base):
     title: Mapped[str] = mapped_column(String(255), default="")
     body: Mapped[str] = mapped_column(Text, default="")
     source: Mapped[str] = mapped_column(String(64), default="user")
+
+
+class ArchivedConversation(Base):
+    """Soft-hidden conversation IDs.
+
+    CommandLog remains the audit source of truth. Archiving only hides a
+    conversation from the notebook/recent-chat list.
+    """
+
+    __tablename__ = "archived_conversation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    archived_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

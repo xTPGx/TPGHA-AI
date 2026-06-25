@@ -1,3 +1,4 @@
+import type { UIEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, CommandResponse } from "../api";
 import Badge from "../components/Badge";
@@ -27,6 +28,18 @@ type SpeechRecognitionCtor = new () => {
 };
 
 type MicState = "idle" | "recording" | "transcribing";
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
 
 const PROPOSAL_INTENTS = new Set(["create_simple_automation", "create_routine", "draft_dashboard"]);
 const SENSITIVE_INTENTS = new Set([
@@ -331,6 +344,10 @@ export default function Chat() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const forceScrollRef = useRef(false);
+  const [stuckToBottom, setStuckToBottom] = useState(true);
   const speechSupported = useMemo(() => Boolean(getSpeechRecognition()), []);
   const recorderSupported = useMemo(
     () => Boolean(typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined"),
@@ -357,6 +374,7 @@ export default function Chat() {
     setError(null);
     try {
       const response = await api.conversation(targetId);
+      forceScrollRef.current = true;
       setConversationId(targetId);
       setDetail(response);
       setMessages(transcriptMessages(response));
@@ -370,6 +388,7 @@ export default function Chat() {
   };
 
   const newChat = () => {
+    forceScrollRef.current = true;
     setConversationId(id());
     setMessages([]);
     setDetail(null);
@@ -391,6 +410,26 @@ export default function Chat() {
       window.speechSynthesis?.cancel();
     };
   }, []);
+
+  useEffect(() => {
+    if (!forceScrollRef.current && !stickToBottomRef.current) return;
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    forceScrollRef.current = false;
+  }, [messages, busy]);
+
+  const handleChatScroll = (event: UIEvent<HTMLElement>) => {
+    const el = event.currentTarget;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    stickToBottomRef.current = nearBottom;
+    setStuckToBottom(nearBottom);
+  };
+
+  const jumpToLatest = () => {
+    stickToBottomRef.current = true;
+    forceScrollRef.current = true;
+    setStuckToBottom(true);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -498,6 +537,7 @@ export default function Chat() {
     setText("");
     setBusy(true);
     setError(null);
+    forceScrollRef.current = true;
     setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
     try {
       if (safePreview) {
@@ -519,6 +559,22 @@ export default function Chat() {
   };
 
   sendRef.current = (override?: string, room?: string) => void send(override, room);
+
+  const deleteConversation = async (targetId: string) => {
+    if (!targetId) return;
+    const item = conversations.find((c) => c.conversation_id === targetId);
+    const title = item?.title || "this conversation";
+    if (!window.confirm(`Remove "${title}" from recent chats? Audit history will be preserved.`)) return;
+    const previous = conversations;
+    setConversations((current) => current.filter((c) => c.conversation_id !== targetId));
+    if (targetId === conversationId) newChat();
+    try {
+      await api.deleteConversation(targetId);
+    } catch (e: any) {
+      setConversations(previous);
+      setError(e.message || String(e));
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem("tpg.panelMode", panelMode ? "1" : "0");
@@ -841,6 +897,7 @@ export default function Chat() {
       setSpeakResponses={setSpeakResponses}
       newChat={newChat}
       loadConversation={loadConversation}
+      deleteConversation={deleteConversation}
       close={() => setHistoryOpen(false)}
     />
   );
@@ -916,7 +973,7 @@ export default function Chat() {
           />
         ) : (
           <>
-            <section className="min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-6">
+            <section className="relative min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-6" onScroll={handleChatScroll}>
               <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
                 {messages.length === 0 && (
                   <EmptyState assistantName={selectedAssistant?.name || "TPG HomeAI"} onPrompt={(prompt) => void send(prompt)} />
@@ -943,8 +1000,17 @@ export default function Chat() {
                       </div>
                     </div>
                   )}
+                  <div ref={bottomRef} />
                 </div>
               </div>
+              {!stuckToBottom && (
+                <button
+                  className="fixed bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[#171717] px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg transition hover:border-white/25 hover:bg-[#222]"
+                  onClick={jumpToLatest}
+                >
+                  Jump to latest
+                </button>
+              )}
             </section>
 
             <div className="shrink-0 border-t border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:px-6">
@@ -1012,6 +1078,7 @@ function ConversationRail({
   setSpeakResponses,
   newChat,
   loadConversation,
+  deleteConversation,
   close,
 }: {
   activeTab: "chat" | "notebook";
@@ -1025,6 +1092,7 @@ function ConversationRail({
   setSpeakResponses: (value: boolean) => void;
   newChat: () => void;
   loadConversation: (id: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   close: () => void;
 }) {
   return (
@@ -1067,16 +1135,31 @@ function ConversationRail({
       <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recent chats</div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
         {conversations.map((item) => (
-          <button
+          <div
             key={item.conversation_id}
-            className={`group w-full rounded-xl px-3 py-2.5 text-left transition ${
+            className={`group flex w-full items-start gap-2 rounded-xl px-3 py-2.5 transition ${
               item.conversation_id === conversationId ? "bg-white/10 text-slate-100" : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100"
             }`}
-            onClick={() => void loadConversation(item.conversation_id)}
           >
-            <div className="line-clamp-2 text-sm font-medium leading-snug">{item.title}</div>
-            <div className="mt-1 text-xs text-slate-600 group-hover:text-slate-500">{item.message_count} messages · {item.note_count} notes</div>
-          </button>
+            <button
+              className="min-w-0 flex-1 text-left"
+              onClick={() => void loadConversation(item.conversation_id)}
+            >
+              <div className="line-clamp-2 text-sm font-medium leading-snug">{item.title}</div>
+              <div className="mt-1 text-xs text-slate-600 group-hover:text-slate-500">{item.message_count} messages · {item.note_count} notes</div>
+            </button>
+            <button
+              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-500 opacity-0 transition hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-200 group-hover:opacity-100 focus:opacity-100"
+              onClick={(event) => {
+                event.stopPropagation();
+                void deleteConversation(item.conversation_id);
+              }}
+              title="Remove from recent chats"
+              aria-label={`Remove ${item.title || "conversation"} from recent chats`}
+            >
+              <TrashIcon />
+            </button>
+          </div>
         ))}
         {conversations.length === 0 && <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-500">No saved chats yet.</div>}
       </div>

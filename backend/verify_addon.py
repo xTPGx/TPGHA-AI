@@ -925,6 +925,21 @@ def main() -> int:
     check("/conversations/{id}/export returns markdown JSON",
           r.status_code == 200 and "# " in r.json().get("markdown", ""),
           r.text)
+    r = client.delete("/conversations/verify-notebook-session")
+    check("/conversations/{id} DELETE soft-archives conversation",
+          r.status_code == 200
+          and r.json().get("archived") is True
+          and r.json().get("conversation_id") == "verify-notebook-session",
+          r.text)
+    r = client.get("/conversations")
+    check("archived conversation is hidden from list",
+          r.status_code == 200
+          and all(c.get("conversation_id") != "verify-notebook-session" for c in r.json().get("conversations", [])),
+          str(r.json()))
+    r = client.get("/conversations/verify-notebook-session")
+    check("archived conversation detail preserves audit transcript",
+          r.status_code == 200 and len(r.json().get("messages", [])) >= 1,
+          r.text)
 
     r = client.post("/research/search", json={"query": "", "max_results": 3})
     check("/research/search returns structured JSON", r.status_code == 200 and is_json(r),
