@@ -86,6 +86,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     addon_config = (repo_root / "tpg_homeai" / "config.yaml").read_text(encoding="utf-8")
     dockerfile = (repo_root / "tpg_homeai" / "Dockerfile").read_text(encoding="utf-8")
+    run_sh = (repo_root / "tpg_homeai" / "run.sh").read_text(encoding="utf-8")
     manifest = (repo_root / "custom_components" / "tpg_homeai" / "manifest.json").read_text(encoding="utf-8")
     ha_client = (repo_root / "custom_components" / "tpg_homeai" / "__init__.py").read_text(encoding="utf-8")
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
@@ -114,6 +115,13 @@ def main() -> int:
           and "require_admin=False" in ha_client
           and "sidebar_default_visible=True" in ha_client,
           "The HA iframe panel must not require administrator access.")
+    check("add-on ships custom integration files",
+          "custom_components_template/tpg_homeai" in dockerfile,
+          "The add-on image must include the matching custom integration.")
+    check("add-on installs custom integration into HA config",
+          "/config/custom_components/tpg_homeai" in run_sh
+          and "custom_components_template/tpg_homeai" in run_sh,
+          "The add-on must sync the custom integration so non-admin HA panels exist.")
     check("HA client exposes chat endpoint", "async def async_chat" in ha_client and '"/chat"' in ha_client)
     check("HA Assist uses chat brain, not command-only path",
           "async_chat(" in ha_conversation and "async_command(" not in ha_conversation,

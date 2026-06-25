@@ -106,6 +106,16 @@ for f in discovered.yaml ignored.yaml; do
   fi
 done
 
+# Keep the matching HA custom integration installed from the add-on image. The
+# add-on ingress panel is often admin-only in practice; the custom integration
+# registers the all-user /tpg-homeai-app sidebar panel and HA services.
+if [ -d "/app/custom_components_template/tpg_homeai" ]; then
+  mkdir -p "/config/custom_components"
+  rm -rf "/config/custom_components/tpg_homeai"
+  cp -R "/app/custom_components_template/tpg_homeai" "/config/custom_components/tpg_homeai"
+  echo "[tpg_homeai] synced custom integration to /config/custom_components/tpg_homeai | restart Home Assistant if the sidebar panel is missing"
+fi
+
 # Map HA log level -> uvicorn log level.
 case "${LOG_LEVEL}" in
   trace|debug) UVICORN_LOG="debug" ;;

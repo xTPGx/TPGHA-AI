@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.28
+
+- Bundled the matching `custom_components/tpg_homeai` integration into the Home Assistant add-on image.
+- Synced the custom integration into `/config/custom_components/tpg_homeai` on add-on start so the non-admin `/tpg-homeai-app` sidebar panel can actually register after a Home Assistant restart.
+- Added release checks that the add-on ships and installs the custom integration files needed by HA Users-group accounts.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.27
 
 - Registered the all-user Home Assistant custom integration panel on a dedicated `/tpg-homeai-app` route so it no longer competes with the Supervisor add-on ingress panel.

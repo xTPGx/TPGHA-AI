@@ -44,6 +44,7 @@ COPY --from=build /src/backend/app /app/app
 # Built SPA + starter config templates.
 COPY --from=build /src/frontend/dist /app/static
 COPY --from=build /src/config /app/config_template
+COPY --from=build /src/custom_components/tpg_homeai /app/custom_components_template/tpg_homeai
 
 # Entrypoint comes from the local add-on folder (it IS in the build context).
 COPY run.sh /run.sh
@@ -52,7 +53,7 @@ RUN chmod a+x /run.sh
 LABEL \
   io.hass.name="TPG HomeAI Orchestrator" \
   io.hass.type="app" \
-  io.hass.version="1.0.27" \
+  io.hass.version="1.0.28" \
   io.hass.arch="amd64|aarch64"
 
 EXPOSE 8088
