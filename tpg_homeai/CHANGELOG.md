@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.44
+
+- Added Automation Builder v5 time-window conditions so natural language like "between 10 PM and 6 AM", "after 9 PM", and "before 7 AM" becomes native Home Assistant time-condition YAML.
+- Added entity state guard conditions so requests like "only if the office light is off" or "only if the front door is locked" draft guarded automations instead of unconditional actions.
+- Expanded automation trigger/condition matching to include mapped room lights, fans, speakers, and displays.
+- Improved automation summaries so time windows and state guards are readable in previews.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.43
 
 - Added Automation Builder v4 state/event triggers so natural language like "when the front door unlocks" drafts native Home Assistant state-trigger YAML.

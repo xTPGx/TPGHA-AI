@@ -1077,6 +1077,47 @@ def main() -> int:
           and "below: 20" in automation_yaml
           and "light.turn_on" in automation_yaml,
           automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "when the front door unlocks between 10 PM and 6 AM",
+            "action_description": "turn on office light",
+            "original_request": "Create automation: when the front door unlocks between 10 PM and 6 AM, turn on office light.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v5 supports overnight time window conditions",
+          r.status_code == 200
+          and "platform: state" in automation_yaml
+          and "entity_id: lock.front_door" in automation_yaml
+          and "condition: time" in automation_yaml
+          and "after: '22:00:00'" in automation_yaml
+          and "before: 06:00:00" in automation_yaml,
+          automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "at 9 PM only if office light is off",
+            "action_description": "turn on office fan",
+            "original_request": "Create scheduled task at 9 PM only if office light is off: turn on office fan.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v5 supports entity state guard conditions",
+          r.status_code == 200
+          and "platform: time" in automation_yaml
+          and "at: '21:00:00'" in automation_yaml
+          and "condition: state" in automation_yaml
+          and "entity_id: light.office" in automation_yaml
+          and "state: 'off'" in automation_yaml
+          and "fan.turn_on" in automation_yaml,
+          automation_yaml or str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

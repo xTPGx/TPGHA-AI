@@ -208,8 +208,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add schedule mining from command history for time-of-day suggestions.",
         },
         {
-            "id": "automation_builder_v4",
-            "title": "Automation Builder v4",
+            "id": "automation_builder_v5",
+            "title": "Automation Builder v5",
             "status": "ready",
             "score": 100,
             "evidence": [
@@ -217,6 +217,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Drafts can include multiple safe actions in one request.",
                 "Time, delay, sunset, sunrise, and presence conditions are converted into HA-style YAML.",
                 "State triggers and numeric sensor thresholds can be drafted from natural language.",
+                "Time windows and entity state guard conditions can be added from plain speech.",
                 "Automation drafts remain approval-first before being installed into Home Assistant.",
             ],
             "next": "Add recurring calendar windows and natural-language condition editing.",

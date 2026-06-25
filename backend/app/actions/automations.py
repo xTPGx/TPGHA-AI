@@ -13,9 +13,21 @@ from . import ActionContext
 
 _TIME_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
 _AT_TIME_RE = re.compile(r"\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
+_BETWEEN_TIME_RE = re.compile(
+    r"\b(?:between|from)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+"
+    r"(?:and|to|until|-)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+    re.I,
+)
+_AFTER_TIME_RE = re.compile(r"\b(?:only\s+)?(?:after|later than)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
+_BEFORE_TIME_RE = re.compile(r"\b(?:only\s+)?(?:before|earlier than)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
 _DELAY_RE = re.compile(r"\bin\s+(\d{1,3})\s*(minute|minutes|min|hour|hours|hr|hrs)\b", re.I)
 _PERCENT_RE = re.compile(r"\b(\d{1,3})\s*(?:%|percent|pct|level)?\b", re.I)
 _TEMP_RE = re.compile(r"\b(\d{2,3})\s*(?:degrees?|deg|f)?\b", re.I)
+_STATE_CONDITION_RE = re.compile(
+    r"\b(?:only if|if|as long as|provided that|provided)\s+(?:the\s+)?(.+?)\s+"
+    r"(?:is|are|stays|remains)\s+(on|off|locked|unlocked|open|closed|home|away)\b",
+    re.I,
+)
 _THRESHOLD_RE = re.compile(
     r"\b(?:is|goes|gets|drops|falls|rises|becomes|stays)?\s*"
     r"(above|over|greater than|more than|below|under|less than|lower than)\s+(\d{1,3})\b",
@@ -43,9 +55,13 @@ def _guess_time(text: str) -> Optional[str]:
     m = _AT_TIME_RE.search(text) or _TIME_RE.search(text)
     if not m:
         return None
-    hour = int(m.group(1))
-    minute = int(m.group(2) or 0)
-    ampm = (m.group(3) or "").lower()
+    return _format_time(m.group(1), m.group(2), m.group(3))
+
+
+def _format_time(hour_text: str, minute_text: str | None, ampm_text: str | None) -> Optional[str]:
+    hour = int(hour_text)
+    minute = int(minute_text or 0)
+    ampm = (ampm_text or "").lower()
     if ampm == "pm" and hour < 12:
         hour += 12
     if ampm == "am" and hour == 12:
@@ -156,6 +172,34 @@ def _resolve_trigger_entity(ctx: ActionContext, text: str) -> dict[str, str] | N
 
     for room in ctx.config.devices.rooms:
         room_aliases = [room.id, room.name, *(room.aliases or [])]
+        for entity_id in room.lights or []:
+            candidates.append({
+                "entity_id": entity_id,
+                "name": f"{room.name} Light",
+                "domain": "light",
+                "aliases": [*room_aliases, *(f"{a} light" for a in room_aliases), *(f"{a} lights" for a in room_aliases)],
+            })
+        for entity_id in room.fans or []:
+            candidates.append({
+                "entity_id": entity_id,
+                "name": f"{room.name} Fan",
+                "domain": "fan",
+                "aliases": [*room_aliases, *(f"{a} fan" for a in room_aliases), *(f"{a} fans" for a in room_aliases)],
+            })
+        if room.speaker:
+            candidates.append({
+                "entity_id": room.speaker,
+                "name": f"{room.name} Speaker",
+                "domain": "media_player",
+                "aliases": [*room_aliases, *(f"{a} speaker" for a in room_aliases), *(f"{a} music" for a in room_aliases)],
+            })
+        if room.display:
+            candidates.append({
+                "entity_id": room.display,
+                "name": f"{room.name} Display",
+                "domain": "media_player",
+                "aliases": [*room_aliases, *(f"{a} tv" for a in room_aliases), *(f"{a} display" for a in room_aliases)],
+            })
         if room.lock:
             candidates.append({
                 "entity_id": room.lock,
@@ -296,6 +340,75 @@ def _presence_conditions(text: str) -> list[dict[str, Any]]:
     return []
 
 
+def _time_window_conditions(text: str) -> list[dict[str, Any]]:
+    conditions: list[dict[str, Any]] = []
+    between = _BETWEEN_TIME_RE.search(text)
+    if between:
+        after = _format_time(between.group(1), between.group(2), between.group(3))
+        before = _format_time(between.group(4), between.group(5), between.group(6))
+        if after and before:
+            conditions.append({
+                "condition": "time",
+                "after": after,
+                "before": before,
+                "alias": f"Between {after} and {before}",
+            })
+    after_match = _AFTER_TIME_RE.search(text)
+    if after_match and not between:
+        after = _format_time(after_match.group(1), after_match.group(2), after_match.group(3))
+        if after:
+            conditions.append({
+                "condition": "time",
+                "after": after,
+                "alias": f"After {after}",
+            })
+    before_match = _BEFORE_TIME_RE.search(text)
+    if before_match and not between:
+        before = _format_time(before_match.group(1), before_match.group(2), before_match.group(3))
+        if before:
+            conditions.append({
+                "condition": "time",
+                "before": before,
+                "alias": f"Before {before}",
+            })
+    return conditions
+
+
+def _state_conditions(ctx: ActionContext, text: str) -> list[dict[str, Any]]:
+    conditions: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for match in _STATE_CONDITION_RE.finditer(text):
+        raw_target = match.group(1).strip(" .,")
+        raw_state = match.group(2).lower()
+        if raw_target in {"someone", "anyone", "anybody", "people", "nobody", "no one", "everyone"}:
+            continue
+        entity = _resolve_trigger_entity(ctx, raw_target)
+        entity_id = entity.get("entity_id") if entity else "<<< choose condition entity >>>"
+        state = _condition_state(raw_state, str(entity_id))
+        key = (str(entity_id), state)
+        if key in seen:
+            continue
+        seen.add(key)
+        conditions.append({
+            "condition": "state",
+            "entity_id": entity_id,
+            "state": state,
+            "alias": f"{entity_id} is {state}",
+        })
+    return conditions
+
+
+def _condition_state(raw_state: str, entity_id: str) -> str:
+    domain = entity_id.split(".", 1)[0]
+    if domain == "lock" and raw_state in {"open", "closed"}:
+        return "unlocked" if raw_state == "open" else "locked"
+    if domain == "binary_sensor":
+        return "on" if raw_state in {"open", "on"} else "off"
+    if raw_state == "away":
+        return "not_home"
+    return raw_state
+
+
 def _recurrence_conditions(text: str) -> list[dict[str, Any]]:
     lower = text.lower()
     if any(word in lower for word in ("weekday", "weekdays", "school night", "school nights", "workday", "workdays")):
@@ -340,9 +453,16 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     trigger: dict[str, Any]
     sun_trigger = _guess_sun_trigger(trigger_desc) or _guess_sun_trigger(action_source)
     entity_trigger = _guess_entity_trigger(ctx, trigger_source)
+    entity_is_event = bool(
+        entity_trigger and (
+            entity_trigger.get("platform") == "numeric_state"
+            or not at_time
+            or re.search(r"\b(when|whenever|once)\b", trigger_source, re.I)
+        )
+    )
     if sun_trigger:
         trigger = sun_trigger
-    elif entity_trigger:
+    elif entity_trigger and entity_is_event:
         trigger = entity_trigger
     elif at_time:
         trigger = {"platform": "time", "at": at_time}
@@ -361,6 +481,8 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     conditions = [
         *_presence_conditions(condition_source),
         *_recurrence_conditions(condition_source),
+        *_time_window_conditions(condition_source),
+        *_state_conditions(ctx, condition_source),
     ]
     warnings = _automation_warnings(actions, trigger, conditions)
     summary = _automation_summary(trigger, conditions, actions, warnings)
@@ -462,6 +584,7 @@ def _action_parts(text: str) -> list[str]:
 
 def _strip_schedule_words(text: str) -> str:
     text = re.sub(r"\b(create|make|add|build)\s+(a\s+)?(scheduled task|schedule|automation)\b[:,]?\s*", "", text, flags=re.I)
+    text = _STATE_CONDITION_RE.sub("", text)
     text = _AT_TIME_RE.sub("", text)
     text = _DELAY_RE.sub("", text)
     text = re.sub(r"\b(at|around)\s+(sunset|sundown|sunrise|sun up|sunup)\b", "", text, flags=re.I)
@@ -684,6 +807,15 @@ def _describe_trigger(trigger: dict[str, Any]) -> str:
 def _describe_condition(condition: dict[str, Any]) -> str:
     if condition.get("alias"):
         return str(condition["alias"])
+    if condition.get("condition") == "state":
+        return f"Only if {condition.get('entity_id')} is {condition.get('state')}"
+    if condition.get("condition") == "time" and (condition.get("after") or condition.get("before")):
+        if condition.get("after") and condition.get("before"):
+            return f"Between {condition['after']} and {condition['before']}"
+        if condition.get("after"):
+            return f"After {condition['after']}"
+        if condition.get("before"):
+            return f"Before {condition['before']}"
     if condition.get("weekday"):
         return f"Only on {', '.join(condition['weekday'])}"
     return str(condition.get("condition") or "condition")
