@@ -168,6 +168,8 @@ TOOLS = [
         "'notify me when the garage opens', 'turn on the fan for 10 minutes', "
         "'every 15 minutes notify me', 'every hour check the garage', "
         "'tomorrow at 7 turn off all lights', 'next Monday at 6 PM lock up', "
+        "'weekdays during summer at 6 PM', 'on Christmas at 7 PM', "
+        "'when my calendar event starts notify me', "
         "and proactive suggestions.",
         {
             "trigger_description": {"type": "string"},

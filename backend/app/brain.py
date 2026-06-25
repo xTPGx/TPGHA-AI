@@ -208,8 +208,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add schedule mining from command history for time-of-day suggestions.",
         },
         {
-            "id": "automation_builder_v9",
-            "title": "Automation Builder v9",
+            "id": "automation_builder_v11",
+            "title": "Automation Builder v11",
             "status": "ready",
             "score": 100,
             "evidence": [
@@ -221,9 +221,11 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Notification actions and timed temporary actions can be composed from normal language.",
                 "Interval time-pattern triggers can be drafted from phrases like 'every 15 minutes'.",
                 "One-off dates like tomorrow, next Monday, June 30, or 6/30 become dated HA template conditions.",
+                "Holiday and season-aware conditions can be drafted for requests like 'on Christmas' or 'during summer'.",
+                "Calendar event triggers can be drafted for requests like 'when my calendar event starts'.",
                 "Automation drafts remain approval-first before being installed into Home Assistant.",
             ],
-            "next": "Add calendar event triggers and holiday/season-aware schedule rules.",
+            "next": "Add calendar entity discovery/mapping helpers and generated cleanup reminders.",
         },
         {
             "id": "ha_native_ui",

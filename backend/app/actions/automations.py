@@ -47,6 +47,20 @@ _MONTH_DATE_RE = re.compile(
     re.I,
 )
 _NUMERIC_DATE_RE = re.compile(r"\b(?:on\s+)?(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", re.I)
+_CALENDAR_TRIGGER_RE = re.compile(
+    r"\b(?:when|whenever|once)\s+(?:my\s+|the\s+)?(?:(.+?)\s+)?"
+    r"(calendar|schedule)\s+(?:event|events|appointment|appointments|meeting|meetings)?\s*"
+    r"(starts|start|begins|begin|ends|end|finishes|finish)?\b",
+    re.I,
+)
+_SEASON_RE = re.compile(r"\b(?:during|in|for)\s+(spring|summer|fall|autumn|winter)\b", re.I)
+_HOLIDAY_WORDS_RE = re.compile(
+    r"\b(?:on|for|during)\s+"
+    r"(christmas eve|christmas|new year'?s eve|new year'?s day|new year'?s|halloween|"
+    r"thanksgiving|fourth of july|4th of july|independence day|valentine'?s day|"
+    r"memorial day|labor day|veterans day)\b",
+    re.I,
+)
 _THRESHOLD_RE = re.compile(
     r"\b(?:is|goes|gets|drops|falls|rises|becomes|stays)?\s*"
     r"(above|over|greater than|more than|below|under|less than|lower than)\s+(\d{1,3})\b",
@@ -81,6 +95,30 @@ _MONTH_MAP = {
     "october": 10, "oct": 10,
     "november": 11, "nov": 11,
     "december": 12, "dec": 12,
+}
+_SEASON_MONTHS = {
+    "spring": [3, 4, 5],
+    "summer": [6, 7, 8],
+    "fall": [9, 10, 11],
+    "autumn": [9, 10, 11],
+    "winter": [12, 1, 2],
+}
+_FIXED_HOLIDAYS = {
+    "christmas eve": (12, 24),
+    "christmas": (12, 25),
+    "new year's eve": (12, 31),
+    "new years eve": (12, 31),
+    "new year's day": (1, 1),
+    "new years day": (1, 1),
+    "new year's": (1, 1),
+    "new years": (1, 1),
+    "halloween": (10, 31),
+    "fourth of july": (7, 4),
+    "4th of july": (7, 4),
+    "independence day": (7, 4),
+    "valentine's day": (2, 14),
+    "valentines day": (2, 14),
+    "veterans day": (11, 11),
 }
 
 
@@ -146,6 +184,43 @@ def _guess_interval_trigger(text: str) -> dict[str, Any] | None:
     if unit.startswith(("hour", "hr")):
         return {"platform": "time_pattern", "hours": f"/{min(amount, 23)}"}
     return {"platform": "time_pattern", "minutes": f"/{min(amount, 59)}"}
+
+
+def _guess_calendar_trigger(ctx: ActionContext, text: str) -> dict[str, Any] | None:
+    m = _CALENDAR_TRIGGER_RE.search(text)
+    if not m:
+        return None
+    calendar_hint = (m.group(1) or "").strip(" .,:")
+    event_word = (m.group(3) or "start").lower()
+    event = "end" if event_word.startswith(("end", "finish")) else "start"
+    entity_id = _resolve_calendar_entity(ctx, calendar_hint or text)
+    return {
+        "platform": "calendar",
+        "entity_id": entity_id or "<<< choose calendar entity >>>",
+        "event": event,
+    }
+
+
+def _resolve_calendar_entity(ctx: ActionContext, text: str) -> str:
+    aliases = []
+    for device in ctx.config.devices.device_aliases:
+        entity_id = device.entity_id or ""
+        domain = (device.domain or entity_id.split(".", 1)[0]).lower()
+        if domain == "calendar" or entity_id.startswith("calendar."):
+            aliases.append((entity_id, [device.id, device.name, entity_id, *(device.aliases or [])]))
+    if not aliases:
+        return ""
+    needle = _norm_trigger_text(text)
+    best = (0.0, "")
+    for entity_id, names in aliases:
+        score = _trigger_candidate_score(needle, names)
+        if score > best[0]:
+            best = (score, entity_id)
+    if best[1] and best[0] >= 0.25:
+        return best[1]
+    if len(aliases) == 1:
+        return aliases[0][0]
+    return ""
 
 
 def _guess_entity_trigger(ctx: ActionContext, text: str) -> dict[str, Any] | None:
@@ -438,6 +513,84 @@ def _date_conditions(text: str) -> list[dict[str, Any]]:
     return [_date_condition(target)]
 
 
+def _calendar_seasonal_conditions(text: str) -> list[dict[str, Any]]:
+    conditions: list[dict[str, Any]] = []
+    conditions.extend(_season_conditions(text))
+    conditions.extend(_holiday_conditions(text))
+    return conditions
+
+
+def _season_conditions(text: str) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    conditions: list[dict[str, Any]] = []
+    for match in _SEASON_RE.finditer(text):
+        season = match.group(1).lower()
+        if season in seen:
+            continue
+        seen.add(season)
+        months = _SEASON_MONTHS[season]
+        month_list = ", ".join(str(m) for m in months)
+        label = "fall" if season == "autumn" else season
+        conditions.append({
+            "condition": "template",
+            "value_template": f"{{{{ now().month in [{month_list}] }}}}",
+            "alias": f"During {label.title()}",
+        })
+    return conditions
+
+
+def _holiday_conditions(text: str) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    conditions: list[dict[str, Any]] = []
+    for match in _HOLIDAY_WORDS_RE.finditer(text):
+        holiday = match.group(1).lower().replace("’", "'")
+        if holiday in seen:
+            continue
+        seen.add(holiday)
+        condition = _holiday_condition(holiday)
+        if condition:
+            conditions.append(condition)
+    return conditions
+
+
+def _holiday_condition(holiday: str) -> dict[str, Any] | None:
+    fixed = _FIXED_HOLIDAYS.get(holiday)
+    if fixed:
+        month, day = fixed
+        return {
+            "condition": "template",
+            "value_template": f"{{{{ now().month == {month} and now().day == {day} }}}}",
+            "alias": f"On {_holiday_label(holiday)}",
+        }
+    if holiday == "thanksgiving":
+        return {
+            "condition": "template",
+            "value_template": "{{ now().month == 11 and now().weekday() == 3 and 22 <= now().day <= 28 }}",
+            "alias": "On Thanksgiving",
+        }
+    if holiday == "memorial day":
+        return {
+            "condition": "template",
+            "value_template": "{{ now().month == 5 and now().weekday() == 0 and now().day >= 25 }}",
+            "alias": "On Memorial Day",
+        }
+    if holiday == "labor day":
+        return {
+            "condition": "template",
+            "value_template": "{{ now().month == 9 and now().weekday() == 0 and now().day <= 7 }}",
+            "alias": "On Labor Day",
+        }
+    return None
+
+
+def _holiday_label(holiday: str) -> str:
+    return {
+        "4th of july": "Fourth Of July",
+        "new year's": "New Year's Day",
+        "new years": "New Year's Day",
+    }.get(holiday, holiday.title())
+
+
 def _target_date(text: str) -> date | None:
     today = datetime.now().date()
     weekday_match = _NEXT_WEEKDAY_RE.search(text)
@@ -583,6 +736,7 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     trigger: dict[str, Any]
     interval_trigger = _guess_interval_trigger(trigger_desc) or _guess_interval_trigger(action_source)
     sun_trigger = _guess_sun_trigger(trigger_desc) or _guess_sun_trigger(action_source)
+    calendar_trigger = _guess_calendar_trigger(ctx, trigger_source)
     entity_trigger = _guess_entity_trigger(ctx, trigger_source)
     entity_is_event = bool(
         entity_trigger and (
@@ -591,7 +745,9 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
             or re.search(r"\b(when|whenever|once)\b", trigger_source, re.I)
         )
     )
-    if interval_trigger:
+    if calendar_trigger:
+        trigger = calendar_trigger
+    elif interval_trigger:
         trigger = interval_trigger
     elif sun_trigger:
         trigger = sun_trigger
@@ -616,6 +772,7 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     conditions = [
         *_presence_conditions(condition_source),
         *date_conditions,
+        *_calendar_seasonal_conditions(condition_source),
         *recurrence_conditions,
         *_time_window_conditions(condition_source),
         *_state_conditions(ctx, condition_source),
@@ -727,6 +884,9 @@ def _action_parts(text: str) -> list[str]:
 def _strip_schedule_words(text: str) -> str:
     text = re.sub(r"\b(create|make|add|build)\s+(a\s+)?(scheduled task|schedule|automation)\b[:,]?\s*", "", text, flags=re.I)
     text = _STATE_CONDITION_RE.sub("", text)
+    text = _CALENDAR_TRIGGER_RE.sub("", text)
+    text = _SEASON_RE.sub("", text)
+    text = _HOLIDAY_WORDS_RE.sub("", text)
     text = _NEXT_WEEKDAY_RE.sub("", text)
     text = _RELATIVE_DATE_RE.sub("", text)
     text = _MONTH_DATE_RE.sub("", text)
@@ -962,7 +1122,7 @@ def _automation_warnings(actions: list[dict[str, Any]], trigger: dict[str, Any],
         warnings.append("Some targets or services still need mapping before this automation is production-ready.")
     if trigger.get("platform") == "template" and "<<<" in str(trigger.get("value_template", "")):
         warnings.append("The trigger was too vague for a native HA trigger and needs review.")
-    if trigger.get("platform") in {"state", "numeric_state"} and "<<<" in str(trigger.get("entity_id", "")):
+    if trigger.get("platform") in {"state", "numeric_state", "calendar"} and "<<<" in str(trigger.get("entity_id", "")):
         warnings.append("The trigger entity needs mapping before this automation is production-ready.")
     if any(str(a.get("service", "")).startswith("lock.unlock") for a in actions):
         warnings.append("Unlock actions are sensitive and should keep PIN/approval protection.")
@@ -999,6 +1159,8 @@ def _describe_trigger(trigger: dict[str, Any]) -> str:
             return f"Every {str(trigger['minutes']).lstrip('/')} minute(s)"
         if trigger.get("hours"):
             return f"Every {str(trigger['hours']).lstrip('/')} hour(s)"
+    if platform == "calendar":
+        return f"When {trigger.get('entity_id')} event {trigger.get('event')}"
     return platform or "Custom trigger"
 
 

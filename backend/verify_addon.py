@@ -1196,6 +1196,67 @@ def main() -> int:
           and "now().date().isoformat()" in automation_yaml
           and "light.turn_off" in automation_yaml,
           automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "weekdays during summer at 6 PM",
+            "action_description": "turn on office light",
+            "original_request": "Create schedule weekdays during summer at 6 PM turn on office light.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v10 supports season-aware schedule conditions",
+          r.status_code == 200
+          and "platform: time" in automation_yaml
+          and "at: '18:00:00'" in automation_yaml
+          and "During Summer" in automation_yaml
+          and "now().month in [6, 7, 8]" in automation_yaml
+          and "Weekdays only" in automation_yaml
+          and "light.turn_on" in automation_yaml,
+          automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "on Christmas at 6 PM",
+            "action_description": "turn on office light",
+            "original_request": "Create schedule on Christmas at 6 PM turn on office light.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v10 supports holiday-aware schedule conditions",
+          r.status_code == 200
+          and "platform: time" in automation_yaml
+          and "at: '18:00:00'" in automation_yaml
+          and "On Christmas" in automation_yaml
+          and "now().month == 12 and now().day == 25" in automation_yaml
+          and "light.turn_on" in automation_yaml,
+          automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "when my calendar event starts",
+            "action_description": "notify me",
+            "original_request": "Create automation when my calendar event starts notify me.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v11 supports calendar event triggers",
+          r.status_code == 200
+          and "platform: calendar" in automation_yaml
+          and "entity_id: <<< choose calendar entity >>>" in automation_yaml
+          and "event: start" in automation_yaml
+          and "persistent_notification.create" in automation_yaml
+          and "The trigger entity needs mapping" in str(automation_body.get("data", {}).get("warnings", [])),
+          automation_yaml or str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

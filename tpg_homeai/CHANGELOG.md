@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.48
+
+- Added Automation Builder v10 holiday and season-aware conditions so requests like "weekdays during summer" and "on Christmas" draft reviewable Home Assistant template guards.
+- Added Automation Builder v11 calendar event triggers so requests like "when my calendar event starts notify me" draft native `calendar` triggers with mapping warnings when no calendar entity is configured yet.
+- Added readable calendar trigger labels and expanded automation tool guidance/Jarvis Brain readiness evidence.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.47
 
 - Added Automation Builder v9 one-off date awareness so phrases like "tomorrow at 7 PM", "next Monday", "June 30", and "6/30" draft dated Home Assistant template conditions.
