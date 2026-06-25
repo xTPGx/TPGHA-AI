@@ -1118,6 +1118,45 @@ def main() -> int:
           and "state: 'off'" in automation_yaml
           and "fan.turn_on" in automation_yaml,
           automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "when the front door unlocks",
+            "action_description": "notify me",
+            "original_request": "Create automation: when the front door unlocks, notify me.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v6 supports notification actions",
+          r.status_code == 200
+          and "platform: state" in automation_yaml
+          and "entity_id: lock.front_door" in automation_yaml
+          and "persistent_notification.create" in automation_yaml
+          and "notification_id: tpg_homeai_automation" in automation_yaml,
+          automation_yaml or str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "at 9 PM",
+            "action_description": "turn on office fan for 10 minutes",
+            "original_request": "Create scheduled task at 9 PM: turn on office fan for 10 minutes.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v7 supports temporary timed actions",
+          r.status_code == 200
+          and "platform: time" in automation_yaml
+          and "at: '21:00:00'" in automation_yaml
+          and "fan.turn_on" in automation_yaml
+          and "delay: 00:10:00" in automation_yaml
+          and "fan.turn_off" in automation_yaml,
+          automation_yaml or str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

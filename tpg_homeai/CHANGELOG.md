@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.45
+
+- Added notification automation drafting so requests like "notify me when the front door unlocks" create approval-first `persistent_notification.create` actions.
+- Added timed temporary action drafting so requests like "turn on the office fan for 10 minutes" create an action, delay, and safe reverse action sequence.
+- Expanded deterministic fallback routing so notification/reminder automation requests work without depending only on OpenAI tool selection.
+- Updated Jarvis Brain readiness evidence for notification and temporary-action automation composition.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.44
 
 - Added Automation Builder v5 time-window conditions so natural language like "between 10 PM and 6 AM", "after 9 PM", and "before 7 AM" becomes native Home Assistant time-condition YAML.

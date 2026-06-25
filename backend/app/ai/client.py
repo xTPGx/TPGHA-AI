@@ -301,6 +301,7 @@ def fallback_parse(message: str, user: Optional[User]) -> Optional[ToolCall]:
     if _TIME_RE.search(text) and any(k in text for k in [
         "turn", "lock", "play", "set", "light", "on", "off", "tv", "display",
         "screen", "brightness", "dim", "sleep", "suggest", "recommend",
+        "notify", "notification", "alert", "remind",
     ]):
         return ToolCall("create_simple_automation", {
             "trigger_description": message,

@@ -21,6 +21,7 @@ _BETWEEN_TIME_RE = re.compile(
 _AFTER_TIME_RE = re.compile(r"\b(?:only\s+)?(?:after|later than)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
 _BEFORE_TIME_RE = re.compile(r"\b(?:only\s+)?(?:before|earlier than)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
 _DELAY_RE = re.compile(r"\bin\s+(\d{1,3})\s*(minute|minutes|min|hour|hours|hr|hrs)\b", re.I)
+_DURATION_RE = re.compile(r"\bfor\s+(\d{1,3})\s*(minute|minutes|min|hour|hours|hr|hrs)\b", re.I)
 _PERCENT_RE = re.compile(r"\b(\d{1,3})\s*(?:%|percent|pct|level)?\b", re.I)
 _TEMP_RE = re.compile(r"\b(\d{2,3})\s*(?:degrees?|deg|f)?\b", re.I)
 _STATE_CONDITION_RE = re.compile(
@@ -75,8 +76,19 @@ def _guess_delay(text: str) -> Optional[str]:
     m = _DELAY_RE.search(text)
     if not m:
         return None
-    amount = int(m.group(1))
-    unit = m.group(2).lower()
+    return _duration_to_delay(m.group(1), m.group(2))
+
+
+def _guess_duration(text: str) -> Optional[str]:
+    m = _DURATION_RE.search(text)
+    if not m:
+        return None
+    return _duration_to_delay(m.group(1), m.group(2))
+
+
+def _duration_to_delay(amount_text: str, unit_text: str) -> str:
+    amount = int(amount_text)
+    unit = unit_text.lower()
     minutes = amount * 60 if unit.startswith(("hour", "hr")) else amount
     hours, mins = divmod(minutes, 60)
     return f"{hours:02d}:{mins:02d}:00"
@@ -547,9 +559,15 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
 
 
 def _automation_actions(ctx: ActionContext, action_desc: str) -> list[dict[str, Any]]:
+    duration = _guess_duration(action_desc)
     parts = _action_parts(action_desc)
     actions = [_action_block(ctx, part) for part in parts]
-    return [action for action in actions if action]
+    actions = [action for action in actions if action]
+    if duration and len(actions) == 1:
+        reversal = _reverse_action(actions[0])
+        if reversal:
+            return [actions[0], {"delay": duration}, reversal]
+    return actions
 
 
 def _richer_action_text(action_desc: str, original_request: str) -> str:
@@ -561,7 +579,7 @@ def _richer_action_text(action_desc: str, original_request: str) -> str:
         word in original_lower
         for word in (
             "turn", "set", "dim", "lower", "raise", "play", "lock", "unlock",
-            "open", "close", "stop", "start",
+            "open", "close", "stop", "start", "notify", "alert", "remind",
         )
     )
     if " and " in original_lower and action_lower and action_lower in original_lower:
@@ -587,6 +605,7 @@ def _strip_schedule_words(text: str) -> str:
     text = _STATE_CONDITION_RE.sub("", text)
     text = _AT_TIME_RE.sub("", text)
     text = _DELAY_RE.sub("", text)
+    text = _DURATION_RE.sub("", text)
     text = re.sub(r"\b(at|around)\s+(sunset|sundown|sunrise|sun up|sunup)\b", "", text, flags=re.I)
     text = re.sub(
         r"\b(if|when)\s+(nobody|no one|everyone|someone|anybody|people)\s+"
@@ -601,6 +620,8 @@ def _strip_schedule_words(text: str) -> str:
 
 def _action_block(ctx: ActionContext, action_desc: str) -> dict[str, Any]:
     lower = action_desc.lower()
+    if any(word in lower for word in ("notify me", "send me", "alert me", "remind me", "notification")):
+        return _notification_action(action_desc)
     if "light" in lower:
         return _light_action(ctx, lower, action_desc)
     if "fan" in lower:
@@ -639,6 +660,49 @@ def _action_block(ctx: ActionContext, action_desc: str) -> dict[str, Any]:
             domain = resolved.entity_id.split(".", 1)[0]
             return {"service": f"{domain}.{service}", "target": {"entity_id": resolved.entity_id}}
     return {"service": "<<< choose service >>>", "data": {"note": action_desc}}
+
+
+def _notification_action(action_desc: str) -> dict[str, Any]:
+    message = _notification_message(action_desc)
+    return {
+        "service": "persistent_notification.create",
+        "data": {
+            "title": "TPG HomeAI",
+            "message": message,
+            "notification_id": "tpg_homeai_automation",
+        },
+    }
+
+
+def _notification_message(action_desc: str) -> str:
+    message = re.sub(
+        r"\b(then\s+)?(notify me|send me (a )?(notification|message)|alert me|remind me|send notification)\b",
+        "",
+        action_desc,
+        flags=re.I,
+    )
+    message = re.sub(r"\b(that|when|if|about)\b", " ", message, flags=re.I)
+    message = re.sub(r"\s+", " ", message).strip(" .,:")
+    return message or "TPG HomeAI automation triggered."
+
+
+def _reverse_action(action: dict[str, Any]) -> dict[str, Any] | None:
+    service = str(action.get("service") or "")
+    target = action.get("target")
+    reverse = {
+        "light.turn_on": "light.turn_off",
+        "fan.turn_on": "fan.turn_off",
+        "switch.turn_on": "switch.turn_off",
+        "media_player.turn_on": "media_player.turn_off",
+        "cover.open_cover": "cover.close_cover",
+        "lock.unlock": "lock.lock",
+    }.get(service)
+    if not reverse:
+        return None
+    result: dict[str, Any] = {"service": reverse}
+    if target:
+        result["target"] = target
+    return result
 
 
 def _fan_action(ctx: ActionContext, lower: str, action_desc: str) -> dict[str, Any]:
