@@ -302,6 +302,12 @@ def main() -> int:
           and r.json().get("detected_user", {}).get("id") == "jordie"
           and r.json().get("identity_trusted") is True,
           str(r.json()))
+    r = client.get("/ui/session", headers={"x-forwarded-user": "Jordie"})
+    check("/ui/session ignores generic forwarded-user identity",
+          r.status_code == 200
+          and r.json().get("detected_user", {}).get("id") == "house_remote"
+          and r.json().get("identity_source") == "safe_fallback",
+          str(r.json()))
     r = client.get("/ui/session", headers={
         "x-ha-user-name": "Jordie",
         "x-ha-user-is-admin": "true",
@@ -337,6 +343,36 @@ def main() -> int:
               and s.get("payload", {}).get("username") == "new ha user"
               for s in r.json().get("suggestions", [])),
           str(r.json()))
+
+    current_user_payload = {"id": "ha-shawn-verified", "name": "Shawn", "username": "thatpalmerguy", "is_admin": True}
+
+    async def fake_current_user(_self):
+        return current_user_payload
+
+    with patch("app.main.HomeAssistantWebSocket.fetch_current_user", fake_current_user):
+        r = client.post("/ui/session", json={"ha_access_token": "verified-token"})
+        check("/ui/session verified HA token maps Shawn owner",
+              r.status_code == 200
+              and r.json().get("detected_user", {}).get("id") == "shawn"
+              and r.json().get("detected_user", {}).get("role") == "admin"
+              and r.json().get("identity_source") == "ha_token",
+              str(r.json()))
+        current_user_payload = {"id": "ha-jordie-verified", "name": "Jordie", "username": "jordie", "is_admin": False}
+        r = client.post("/ui/session", json={"ha_access_token": "verified-token"})
+        check("/ui/session verified HA token maps Jordie resident",
+              r.status_code == 200
+              and r.json().get("detected_user", {}).get("id") == "jordie"
+              and r.json().get("detected_user", {}).get("role") == "resident"
+              and r.json().get("identity_source") == "ha_token",
+              str(r.json()))
+        current_user_payload = {"id": "ha-kiosk-verified", "name": "Kiosk", "username": "kiosk", "is_admin": False}
+        r = client.post("/ui/session", json={"ha_access_token": "verified-token"})
+        check("/ui/session verified HA token maps Kiosk shared profile",
+              r.status_code == 200
+              and r.json().get("detected_user", {}).get("id") == "house_remote"
+              and r.json().get("default_assistant", {}).get("id") == "jarvis"
+              and r.json().get("identity_source") == "ha_token",
+              str(r.json()))
 
     async def fake_auth_users(_self):
         return [

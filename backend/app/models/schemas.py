@@ -353,6 +353,10 @@ class VoiceSpeakRequest(BaseModel):
     reply_mode: Literal["auto", "browser", "room_speaker", "media_player", "quiet", "none"] = "auto"
 
 
+class UISessionRequest(BaseModel):
+    ha_access_token: str = ""
+
+
 class ConfirmRequest(BaseModel):
     confirmation_token: str
     security_pin: Optional[str] = None

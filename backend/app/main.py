@@ -57,6 +57,7 @@ from .models.schemas import (
     ScanRequest,
     Speaker,
     TestActionRequest,
+    UISessionRequest,
     User,
     VoiceSource,
     VoicePreviewRequest,
@@ -98,7 +99,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.31"
+APP_VERSION = "1.0.32"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -261,14 +262,28 @@ async def get_config_endpoint():
 
 @app.get("/ui/session")
 async def ui_session(request: Request):
+    return await _build_ui_session(request)
+
+
+@app.post("/ui/session")
+async def ui_session_verified(request: Request, req: UISessionRequest):
+    return await _build_ui_session(request, ha_access_token=req.ha_access_token)
+
+
+async def _build_ui_session(request: Request, ha_access_token: str = ""):
     cfg = get_config()
     users = cfg.assistants.users
+    verified_ha_user = await _verified_ha_current_user(ha_access_token)
     header_candidates = _user_header_candidates(request)
-    detected = _detect_user_from_headers(request, users)
-    ha_admin = _ha_admin_from_headers(request)
+    verified_candidates = _ha_user_candidates_from_verified_user(verified_ha_user)
+    all_candidates = verified_candidates or header_candidates
+    detected = _detect_user_from_candidates(all_candidates, users)
+    ha_admin = _ha_admin_from_verified_user(verified_ha_user)
+    if ha_admin is None:
+        ha_admin = _ha_admin_from_headers(request)
     unknown_user = None
-    if not detected and header_candidates:
-        unknown_user = sorted(header_candidates)[0]
+    if not detected and all_candidates:
+        unknown_user = sorted(all_candidates)[0]
         memory_store.propose_user_setup_suggestion(unknown_user)
     active = detected or _safe_default_ui_user(users)
     identity_trusted = detected is not None
@@ -281,10 +296,10 @@ async def ui_session(request: Request):
         "detected_user": active_payload,
         "role": effective_role,
         "default_assistant": default_assistant.model_dump() if default_assistant else None,
-        "ha_user_candidates": sorted(header_candidates),
+        "ha_user_candidates": sorted(all_candidates),
         "ha_admin": ha_admin,
         "identity_trusted": identity_trusted,
-        "identity_source": "ha_headers" if identity_trusted else "safe_fallback",
+        "identity_source": "ha_token" if (identity_trusted and verified_candidates) else ("ha_headers" if identity_trusted else "safe_fallback"),
         "identity_warning": "" if identity_trusted else (
             "Home Assistant did not pass a trusted logged-in user identity; "
             "TPG HomeAI is using the safest shared profile instead of owner access."
@@ -1201,8 +1216,19 @@ def _is_api_path(full_path: str) -> bool:
     return head in _API_PREFIXES
 
 
-def _detect_user_from_headers(request: Request, users: list[User]) -> User | None:
-    candidates = _user_header_candidates(request)
+async def _verified_ha_current_user(ha_access_token: str = "") -> dict | None:
+    token = str(ha_access_token or "").strip()
+    if not token:
+        return None
+    try:
+        user = await HomeAssistantWebSocket(token=token).fetch_current_user()
+    except Exception as exc:  # noqa: BLE001 - browser can fall back safely
+        logger.warning("Could not verify Home Assistant current user token: %s", type(exc).__name__)
+        return None
+    return user if isinstance(user, dict) else None
+
+
+def _detect_user_from_candidates(candidates: set[str], users: list[User]) -> User | None:
     if not candidates:
         return None
     normalized_candidates = {_normalize_identity(candidate) for candidate in candidates}
@@ -1222,15 +1248,30 @@ def _user_header_candidates(request: Request) -> set[str]:
         "x-hass-user-id",
         "x-home-assistant-user",
         "x-home-assistant-user-id",
-        "x-forwarded-user",
-        "x-forwarded-user-id",
-        "x-ingress-user",
-        "x-ingress-user-id",
-        "remote-user",
-        "remote-user-id",
+        "x-tpg-ha-user",
+        "x-tpg-ha-user-name",
+        "x-tpg-ha-user-id",
     )
     values = [request.headers.get(name, "") for name in header_names]
     return {v.strip().lower() for v in values if v and v.strip()}
+
+
+def _ha_user_candidates_from_verified_user(user: dict | None) -> set[str]:
+    if not user:
+        return set()
+    values = [
+        user.get("id"),
+        user.get("name"),
+        user.get("username"),
+        user.get("display_name"),
+    ]
+    credentials = user.get("credentials")
+    if isinstance(credentials, list):
+        for credential in credentials:
+            if isinstance(credential, dict):
+                values.append(credential.get("auth_provider_id"))
+                values.append(credential.get("auth_provider_type"))
+    return {str(value).strip().lower() for value in values if value and str(value).strip()}
 
 
 def _ha_admin_from_headers(request: Request) -> bool:
@@ -1244,14 +1285,25 @@ def _ha_admin_from_headers(request: Request) -> bool:
         "x-ha-is-admin",
         "x-hass-user-is-admin",
         "x-home-assistant-user-is-admin",
-        "x-forwarded-user-is-admin",
-        "remote-user-is-admin",
+        "x-tpg-ha-user-is-admin",
     )
     truthy = {"1", "true", "yes", "on", "admin", "administrator"}
     return any(
         str(request.headers.get(name, "")).strip().lower() in truthy
         for name in header_names
     )
+
+
+def _ha_admin_from_verified_user(user: dict | None) -> bool | None:
+    if not user:
+        return None
+    truthy = {True, "1", "true", "yes", "on", "admin", "administrator"}
+    values = [
+        user.get("is_admin"),
+        user.get("is_owner"),
+        user.get("local_only") is False and user.get("group") == "system-admin",
+    ]
+    return any(str(value).strip().lower() in truthy or value is True for value in values)
 
 
 def _user_identity_values(user: User) -> set[str]:

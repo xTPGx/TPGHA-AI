@@ -101,6 +101,13 @@ class HomeAssistantWebSocket:
                 return [u for u in users if isinstance(u, dict)]
         raise RuntimeError("Could not fetch Home Assistant users. " + "; ".join(errors))
 
+    async def fetch_current_user(self) -> dict[str, Any]:
+        """Return the Home Assistant user represented by this access token."""
+        result = await self.call("auth/current_user")
+        if not isinstance(result, dict):
+            raise RuntimeError("Home Assistant did not return a current user.")
+        return result
+
     async def stream_state_changes(self) -> AsyncIterator[dict[str, Any]]:
         """Connect, authenticate, subscribe to state_changed, yield events.
 

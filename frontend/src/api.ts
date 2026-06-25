@@ -91,7 +91,12 @@ export interface HAEntity {
 }
 
 export const api = {
-  uiSession: () => http<any>("/ui/session"),
+  uiSession: (haAccessToken = "") => haAccessToken
+    ? http<any>("/ui/session", {
+      method: "POST",
+      body: JSON.stringify({ ha_access_token: haAccessToken }),
+    })
+    : http<any>("/ui/session"),
   health: () => http<any>("/health"),
   config: () => http<any>("/config"),
   reloadConfig: () => http<any>("/config/reload", { method: "POST" }),

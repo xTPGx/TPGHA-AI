@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.32
+
+- Fixed TPG HomeAI UI identity detection so stale generic proxy headers cannot force all Home Assistant logins into the wrong TPG profile.
+- Added verified Home Assistant current-user session detection using the active HA access token when available.
+- Updated Chat and the app shell to resolve Shawn/Jordie/Kiosk from the same verified session path.
+- Added regression coverage for Shawn, Jordie, and Kiosk verified identity mapping plus stale `x-forwarded-user` protection.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.31
 
 - Replaced mobile chat microphone handling with a real browser recording path that uploads audio to `/voice/transcribe`.
