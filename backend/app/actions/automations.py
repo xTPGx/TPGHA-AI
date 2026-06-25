@@ -16,6 +16,11 @@ _AT_TIME_RE = re.compile(r"\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.I)
 _DELAY_RE = re.compile(r"\bin\s+(\d{1,3})\s*(minute|minutes|min|hour|hours|hr|hrs)\b", re.I)
 _PERCENT_RE = re.compile(r"\b(\d{1,3})\s*(?:%|percent|pct|level)?\b", re.I)
 _TEMP_RE = re.compile(r"\b(\d{2,3})\s*(?:degrees?|deg|f)?\b", re.I)
+_THRESHOLD_RE = re.compile(
+    r"\b(?:is|goes|gets|drops|falls|rises|becomes|stays)?\s*"
+    r"(above|over|greater than|more than|below|under|less than|lower than)\s+(\d{1,3})\b",
+    re.I,
+)
 _DAY_MAP = {
     "monday": "mon",
     "mon": "mon",
@@ -68,6 +73,196 @@ def _guess_sun_trigger(text: str) -> dict[str, Any] | None:
     if "sunrise" in lower or "sun up" in lower or "sunup" in lower:
         return {"platform": "sun", "event": "sunrise"}
     return None
+
+
+def _guess_entity_trigger(ctx: ActionContext, text: str) -> dict[str, Any] | None:
+    lower = text.lower()
+    if not any(word in lower for word in (
+        "when", "if", "whenever", "once", "opens", "open", "closes", "closed",
+        "locks", "locked", "unlocks", "unlocked", "motion", "detected",
+        "home", "away", "above", "below", "under", "over", "battery",
+    )):
+        return None
+
+    entity = _resolve_trigger_entity(ctx, text)
+    threshold = _THRESHOLD_RE.search(lower)
+    if threshold:
+        direction = threshold.group(1).lower()
+        value = int(threshold.group(2))
+        trigger: dict[str, Any] = {
+            "platform": "numeric_state",
+            "entity_id": entity.get("entity_id") if entity else "<<< choose numeric sensor entity >>>",
+        }
+        if direction in {"below", "under", "less than", "lower than"}:
+            trigger["below"] = value
+        else:
+            trigger["above"] = value
+        return trigger
+
+    if not entity:
+        return None
+    to_state = _trigger_to_state(lower, entity.get("entity_id", ""))
+    if not to_state:
+        return None
+    return {
+        "platform": "state",
+        "entity_id": entity["entity_id"],
+        "to": to_state,
+    }
+
+
+def _resolve_trigger_entity(ctx: ActionContext, text: str) -> dict[str, str] | None:
+    needle = _norm_trigger_text(text)
+    if not needle:
+        return None
+
+    candidates: list[dict[str, Any]] = []
+
+    for lock in ctx.config.devices.locks:
+        aliases = [lock.id, lock.name, lock.entity_id, *(lock.aliases or [])]
+        candidates.append({
+            "entity_id": lock.entity_id,
+            "name": lock.name,
+            "domain": "lock",
+            "aliases": aliases,
+        })
+        if lock.battery_sensor:
+            candidates.append({
+                "entity_id": lock.battery_sensor,
+                "name": f"{lock.name} Battery",
+                "domain": "sensor",
+                "aliases": [
+                    f"{lock.name} battery",
+                    "lock battery",
+                    *(f"{a} battery" for a in (lock.aliases or [])),
+                ],
+            })
+
+    for sensor in ctx.config.devices.security_sensors:
+        candidates.append({
+            "entity_id": sensor.entity_id,
+            "name": sensor.name,
+            "domain": sensor.entity_id.split(".", 1)[0],
+            "aliases": [sensor.name, sensor.entity_id, *(sensor.aliases or [])],
+        })
+
+    for device in ctx.config.devices.device_aliases:
+        candidates.append({
+            "entity_id": device.entity_id,
+            "name": device.name,
+            "domain": device.domain or device.entity_id.split(".", 1)[0],
+            "aliases": [device.id, device.name, device.entity_id, *(device.aliases or [])],
+        })
+
+    for room in ctx.config.devices.rooms:
+        room_aliases = [room.id, room.name, *(room.aliases or [])]
+        if room.lock:
+            candidates.append({
+                "entity_id": room.lock,
+                "name": f"{room.name} Lock",
+                "domain": "lock",
+                "aliases": [*room_aliases, *(f"{a} lock" for a in room_aliases)],
+            })
+        if room.camera:
+            candidates.append({
+                "entity_id": room.camera,
+                "name": f"{room.name} Camera",
+                "domain": "camera",
+                "aliases": [*room_aliases, *(f"{a} camera" for a in room_aliases)],
+            })
+        if room.climate:
+            candidates.append({
+                "entity_id": room.climate,
+                "name": f"{room.name} Thermostat",
+                "domain": "climate",
+                "aliases": [*room_aliases, *(f"{a} thermostat" for a in room_aliases)],
+            })
+
+    for device in ctx.config.devices.personal_devices:
+        candidates.append({
+            "entity_id": device.entity_id,
+            "name": device.name,
+            "domain": device.entity_id.split(".", 1)[0],
+            "aliases": [device.id, device.name, device.entity_id, *(device.aliases or [])],
+        })
+
+    best: tuple[float, dict[str, Any] | None] = (0.0, None)
+    for candidate in candidates:
+        aliases = candidate.get("aliases") or []
+        score = _trigger_candidate_score(needle, aliases)
+        entity_id = str(candidate.get("entity_id") or "")
+        alias_blob = _norm_trigger_text(" ".join(aliases))
+        if "battery" in needle and "battery" in alias_blob:
+            score += 0.15
+        if "motion" in needle and ("motion" in alias_blob or entity_id.startswith("binary_sensor.")):
+            score += 0.05
+        if score > best[0]:
+            best = (score, candidate)
+
+    if best[1] and best[0] >= 0.45:
+        return {
+            "entity_id": str(best[1]["entity_id"]),
+            "name": str(best[1].get("name") or best[1]["entity_id"]),
+            "domain": str(best[1].get("domain") or "").lower(),
+        }
+    return None
+
+
+def _trigger_candidate_score(needle: str, aliases: list[str]) -> float:
+    best = 0.0
+    needle_tokens = set(needle.split())
+    for alias in aliases:
+        alias_norm = _norm_trigger_text(alias)
+        if not alias_norm:
+            continue
+        if alias_norm == needle:
+            return 1.0
+        if alias_norm in needle:
+            best = max(best, 0.9)
+        alias_tokens = set(alias_norm.split())
+        if alias_tokens:
+            overlap = len(alias_tokens & needle_tokens) / max(1, len(alias_tokens))
+            coverage = len(alias_tokens & needle_tokens) / max(1, len(needle_tokens))
+            best = max(best, min(0.85, 0.25 + 0.45 * overlap + 0.25 * coverage))
+    return best
+
+
+def _trigger_to_state(lower: str, entity_id: str) -> str:
+    domain = entity_id.split(".", 1)[0]
+    if domain == "lock":
+        if re.search(r"\b(unlock|unlocks|unlocked)\b", lower):
+            return "unlocked"
+        if re.search(r"\b(lock|locks|locked)\b", lower):
+            return "locked"
+        return ""
+    if domain in {"person", "device_tracker"}:
+        if re.search(r"\b(home|arrives|arrive|returns|return)\b", lower):
+            return "home"
+        if re.search(r"\b(away|leaves|leave|gone|not home)\b", lower):
+            return "not_home"
+        return ""
+    if domain == "binary_sensor":
+        if re.search(r"\b(no motion|clear|cleared|closed|closes|shut|off|inactive|enabled)\b", lower):
+            return "off"
+        if re.search(r"\b(motion|detected|detects|open|opens|on|active|disabled)\b", lower):
+            return "on"
+        return ""
+    if re.search(r"\b(off|stops|stopped|idle|closed)\b", lower):
+        return "off"
+    if re.search(r"\b(on|starts|started|playing|open)\b", lower):
+        return "on"
+    return ""
+
+
+def _norm_trigger_text(text: str) -> str:
+    cleaned = re.sub(
+        r"\b(create|make|add|build|scheduled|task|schedule|automation|when|if|whenever|once|then|please)\b",
+        " ",
+        str(text).lower().replace("_", " "),
+        flags=re.I,
+    )
+    cleaned = re.sub(r"[^a-z0-9. ]+", " ", cleaned)
+    return " ".join(cleaned.split())
 
 
 def _presence_conditions(text: str) -> list[dict[str, Any]]:
@@ -139,12 +334,16 @@ async def create_simple_automation(ctx: ActionContext, params: dict[str, Any]) -
     action_source = _richer_action_text(action_desc, original_request)
 
     # Best-effort structured trigger.
+    trigger_source = " ".join([trigger_desc, original_request]).strip() or action_source
     at_time = _guess_time(trigger_desc) or _guess_time(action_source)
     delay = _guess_delay(trigger_desc) or _guess_delay(action_source)
     trigger: dict[str, Any]
     sun_trigger = _guess_sun_trigger(trigger_desc) or _guess_sun_trigger(action_source)
+    entity_trigger = _guess_entity_trigger(ctx, trigger_source)
     if sun_trigger:
         trigger = sun_trigger
+    elif entity_trigger:
+        trigger = entity_trigger
     elif at_time:
         trigger = {"platform": "time", "at": at_time}
     elif delay:
@@ -447,6 +646,8 @@ def _automation_warnings(actions: list[dict[str, Any]], trigger: dict[str, Any],
         warnings.append("Some targets or services still need mapping before this automation is production-ready.")
     if trigger.get("platform") == "template" and "<<<" in str(trigger.get("value_template", "")):
         warnings.append("The trigger was too vague for a native HA trigger and needs review.")
+    if trigger.get("platform") in {"state", "numeric_state"} and "<<<" in str(trigger.get("entity_id", "")):
+        warnings.append("The trigger entity needs mapping before this automation is production-ready.")
     if any(str(a.get("service", "")).startswith("lock.unlock") for a in actions):
         warnings.append("Unlock actions are sensitive and should keep PIN/approval protection.")
     return warnings
@@ -472,6 +673,11 @@ def _describe_trigger(trigger: dict[str, Any]) -> str:
         return f"At {trigger.get('event')}"
     if platform == "manual":
         return trigger.get("note") or "Manual start"
+    if platform == "state":
+        return f"When {trigger.get('entity_id')} becomes {trigger.get('to')}"
+    if platform == "numeric_state":
+        direction = "below" if "below" in trigger else "above"
+        return f"When {trigger.get('entity_id')} is {direction} {trigger.get(direction)}"
     return platform or "Custom trigger"
 
 

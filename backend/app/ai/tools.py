@@ -159,11 +159,12 @@ TOOLS = [
     ),
     _fn(
         "create_simple_automation",
-        "Draft a scheduled action, sleep timer, routine, or smart suggestion "
+        "Draft a scheduled action, state/event automation, sleep timer, routine, or smart suggestion "
         "from natural language. Never created live; returned for human approval "
         "or editing. Use for requests like 'turn the TV off in 30 minutes', "
-        "'set a sleep timer', 'dim the kitchen display at 10', and proactive "
-        "suggestions.",
+        "'set a sleep timer', 'dim the kitchen display at 10', 'when the front "
+        "door unlocks turn on the hall light', 'if the battery drops below 20 "
+        "notify me', and proactive suggestions.",
         {
             "trigger_description": {"type": "string"},
             "action_description": {"type": "string"},

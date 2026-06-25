@@ -1036,6 +1036,47 @@ def main() -> int:
           and "warnings" in automation_body.get("data", {})
           and automation_body.get("data", {}).get("summary", {}).get("action_count", 0) >= 2,
           str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "when the front door unlocks",
+            "action_description": "turn on office light",
+            "original_request": "Create automation: when the front door unlocks, turn on office light.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v4 supports lock state triggers",
+          r.status_code == 200
+          and "platform: state" in automation_yaml
+          and "entity_id: lock.front_door" in automation_yaml
+          and "to: unlocked" in automation_yaml
+          and "light.turn_on" in automation_yaml,
+          automation_yaml or str(automation_body))
+    check("automation builder v4 labels state trigger previews",
+          "When lock.front_door becomes unlocked" in automation_body.get("data", {}).get("summary", {}).get("trigger", ""),
+          str(automation_body))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "when the front door battery drops below 20",
+            "action_description": "turn on office light",
+            "original_request": "Create automation: when the front door battery drops below 20, turn on office light.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v4 supports numeric sensor triggers",
+          r.status_code == 200
+          and "platform: numeric_state" in automation_yaml
+          and "entity_id: sensor.front_door_battery" in automation_yaml
+          and "below: 20" in automation_yaml
+          and "light.turn_on" in automation_yaml,
+          automation_yaml or str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

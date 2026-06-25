@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.43
+
+- Added Automation Builder v4 state/event triggers so natural language like "when the front door unlocks" drafts native Home Assistant state-trigger YAML.
+- Added numeric sensor threshold triggers so requests like "when the front door battery drops below 20" draft `numeric_state` automations instead of being mistaken for time schedules.
+- Expanded trigger entity matching across approved locks, battery sensors, security sensors, device aliases, room devices, and personal devices.
+- Improved automation draft previews and Jarvis Brain readiness evidence for state/numeric triggers.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.42
 
 - Expanded Automation Builder v3 with weekday/weekend recurrence, richer fan percentage/level, climate temperature, cover/garage, lock, and switch action drafting.
