@@ -9,6 +9,8 @@ export default function DashboardBuilder() {
   const [form, setForm] = useState({
     title: "TPG Home",
     style: "native",
+    template: "auto",
+    intent: "",
     room: "",
     include_browser_mod: true,
     include_unavailable: false,
@@ -60,10 +62,25 @@ export default function DashboardBuilder() {
 
       <div className="card">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <textarea
+            className="input min-h-[7rem] md:col-span-2 xl:col-span-3"
+            value={form.intent}
+            onChange={(e) => setForm({ ...form, intent: e.target.value })}
+            placeholder="Describe the dashboard: office control panel, security cameras, tablet view for kitchen, media dashboard, etc."
+          />
           <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
           <select className="input" value={form.style} onChange={(e) => setForm({ ...form, style: e.target.value })}>
             <option value="native">Native</option>
             <option value="mushroom">Mushroom</option>
+          </select>
+          <select className="input" value={form.template} onChange={(e) => setForm({ ...form, template: e.target.value })}>
+            <option value="auto">Auto template</option>
+            <option value="overview">Overview</option>
+            <option value="room">Room</option>
+            <option value="security">Security</option>
+            <option value="media">Media</option>
+            <option value="tablet">Tablet / kiosk</option>
+            <option value="voice">Voice / assistant</option>
           </select>
           <input className="input" value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} placeholder="Optional room" />
           <ToggleRow label="Browser Mod" checked={form.include_browser_mod} onChange={(checked) => setForm({ ...form, include_browser_mod: checked })} />
@@ -93,9 +110,21 @@ export default function DashboardBuilder() {
             <div className="mb-2 text-lg font-semibold text-slate-100">{draft.title}</div>
             <div className="space-y-2 text-sm text-slate-300">
               <Row label="Style" value={draft.style} />
+              <Row label="Template" value={draft.template || "auto"} />
               <Row label="Views" value={draft.view_count} />
+              <Row label="Cards" value={draft.summary?.card_count ?? "—"} />
               <Row label="Room" value={draft.room || "all"} />
             </div>
+            {draft.summary && (
+              <div className="mt-4 rounded-xl border border-brand/30 bg-brand/10 p-3 text-sm text-slate-200">
+                <div className="font-semibold text-brand">Architect summary</div>
+                <div className="mt-1 text-slate-300">
+                  {draft.summary.view_count} view(s), {draft.summary.card_count} card(s)
+                  {draft.summary.room ? ` for ${draft.summary.room}` : ""}.
+                </div>
+                {draft.summary.intent && <div className="mt-1 text-xs text-slate-400">Intent: {draft.summary.intent}</div>}
+              </div>
+            )}
             <div className="mt-4 space-y-2">
               {(draft.notes || []).map((note: string) => (
                 <div key={note} className="rounded border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm text-slate-400">

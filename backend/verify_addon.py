@@ -177,10 +177,19 @@ def main() -> int:
           "DashboardPreview" in dashboard_builder_frontend
           and "Spatial assets" in dashboard_builder_frontend,
           "Dashboard drafts should show views/cards/spatial context before install.")
+    check("Dashboard Builder has natural-language architect controls",
+          "Describe the dashboard" in dashboard_builder_frontend
+          and "Auto template" in dashboard_builder_frontend
+          and "Architect summary" in dashboard_builder_frontend,
+          "Dashboard Builder should accept a plain-English goal and show template/card summary.")
     check("Suggestions can edit automation drafts",
           "Edit YAML" in suggestions_frontend
           and "api.editDraft" in suggestions_frontend,
           "Automation drafts need owner-editable YAML before install.")
+    check("Suggestions shows parsed automation preview",
+          "Draft preview" in suggestions_frontend
+          and "ready_to_install" in suggestions_frontend,
+          "Automation suggestions should show triggers/actions/warnings before approval.")
     check("house knowledge assets are first-class API + UI",
           "/house/assets" in backend_main
           and "houseAssets" in api_frontend
@@ -602,6 +611,23 @@ def main() -> int:
           r.status_code == 200 and "tpg-tablets" in r.json().get("yaml", "")
           and "tpg-voice" in r.json().get("yaml", ""),
           str(r.json()))
+    r = client.post("/dashboards/draft", json={
+        "title": "TPG Home",
+        "style": "native",
+        "template": "auto",
+        "intent": "Build an office control dashboard for lights, fan, camera, music, and voice.",
+    })
+    body = r.json()
+    check("/dashboards/draft infers template and room from natural language",
+          r.status_code == 200
+          and body.get("template") == "room"
+          and body.get("room") == "office",
+          str(body))
+    check("/dashboards/draft returns architect summary",
+          body.get("summary", {}).get("view_count", 0) >= 1
+          and body.get("summary", {}).get("card_count", 0) >= 1
+          and body.get("summary", {}).get("install_review_required") is True,
+          str(body))
 
     r = client.post("/dashboards/install", json={"title": "TPG Home", "style": "native"})
     check("/dashboards/install returns JSON", r.status_code == 200 and is_json(r),
@@ -985,6 +1011,31 @@ def main() -> int:
           and "Someone is home" in automation_yaml
           and automation_yaml.count("service:") >= 2,
           automation_yaml or str(r.json()))
+    r = client.post("/test/action", json={
+        "action": "create_simple_automation",
+        "assistant": "atlas",
+        "user": "shawn",
+        "params": {
+            "trigger_description": "weekdays at 9 PM",
+            "action_description": "set office fan speed to level 5 and set office thermostat to 75",
+            "original_request": "Create scheduled task weekdays at 9 PM: set office fan speed to level 5 and set office thermostat to 75.",
+        },
+    })
+    automation_body = r.json()
+    automation_yaml = automation_body.get("data", {}).get("proposed_yaml", "")
+    check("automation builder v3 supports weekday, fan level, and climate temperature",
+          r.status_code == 200
+          and "weekday:" in automation_yaml
+          and "fan.set_percentage" in automation_yaml
+          and "percentage: 50" in automation_yaml
+          and "climate.set_temperature" in automation_yaml
+          and "temperature: 75" in automation_yaml,
+          automation_yaml or str(automation_body))
+    check("automation builder v3 returns summary and readiness warnings",
+          "summary" in automation_body.get("data", {})
+          and "warnings" in automation_body.get("data", {})
+          and automation_body.get("data", {}).get("summary", {}).get("action_count", 0) >= 2,
+          str(automation_body))
 
     r = client.post("/chat", json={
         "assistant": "chatty",

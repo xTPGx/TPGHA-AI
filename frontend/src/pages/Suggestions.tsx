@@ -140,6 +140,26 @@ export default function Suggestions() {
               <span className="text-xs text-slate-500">{d.created_at || ""}</span>
             </div>
             <div className="text-sm text-slate-200">{d.action_description || d.trigger_description}</div>
+            {d.summary && (
+              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                <MiniStat label="Triggers" value={d.summary.trigger_count ?? 0} />
+                <MiniStat label="Conditions" value={d.summary.condition_count ?? 0} />
+                <MiniStat label="Actions" value={d.summary.action_count ?? 0} />
+                <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3 md:col-span-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Draft preview</div>
+                  <div className="flex flex-wrap gap-2">
+                    {(d.summary.trigger_labels || []).map((label: string) => <Badge key={`t:${label}`} tone="brand">{label}</Badge>)}
+                    {(d.summary.action_labels || []).map((label: string) => <Badge key={`a:${label}`}>{label}</Badge>)}
+                    {d.summary.ready_to_install ? <Badge tone="good">ready</Badge> : <Badge tone="warn">needs review</Badge>}
+                  </div>
+                  {(d.summary.warnings || []).length > 0 && (
+                    <div className="mt-2 space-y-1 text-xs text-amber-200">
+                      {d.summary.warnings.map((warning: string) => <div key={warning}>{warning}</div>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {editing === d.id ? (
               <div className="mt-3 space-y-2">
                 <textarea
@@ -180,6 +200,15 @@ function Stat({ label, value }: { label: string; value: any }) {
     <div className="card">
       <div className="mb-1 text-xs uppercase text-slate-500">{label}</div>
       <div className="text-xl font-semibold text-slate-100">{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-slate-100">{value}</div>
     </div>
   );
 }

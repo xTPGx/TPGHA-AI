@@ -412,6 +412,8 @@ class DraftUpdateRequest(BaseModel):
 class DashboardDraftRequest(BaseModel):
     title: str = "TPG Home"
     style: Literal["native", "mushroom"] = "native"
+    template: Literal["auto", "overview", "room", "security", "media", "tablet", "voice"] = "auto"
+    intent: Optional[str] = None
     room: Optional[str] = None
     include_browser_mod: bool = True
     include_unavailable: bool = False

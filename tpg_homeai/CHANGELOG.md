@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.42
+
+- Expanded Automation Builder v3 with weekday/weekend recurrence, richer fan percentage/level, climate temperature, cover/garage, lock, and switch action drafting.
+- Added parsed automation draft summaries and warnings so Suggestions shows triggers, conditions, actions, and install readiness before approval.
+- Added Dashboard Architect v2 natural-language dashboard briefs, template selection, room/template inference, and architect summaries.
+- Kept dashboard/chat dashboard changes approval-first; admin/manager dashboard role gates remain enforced.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.41
 
 - Removed stale browser `sessionStorage` as an active Home Assistant identity source so a previous Shawn/Jordie/Kiosk login cannot keep poisoning the current TPG profile.

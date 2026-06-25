@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
+import yaml
 
 from .ai.client import get_ai_client
 from .ai.tools import TOOL_NAMES
@@ -103,7 +104,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.0.41"
+APP_VERSION = "1.0.42"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1250,6 +1251,8 @@ async def dashboard_draft(req: DashboardDraftRequest):
         cfg,
         title=req.title,
         style=req.style,
+        template=req.template,
+        intent=req.intent,
         room=req.room,
         include_browser_mod=req.include_browser_mod,
         include_unavailable=req.include_unavailable,
@@ -1262,6 +1265,8 @@ async def dashboard_draft(req: DashboardDraftRequest):
 async def dashboard_draft_get(
     title: str = "TPG Home",
     style: str = "native",
+    template: str = "auto",
+    intent: str | None = None,
     room: str | None = None,
     include_browser_mod: bool = True,
     include_unavailable: bool = False,
@@ -1273,6 +1278,8 @@ async def dashboard_draft_get(
         cfg,
         title=title,
         style=style,
+        template=template,
+        intent=intent,
         room=room,
         include_browser_mod=include_browser_mod,
         include_unavailable=include_unavailable,
@@ -1293,6 +1300,8 @@ async def dashboard_install(req: DashboardDraftRequest):
         cfg,
         title=req.title,
         style=req.style,
+        template=req.template,
+        intent=req.intent,
         room=req.room,
         include_browser_mod=req.include_browser_mod,
         include_unavailable=req.include_unavailable,
@@ -1305,6 +1314,7 @@ async def dashboard_install(req: DashboardDraftRequest):
 
 # -------------------------------------------------------------- draft inbox
 def _draft_dict(draft) -> dict:
+    summary = _automation_draft_summary(draft.proposed_yaml)
     return {
         "id": draft.id,
         "created_at": draft.created_at.isoformat() if draft.created_at else None,
@@ -1316,7 +1326,66 @@ def _draft_dict(draft) -> dict:
         "installed_path": getattr(draft, "installed_path", ""),
         "installed_at": draft.installed_at.isoformat() if getattr(draft, "installed_at", None) else None,
         "install_error": getattr(draft, "install_error", ""),
+        "summary": summary,
     }
+
+
+def _automation_draft_summary(proposed_yaml: str) -> dict[str, Any]:
+    try:
+        parsed = yaml.safe_load(proposed_yaml or "") or {}
+    except Exception as exc:  # noqa: BLE001 - draft may be manually edited
+        return {
+            "valid_yaml": False,
+            "warnings": [f"YAML parse failed: {exc}"],
+            "ready_to_install": False,
+        }
+    triggers = parsed.get("trigger") or []
+    conditions = parsed.get("condition") or []
+    actions = parsed.get("action") or []
+    if isinstance(triggers, dict):
+        triggers = [triggers]
+    if isinstance(conditions, dict):
+        conditions = [conditions]
+    if isinstance(actions, dict):
+        actions = [actions]
+    blob = proposed_yaml or ""
+    warnings = []
+    if "<<<" in blob:
+        warnings.append("Contains placeholders that need mapping before install.")
+    if not triggers:
+        warnings.append("No trigger configured.")
+    if not actions:
+        warnings.append("No actions configured.")
+    return {
+        "valid_yaml": True,
+        "alias": parsed.get("alias", ""),
+        "trigger_count": len(triggers),
+        "condition_count": len(conditions),
+        "action_count": len(actions),
+        "trigger_labels": [_automation_trigger_label(t) for t in triggers[:4]],
+        "action_labels": [_automation_action_label(a) for a in actions[:8]],
+        "warnings": warnings,
+        "ready_to_install": not warnings,
+    }
+
+
+def _automation_trigger_label(trigger: dict[str, Any]) -> str:
+    platform = trigger.get("platform", "trigger")
+    if platform == "time":
+        return f"At {trigger.get('at')}"
+    if platform == "sun":
+        return f"At {trigger.get('event')}"
+    return str(platform)
+
+
+def _automation_action_label(action: dict[str, Any]) -> str:
+    if "delay" in action:
+        return f"Wait {action['delay']}"
+    service = action.get("service", "service")
+    target = (action.get("target") or {}).get("entity_id", "")
+    if isinstance(target, list):
+        target = f"{len(target)} entities"
+    return f"{service} -> {target or 'target'}"
 
 
 @app.get("/automation/drafts")
