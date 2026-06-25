@@ -8,24 +8,29 @@ export default function Setup() {
   const [cfg, setCfg] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
+  const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
+  const [clientVoice, setClientVoice] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = async () => {
     try {
-      const [h, c, done, v, assets] = await Promise.all([
+      const [h, c, done, v, runtime, assets] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
         api.voiceDeployment(),
+        api.voiceRuntime(),
         api.houseAssets("approved"),
       ]);
       setHealth(h);
       setCfg(c);
       setCompletion(done);
       setVoice(v);
+      setVoiceRuntime(runtime);
       setHouseAssets(assets);
+      setClientVoice(localVoiceEnvironment());
       setError("");
     } catch (e: any) {
       setError(e.message || String(e));
@@ -90,6 +95,20 @@ export default function Setup() {
       to: "/assistants",
     },
     {
+      title: "Voice runtime",
+      ok: (voiceRuntime?.counts?.runtime_assistants_ready || 0) > 0 && (voiceRuntime?.counts?.runtime_sources_ready || 0) > 0,
+      detail: `${voiceRuntime?.counts?.runtime_assistants_ready || 0}/${voiceRuntime?.counts?.runtime_assistants || 0} assistants online · ${voiceRuntime?.counts?.runtime_sources_ready || 0}/${voiceRuntime?.counts?.runtime_sources || 0} sources routable`,
+      to: "/assistants",
+    },
+    {
+      title: "This browser/app mic",
+      ok: Boolean(clientVoice?.secureEnough && clientVoice?.captureSupported),
+      detail: clientVoice
+        ? `${clientVoice.secureEnough ? "secure" : "HTTP/insecure"} · ${clientVoice.captureSupported ? "capture available" : "capture blocked"} · ${clientVoice.host}`
+        : "Checking local browser/app voice support",
+      to: "/chat",
+    },
+    {
       title: "Permissions policy",
       ok: (cfg?.permissions?.sensitive_actions?.length || 0) > 0,
       detail: `${cfg?.permissions?.sensitive_actions?.length || 0} sensitive actions gated`,
@@ -139,6 +158,22 @@ export default function Setup() {
       </div>
     </div>
   );
+}
+
+function localVoiceEnvironment() {
+  const host = window.location.hostname;
+  const localhost = ["localhost", "127.0.0.1", "::1"].includes(host);
+  const secureEnough = window.isSecureContext || localhost;
+  const recorder = Boolean(typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined");
+  const speech = Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  return {
+    host,
+    localhost,
+    secureEnough,
+    recorder,
+    speech,
+    captureSupported: recorder || speech,
+  };
 }
 
 function Stat({ label, value }: { label: string; value: any }) {

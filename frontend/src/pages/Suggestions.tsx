@@ -10,6 +10,8 @@ export default function Suggestions() {
   const [proactive, setProactive] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editYaml, setEditYaml] = useState("");
 
   const load = async () => {
     try {
@@ -39,6 +41,31 @@ export default function Suggestions() {
     try {
       if (fn === "approve") await api.approveDraft(id);
       else await api.ignoreDraft(id);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const startEdit = (draft: any) => {
+    setEditing(draft.id);
+    setEditYaml(draft.proposed_yaml || "");
+  };
+
+  const saveEdit = async (draft: any) => {
+    setBusy(`edit:${draft.id}`);
+    setError(null);
+    try {
+      await api.editDraft(draft.id, {
+        proposed_yaml: editYaml,
+        trigger_description: draft.trigger_description,
+        action_description: draft.action_description,
+        status: "edited",
+      });
+      setEditing(null);
+      setEditYaml("");
       await load();
     } catch (e: any) {
       setError(e.message);
@@ -113,12 +140,29 @@ export default function Suggestions() {
               <span className="text-xs text-slate-500">{d.created_at || ""}</span>
             </div>
             <div className="text-sm text-slate-200">{d.action_description || d.trigger_description}</div>
-            <DeveloperDetails title="Proposed YAML">
-              <pre className="code-scroll max-h-80 whitespace-pre-wrap">{d.proposed_yaml}</pre>
-            </DeveloperDetails>
+            {editing === d.id ? (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  className="input min-h-[18rem] font-mono text-sm"
+                  value={editYaml}
+                  onChange={(e) => setEditYaml(e.target.value)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={busy === `edit:${d.id}`} onClick={() => void saveEdit(d)}>Save edit</Button>
+                  <Button variant="ghost" onClick={() => { setEditing(null); setEditYaml(""); }}>Cancel edit</Button>
+                </div>
+              </div>
+            ) : (
+              <DeveloperDetails title="Proposed YAML">
+                <pre className="code-scroll max-h-80 whitespace-pre-wrap">{d.proposed_yaml}</pre>
+              </DeveloperDetails>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button disabled={busy === `draft:${d.id}`} onClick={() => actDraft(d.id, "approve")}>
                 Approve
+              </Button>
+              <Button variant="ghost" disabled={busy === `edit:${d.id}`} onClick={() => startEdit(d)}>
+                Edit YAML
               </Button>
               <Button variant="ghost" className="text-rose-300" disabled={busy === `draft:${d.id}`} onClick={() => actDraft(d.id, "ignore")}>
                 Ignore

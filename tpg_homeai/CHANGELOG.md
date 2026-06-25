@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.40
+
+- Added actionable Chat microphone diagnostics for blocked permissions, HTTP/insecure origins, localhost confusion, missing microphones, and unsupported browsers.
+- Added an in-chat "Diagnose mic" action so Home Assistant app/browser voice readiness can be checked directly after a failure.
+- Expanded Setup with voice runtime readiness and local browser/app microphone environment checks.
+- Added a Dashboard Builder pre-install preview showing generated views, card counts, and approved spatial asset coverage before installing YAML.
+- Added editable automation draft YAML in Suggestions so scheduled tasks can be reviewed and corrected before installation.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.39
 
 - Added the House Spatial Brain: approved floor plans, blueprints, room photos, and notes are grouped by room with dashboard hints, automation ideas, mapping questions, and coverage status.

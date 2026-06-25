@@ -107,9 +107,77 @@ function getPreferredAudioMimeType() {
 function microphoneUnavailableMessage() {
   const secureEnough = window.isSecureContext || ["localhost", "127.0.0.1"].includes(window.location.hostname);
   if (!secureEnough) {
-    return "Microphone capture is blocked because Home Assistant is open over HTTP. On iPhone/iPad, use HTTPS/Nabu Casa or allow microphone access in the Home Assistant app.";
+    return "Microphone capture is blocked because Home Assistant is open over HTTP. Use HTTPS for Home Assistant (Nabu Casa, Tailscale HTTPS, Cloudflare, or a local trusted cert). Localhost only works on the device running the browser.";
   }
   return "Microphone capture is not available in this browser. Use the Home Assistant app/browser microphone permission, or try HTTPS.";
+}
+
+function microphoneErrorMessage(error: any) {
+  const name = String(error?.name || error?.error || "").toLowerCase();
+  const message = String(error?.message || "");
+  const host = window.location.hostname;
+  const localHost = ["localhost", "127.0.0.1", "::1"].includes(host);
+  const secureEnough = window.isSecureContext || localHost;
+  if (!secureEnough) {
+    return [
+      "Microphone blocked: Home Assistant is being served over HTTP.",
+      "Browsers require HTTPS for microphone capture unless the page is opened on localhost.",
+      "On your iPad/iPhone, localhost would mean the iPad/iPhone itself, not the HA server.",
+      "Fix: use Nabu Casa remote UI, Tailscale HTTPS, Cloudflare Tunnel, or a local trusted HTTPS certificate for Home Assistant.",
+    ].join(" ");
+  }
+  if (name.includes("notallowed") || name.includes("not-allowed") || name.includes("security")) {
+    return [
+      "Microphone blocked by permission.",
+      "Allow microphone access for the Home Assistant app/browser and this HA site.",
+      "On iPhone/iPad: Settings > Home Assistant > Microphone, then fully close and reopen the app.",
+    ].join(" ");
+  }
+  if (name.includes("notfound") || name.includes("not-found") || name.includes("devicesnotfound")) {
+    return "No microphone was found on this device. Check OS microphone settings or try another browser/device.";
+  }
+  if (name.includes("notreadable") || name.includes("trackstart")) {
+    return "The microphone is already in use or unavailable. Close other voice/camera apps and try again.";
+  }
+  if (name.includes("abort")) {
+    return "Microphone capture was interrupted before audio was recorded. Try again and keep the page open.";
+  }
+  return message ? `Microphone recording failed: ${message}` : microphoneUnavailableMessage();
+}
+
+async function microphoneReadinessReport() {
+  const host = window.location.hostname;
+  const localHost = ["localhost", "127.0.0.1", "::1"].includes(host);
+  const secureEnough = window.isSecureContext || localHost;
+  const recorder = Boolean(typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined");
+  const speech = Boolean(getSpeechRecognition());
+  let permission = "unknown";
+  try {
+    const permissions = (navigator as any).permissions;
+    if (permissions?.query) {
+      const result = await permissions.query({ name: "microphone" as PermissionName });
+      permission = result?.state || "unknown";
+    }
+  } catch {
+    permission = "unknown";
+  }
+  const lines = [
+    `Voice environment: ${secureEnough ? "secure enough" : "HTTP/insecure"}.`,
+    `Host: ${host}${localHost ? " (browser-local only)" : ""}.`,
+    `Recorder API: ${recorder ? "available" : "missing"}.`,
+    `Speech API: ${speech ? "available" : "missing"}.`,
+    `Browser permission: ${permission}.`,
+  ];
+  if (!secureEnough) {
+    lines.push("Use HTTPS for HA. Localhost cannot help an iPad unless HA is running on that iPad.");
+  } else if (permission === "denied") {
+    lines.push("Reset microphone permission in the Home Assistant app or browser site settings.");
+  } else if (!recorder && !speech) {
+    lines.push("This browser cannot capture microphone input for TPG HomeAI.");
+  } else {
+    lines.push("If the next attempt fails, it is likely an OS/app permission or another app holding the mic.");
+  }
+  return lines.join(" ");
 }
 
 function commandConfidence(command?: CommandResponse) {
@@ -819,10 +887,10 @@ export default function Chat() {
     } catch (e: any) {
       const name = String(e?.name || "");
       if (name === "NotAllowedError" || name === "SecurityError") {
-        setVoiceError(microphoneUnavailableMessage());
+        setVoiceError(microphoneErrorMessage(e));
         return true;
       }
-      setVoiceError(e?.message ? `Microphone recording failed: ${e.message}` : microphoneUnavailableMessage());
+      setVoiceError(microphoneErrorMessage(e));
       return true;
     }
   };
@@ -869,7 +937,7 @@ export default function Chat() {
       setText((finalTranscript || interimTranscript).trim());
     };
     recognition.onerror = (event: any) => {
-      setVoiceError(event.error ? `Voice input failed: ${event.error}` : "Voice input failed.");
+      setVoiceError(microphoneErrorMessage(event));
       setMicState("idle");
       setListening(false);
     };
@@ -959,7 +1027,17 @@ export default function Chat() {
         </header>
 
         {error && <div className="mx-4 mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
-        {voiceError && <div className="mx-4 mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">{voiceError}</div>}
+        {voiceError && (
+          <div className="mx-4 mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+            <div>{voiceError}</div>
+            <button
+              className="mt-3 rounded-lg border border-amber-300/30 px-3 py-1.5 text-xs font-semibold text-amber-50 hover:bg-amber-300/10"
+              onClick={async () => setVoiceError(await microphoneReadinessReport())}
+            >
+              Diagnose mic
+            </button>
+          </div>
+        )}
 
         {activeTab === "notebook" ? (
           <NotebookPanel

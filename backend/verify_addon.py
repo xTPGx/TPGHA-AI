@@ -92,6 +92,9 @@ def main() -> int:
     ha_panel = (repo_root / "custom_components" / "tpg_homeai" / "panel.js").read_text(encoding="utf-8")
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
     chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+    setup_frontend = (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+    dashboard_builder_frontend = (repo_root / "frontend" / "src" / "pages" / "DashboardBuilder.tsx").read_text(encoding="utf-8")
+    suggestions_frontend = (repo_root / "frontend" / "src" / "pages" / "Suggestions.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -144,6 +147,24 @@ def main() -> int:
           and "voiceTranscribe" in chat_frontend
           and "/voice/transcribe" in api_frontend,
           "Mobile mic must record audio and upload it for OpenAI transcription.")
+    check("Chat mic gives actionable permission diagnostics",
+          "Diagnose mic" in chat_frontend
+          and "microphoneReadinessReport" in chat_frontend
+          and "Localhost only works on the device running the browser" in chat_frontend,
+          "Voice failures should explain HTTP/HTTPS, app permission, and localhost behavior.")
+    check("Setup shows voice runtime and local mic readiness",
+          "voiceRuntime" in setup_frontend
+          and "This browser/app mic" in setup_frontend
+          and "localVoiceEnvironment" in setup_frontend,
+          "Setup must expose deployable voice readiness and local browser/app capture status.")
+    check("Dashboard Builder has a pre-install preview",
+          "DashboardPreview" in dashboard_builder_frontend
+          and "Spatial assets" in dashboard_builder_frontend,
+          "Dashboard drafts should show views/cards/spatial context before install.")
+    check("Suggestions can edit automation drafts",
+          "Edit YAML" in suggestions_frontend
+          and "api.editDraft" in suggestions_frontend,
+          "Automation drafts need owner-editable YAML before install.")
     check("house knowledge assets are first-class API + UI",
           "/house/assets" in backend_main
           and "houseAssets" in api_frontend

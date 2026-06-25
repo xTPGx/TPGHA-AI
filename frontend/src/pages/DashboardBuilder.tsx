@@ -103,6 +103,7 @@ export default function DashboardBuilder() {
                 </div>
               ))}
             </div>
+            <DashboardPreview draft={draft} />
           </div>
           <div className="card">
             <div className="mb-3 text-lg font-semibold text-slate-100">Generated YAML</div>
@@ -114,6 +115,47 @@ export default function DashboardBuilder() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DashboardPreview({ draft }: { draft: any }) {
+  const views = draft?.dashboard?.views || [];
+  const spatial = draft?.spatial_brain?.summary || {};
+  if (!views.length) return null;
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">Preview</div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
+          <div className="text-slate-500">Spatial assets</div>
+          <div className="mt-1 text-lg font-semibold text-slate-100">{spatial.approved_assets || 0}</div>
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
+          <div className="text-slate-500">Rooms mapped</div>
+          <div className="mt-1 text-lg font-semibold text-slate-100">{spatial.rooms_with_assets || 0}</div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {views.map((view: any) => (
+          <div key={view.path || view.title} className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold text-slate-100">{view.title}</div>
+                <div className="text-xs text-slate-500">/{view.path || "view"}</div>
+              </div>
+              <span className="badge bg-slate-800 text-slate-300">{(view.cards || []).length} cards</span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(view.cards || []).slice(0, 6).map((card: any, index: number) => (
+                <span key={`${view.path}:${index}`} className="rounded-md border border-slate-800 bg-black/20 px-2 py-1 text-[11px] text-slate-400">
+                  {card.type || "card"}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
