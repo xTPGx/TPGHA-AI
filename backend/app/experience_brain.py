@@ -971,8 +971,23 @@ async def build_release_packet(config: AppConfig, version: str, limit: int = 50)
     decisions = build_release_decision_digest(limit=limit)
     metrics = build_release_status_metrics(limit=limit)
     recommendations = build_release_recommendation_export(limit=limit)
+    generated_at = dt.datetime.utcnow().isoformat() + "Z"
+    manifest = {
+        "version": version,
+        "generated_at": generated_at,
+        "sections": [
+            _release_packet_section("checklist", checklist.get("status"), bool(checklist), len(checklist.get("checks", []) or [])),
+            _release_packet_section("decisions", decisions.get("status"), bool(decisions), int((decisions.get("counts", {}) or {}).get("snapshots") or 0)),
+            _release_packet_section("metrics", metrics.get("status"), bool(metrics), int(metrics.get("count") or 0)),
+            _release_packet_section("recommendations", recommendations.get("status"), bool(recommendations), len((recommendations.get("recommendations", {}) or {}).get("all_recommendations", []) or [])),
+            _release_packet_section("runbook", runbook.get("status"), bool(runbook), len(runbook.get("runbook", []) or [])),
+        ],
+    }
     markdown = "\n".join([
         f"# TPG HomeAI Full Release Packet {version}",
+        "",
+        "## Manifest",
+        *_release_packet_manifest_lines(manifest),
         "",
         "## Checklist",
         (checklist.get("markdown") or "").strip(),
@@ -993,7 +1008,8 @@ async def build_release_packet(config: AppConfig, version: str, limit: int = 50)
     return {
         "status": "attention" if checklist.get("status") != "ready" else "ready",
         "version": version,
-        "generated_at": dt.datetime.utcnow().isoformat() + "Z",
+        "generated_at": generated_at,
+        "manifest": manifest,
         "checklist": checklist,
         "decisions": decisions,
         "metrics": metrics,
@@ -1001,6 +1017,29 @@ async def build_release_packet(config: AppConfig, version: str, limit: int = 50)
         "runbook": runbook,
         "markdown": markdown,
     }
+
+
+def _release_packet_section(section_id: str, status: Any, present: bool, item_count: int) -> dict[str, Any]:
+    return {
+        "id": section_id,
+        "present": present,
+        "status": status or "ready",
+        "item_count": item_count,
+    }
+
+
+def _release_packet_manifest_lines(manifest: dict[str, Any]) -> list[str]:
+    lines = [
+        f"Generated: {manifest.get('generated_at')}",
+        f"Version: {manifest.get('version')}",
+        "",
+    ]
+    for section in manifest.get("sections", []) or []:
+        present = "present" if section.get("present") else "missing"
+        lines.append(
+            f"- {section.get('id')}: {present}, {section.get('status')}, {section.get('item_count', 0)} item(s)"
+        )
+    return lines
 
 
 def save_release_recommendation_state(recommendation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -2266,6 +2305,21 @@ async def build_jarvis_phase_149(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Copy full release packet", "Download full release packet"],
         },
         "guardrail": "Phase 149 bundles existing release evidence into one packet without changing release state or live-house data.",
+    }
+
+
+async def build_jarvis_phase_150(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 150,
+        "release_packet_manifest": {
+            "endpoint": "/release/packet",
+            "manifest_fields": ["version", "generated_at", "sections"],
+            "section_fields": ["id", "present", "status", "item_count"],
+            "dashboard_surface": "Release packet manifest",
+        },
+        "guardrail": "Phase 150 adds release packet metadata only; it does not alter release evidence or live-house state.",
     }
 
 

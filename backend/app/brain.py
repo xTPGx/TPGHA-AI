@@ -1308,6 +1308,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release packet manifest metadata so exported packets show exactly which evidence sections are present.",
         },
         {
+            "id": "release_packet_manifest",
+            "title": "Release Packet Manifest",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/packet includes manifest metadata for version, generated timestamp, and evidence sections.",
+                "Each packet section reports id, presence, status, and item count.",
+                "Owner Dashboard surfaces the release packet manifest before export.",
+            ],
+            "next": "Add release packet integrity fingerprints so owners can compare exports across systems.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

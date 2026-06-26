@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.54
+
+- Added Jarvis phase 150 release packet manifest metadata.
+- Added section presence, status, item counts, version, and generated timestamp to `/release/packet`.
+- Added release packet manifest lines to the full packet Markdown.
+- Added `/brain/phase-150` readiness marker.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.53
 
 - Added Jarvis phase 149 full release packet.

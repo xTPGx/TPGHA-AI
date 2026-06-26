@@ -1026,6 +1026,16 @@ def main() -> int:
     check("phase 149 endpoint is exposed",
           "/brain/phase-149" in backend_main,
           "Backend must expose the phase 149 release packet marker.")
+    check("phase 150 release packet manifest is wired",
+          "manifest" in experience_brain
+          and "_release_packet_section" in experience_brain
+          and "Release packet manifest" in dashboard_frontend
+          and "release_packet_manifest" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_150" in experience_brain,
+          "Owners need manifest metadata describing the full release packet sections.")
+    check("phase 150 endpoint is exposed",
+          "/brain/phase-150" in backend_main,
+          "Backend must expose the phase 150 packet manifest marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2880,6 +2890,25 @@ def main() -> int:
     check("/brain/phase-149 has release packet marker",
           r.json().get("phase") == 149
           and r.json().get("release_packet", {}).get("endpoint") == "/release/packet",
+          str(r.json()))
+
+    r = client.get("/release/packet")
+    packet = r.json()
+    check("/release/packet includes manifest metadata",
+          r.status_code == 200
+          and is_json(r)
+          and packet.get("manifest", {}).get("version") == APP_VERSION
+          and len(packet.get("manifest", {}).get("sections", [])) >= 5
+          and all("item_count" in section for section in packet.get("manifest", {}).get("sections", []))
+          and "## Manifest" in packet.get("markdown", ""),
+          str(packet))
+    r = client.get("/brain/phase-150")
+    check("/brain/phase-150 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-150 has release packet manifest marker",
+          r.json().get("phase") == 150
+          and "sections" in r.json().get("release_packet_manifest", {}).get("manifest_fields", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
