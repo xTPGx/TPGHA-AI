@@ -57,6 +57,27 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     media_counts = _media_counts(config, graph)
     security_counts = _security_counts(config)
     occupancy_counts = _occupancy_counts(config)
+    environment_counts = {
+        "weather": _domain_count(graph, "weather"),
+        "environment_sensors": _keyword_entity_count(
+            graph,
+            ("temperature", "humidity", "illuminance", "air quality", "co2", "uv", "rain", "wind"),
+        ),
+    }
+    calendar_counts = {
+        "calendars": _domain_count(graph, "calendar"),
+        "todos": _domain_count(graph, "todo"),
+    }
+    presence_counts = {
+        "people": _domain_count(graph, "person") + _domain_count(graph, "device_tracker"),
+        "personal_devices": len(config.devices.personal_devices),
+        "zones": _domain_count(graph, "zone"),
+    }
+    maintenance_counts = {
+        "updates": _domain_count(graph, "update"),
+        "backup_entities": _keyword_entity_count(graph, ("backup",)),
+        "unavailable": unavailable,
+    }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -298,6 +319,68 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Occupancy uses motion-style sensors, media state, lights, fans, and voice source mappings as signals.",
             ],
             "next": "Add room-level confidence memory and proactive mode changes based on repeated occupancy patterns.",
+        },
+        {
+            "id": "environment_weather_brain",
+            "title": "Environment + Weather Brain",
+            "status": "ready" if environment_counts["weather"] or environment_counts["environment_sensors"] else "partial",
+            "score": 100 if environment_counts["weather"] or environment_counts["environment_sensors"] else 70,
+            "evidence": [
+                f"{environment_counts['weather']} weather entity/entities visible.",
+                f"{environment_counts['environment_sensors']} environment sensor(s) identified by name/domain hints.",
+                "Daily briefings can summarize weather, temperature, humidity, light, air-quality, wind, UV, and rain signals.",
+            ],
+            "next": "Add/approve local outdoor weather and indoor comfort sensors for richer comfort decisions.",
+        },
+        {
+            "id": "calendar_todo_brain",
+            "title": "Calendar + Todo Awareness",
+            "status": "ready" if calendar_counts["calendars"] or calendar_counts["todos"] else "partial",
+            "score": 100 if calendar_counts["calendars"] or calendar_counts["todos"] else 70,
+            "evidence": [
+                f"{calendar_counts['calendars']} calendar entity/entities visible.",
+                f"{calendar_counts['todos']} todo entity/entities visible.",
+                "Jarvis can expose calendar/todo readiness for briefings and approved automation drafting.",
+            ],
+            "next": "Map real calendars and household todo lists so briefings include upcoming obligations.",
+        },
+        {
+            "id": "presence_zone_brain",
+            "title": "Presence + Zone Intelligence",
+            "status": "ready" if presence_counts["people"] or presence_counts["personal_devices"] else "partial",
+            "score": 100 if presence_counts["people"] or presence_counts["personal_devices"] else 70,
+            "evidence": [
+                f"{presence_counts['people']} person/device-tracker entity/entities visible.",
+                f"{presence_counts['personal_devices']} configured personal device mapping(s).",
+                f"{presence_counts['zones']} HA zone entity/entities visible.",
+                "Presence stays advisory and feeds modes/recommendations without bypassing security policy.",
+            ],
+            "next": "Approve personal device ownership and zone mappings for stronger identity and home/away context.",
+        },
+        {
+            "id": "maintenance_health_brain",
+            "title": "Maintenance + Health Brain",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                f"{maintenance_counts['unavailable']} unavailable entities currently tracked by the graph.",
+                f"{maintenance_counts['updates']} update entity/entities visible.",
+                f"{maintenance_counts['backup_entities']} backup-related entity/entities visible.",
+                "Maintenance brain can surface unavailable devices, low batteries, updates, and backup health into briefings.",
+            ],
+            "next": "Add integration-specific health adapters for backups, Frigate, Music Assistant, and network gear.",
+        },
+        {
+            "id": "daily_briefing_brain",
+            "title": "Daily Briefing Composer",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Daily briefing endpoint composes environment, schedule, presence, and maintenance into a spoken/readable summary.",
+                "Briefings are read-only and can be routed through chat/voice without silently creating automations.",
+                "The endpoint returns source brains for UI drill-down and debugging.",
+            ],
+            "next": "Add user-specific briefing preferences, quiet-hour delivery windows, and approved scheduled briefing routines.",
         },
         {
             "id": "ha_native_ui",
@@ -708,6 +791,27 @@ def _media_counts(config: Any, graph: dict[str, Any]) -> dict[str, int]:
         "displays": len(getattr(config.devices, "displays", []) or []),
         "speakers": len(getattr(config.devices, "speakers", []) or []),
     }
+
+
+def _domain_count(graph: dict[str, Any], domain: str) -> int:
+    return sum(1 for entity in _graph_entities(graph) if str(entity.get("entity_id", "")).startswith(f"{domain}."))
+
+
+def _keyword_entity_count(graph: dict[str, Any], keywords: tuple[str, ...]) -> int:
+    return sum(
+        1
+        for entity in _graph_entities(graph)
+        if any(keyword in f"{entity.get('entity_id', '')} {entity.get('name', '')} {entity.get('friendly_name', '')}".lower()
+               for keyword in keywords)
+    )
+
+
+def _graph_entities(graph: dict[str, Any]) -> list[dict[str, Any]]:
+    entities: list[dict[str, Any]] = []
+    for device in graph.get("devices", []):
+        entities.extend(device.get("controllable_entities", []) or [])
+        entities.extend(device.get("diagnostic_entities", []) or [])
+    return entities
 
 
 def _security_counts(config: Any) -> dict[str, int]:

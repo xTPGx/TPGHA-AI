@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.5
+
+- Added Jarvis phases 72-76 for live situational awareness.
+- Added environment/weather brain for HA weather entities and comfort sensors.
+- Added calendar/todo awareness brain for future schedule and household task context.
+- Added presence/zone intelligence for person, device tracker, zone, and personal-device mappings.
+- Added maintenance health brain for unavailable entities, low batteries, updates, backup-related sensors, and maintenance suggestions.
+- Added daily briefing composer with readable/spoken summary plus source-brain drill-down.
+- Added `/awareness/environment`, `/awareness/calendar-todo`, `/awareness/presence-zones`, `/awareness/maintenance`, `/briefings/daily`, and `/brain/phase-72-76` endpoints.
+- Fed daily briefing intelligence into House State and expanded Jarvis Brain readiness.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.4
 
 - Added phases 66-71 media and awareness expansion.

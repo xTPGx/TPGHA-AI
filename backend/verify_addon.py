@@ -106,6 +106,7 @@ def main() -> int:
     device_adapters = (repo_root / "backend" / "app" / "device_adapters.py").read_text(encoding="utf-8")
     outcomes_source = (repo_root / "backend" / "app" / "outcomes.py").read_text(encoding="utf-8")
     media_brain = (repo_root / "backend" / "app" / "media_brain.py").read_text(encoding="utf-8")
+    situational_brain = (repo_root / "backend" / "app" / "situational_brain.py").read_text(encoding="utf-8")
     house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
     security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -321,6 +322,32 @@ def main() -> int:
           "build_camera_security_brain" in security_action
           and '"briefing": brain' in security_action,
           "Security check responses should include the richer camera/security briefing.")
+    check("phases 72-76 situational brain module exists",
+          "build_environment_brain" in situational_brain
+          and "build_calendar_todo_brain" in situational_brain
+          and "build_presence_zone_brain" in situational_brain
+          and "build_maintenance_brain" in situational_brain
+          and "build_daily_briefing" in situational_brain,
+          "Environment, schedule, presence, maintenance, and daily briefing brains must be reusable.")
+    check("situational brain tracks real Jarvis daily context",
+          "weather" in situational_brain
+          and "calendar" in situational_brain
+          and "todo" in situational_brain
+          and "device_tracker" in situational_brain
+          and "low_batteries" in situational_brain
+          and "spoken" in situational_brain,
+          "Daily awareness must include weather, schedule, presence, maintenance, and spoken summary fields.")
+    check("phases 72-76 endpoints are exposed",
+          "/awareness/environment" in backend_main
+          and "/awareness/calendar-todo" in backend_main
+          and "/awareness/presence-zones" in backend_main
+          and "/awareness/maintenance" in backend_main
+          and "/briefings/daily" in backend_main
+          and "/brain/phase-72-76" in backend_main,
+          "Backend must expose phase 72-76 brains as API endpoints.")
+    check("house state includes daily briefing brain",
+          "daily_briefing" in house_state_source,
+          "House State should include the daily briefing composer.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -801,6 +828,9 @@ def main() -> int:
           and "camera_security" in r.json()
           and "room_occupancy" in r.json(),
           str(r.json()))
+    check("/brain/house-state includes daily briefing",
+          "daily_briefing" in r.json() and "headline" in r.json().get("daily_briefing", {}),
+          str(r.json()))
 
     r = client.get("/brain/modes")
     check("/brain/modes returns JSON", r.status_code == 200 and is_json(r),
@@ -852,6 +882,52 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/rooms/occupancy exposes room likelihoods",
           "rooms" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/brain/phase-72-76")
+    check("/brain/phase-72-76 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-72-76 has situational sections",
+          "environment" in r.json()
+          and "calendar_todo" in r.json()
+          and "presence_zones" in r.json()
+          and "maintenance" in r.json()
+          and "daily_briefing" in r.json(),
+          str(r.json()))
+
+    r = client.get("/awareness/environment")
+    check("/awareness/environment returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/awareness/environment exposes weather/sensor counts",
+          "weather" in r.json() and "environment_sensors" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/awareness/calendar-todo")
+    check("/awareness/calendar-todo returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/awareness/calendar-todo exposes calendars and todos",
+          "calendars" in r.json() and "todos" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/awareness/presence-zones")
+    check("/awareness/presence-zones returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/awareness/presence-zones exposes presence context",
+          "people" in r.json() and "zones" in r.json() and "personal_devices" in r.json(),
+          str(r.json()))
+
+    r = client.get("/awareness/maintenance")
+    check("/awareness/maintenance returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/awareness/maintenance exposes health attention",
+          "unavailable" in r.json() and "low_batteries" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/briefings/daily")
+    check("/briefings/daily returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/briefings/daily exposes spoken briefing and source brains",
+          "headline" in r.json() and "spoken" in r.json() and "brains" in r.json(),
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")

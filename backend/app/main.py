@@ -106,19 +106,27 @@ from .media_brain import (
     build_music_assistant_brain,
     build_room_occupancy_brain,
 )
+from .situational_brain import (
+    build_calendar_todo_brain,
+    build_daily_briefing,
+    build_environment_brain,
+    build_jarvis_phase_72_76,
+    build_maintenance_brain,
+    build_presence_zone_brain,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.1.4"
+APP_VERSION = "1.1.5"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "media", "security", "rooms", "openapi.json",
+    "media", "security", "rooms", "awareness", "briefings", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -1104,6 +1112,36 @@ async def security_briefing():
 @app.get("/rooms/occupancy")
 async def room_occupancy():
     return await build_room_occupancy_brain(get_config())
+
+
+@app.get("/brain/phase-72-76")
+async def brain_phase_72_76():
+    return await build_jarvis_phase_72_76(get_config())
+
+
+@app.get("/awareness/environment")
+async def awareness_environment():
+    return await build_environment_brain(get_config())
+
+
+@app.get("/awareness/calendar-todo")
+async def awareness_calendar_todo():
+    return await build_calendar_todo_brain(get_config())
+
+
+@app.get("/awareness/presence-zones")
+async def awareness_presence_zones():
+    return await build_presence_zone_brain(get_config())
+
+
+@app.get("/awareness/maintenance")
+async def awareness_maintenance():
+    return await build_maintenance_brain(get_config())
+
+
+@app.get("/briefings/daily")
+async def briefings_daily():
+    return await build_daily_briefing(get_config())
 
 
 @app.get("/ai/providers")
