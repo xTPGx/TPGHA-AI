@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.35
+
+- Added Jarvis phase 131 profile cleanup UI.
+- Added owner-facing Users-page cleanup preview for stale dismissed follow-up preferences.
+- Added explicit Apply cleanup action that uses the guarded dry-run-first backend cleanup path.
+- Added `/brain/phase-131` and Jarvis Brain readiness evidence for profile cleanup management.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.34
 
 - Added Jarvis phase 130 follow-up preference cleanup.

@@ -1186,6 +1186,22 @@ async def build_jarvis_phase_130(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_131(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 131,
+        "profile_cleanup_ui": {
+            "page": "Users",
+            "preview_action": "Preview cleanup",
+            "apply_action": "Apply cleanup",
+            "source_endpoint": "/ops/chat-followups/preferences/cleanup",
+            "owner_visible": True,
+        },
+        "guardrail": "Phase 131 keeps cleanup explicit in owner profile management and preserves the dry-run-first workflow.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

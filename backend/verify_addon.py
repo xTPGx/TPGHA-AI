@@ -798,6 +798,16 @@ def main() -> int:
     check("phase 130 endpoint is exposed",
           "/brain/phase-130" in backend_main,
           "Backend must expose the phase 130 followup preference cleanup marker.")
+    check("phase 131 profile cleanup UI is wired",
+          "Preview cleanup" in users_frontend
+          and "Apply cleanup" in users_frontend
+          and "cleanupChatFollowupPreferences" in users_frontend
+          and "profile_cleanup_ui" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_131" in experience_brain,
+          "Owner profile management needs visible cleanup preview/apply controls.")
+    check("phase 131 endpoint is exposed",
+          "/brain/phase-131" in backend_main,
+          "Backend must expose the phase 131 profile cleanup UI marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2268,6 +2278,16 @@ def main() -> int:
           r.json().get("phase") == 130
           and r.json().get("followup_preference_cleanup", {}).get("dry_run_default") is True
           and r.json().get("followup_preference_cleanup", {}).get("pinned_protected") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-131")
+    check("/brain/phase-131 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-131 has profile cleanup UI marker",
+          r.json().get("phase") == 131
+          and r.json().get("profile_cleanup_ui", {}).get("preview_action") == "Preview cleanup"
+          and r.json().get("profile_cleanup_ui", {}).get("apply_action") == "Apply cleanup",
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -1077,7 +1077,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Cleanup defaults to dry-run and only applies when explicitly requested.",
                 "Pinned follow-up preferences are protected from cleanup.",
             ],
-            "next": "Add an owner-visible cleanup preview in the profile management UI.",
+            "next": "Expose cleanup in owner profile management so tuning data is maintainable.",
+        },
+        {
+            "id": "profile_cleanup_ui",
+            "title": "Profile Cleanup UI",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "The Users page includes a Preview cleanup action for stale dismissed follow-up preferences.",
+                "Owners can review cleanup candidates before applying removal.",
+                "The Apply cleanup action uses the same guarded backend endpoint and keeps pinned preferences protected.",
+            ],
+            "next": "Add runbook/release export actions into the setup and dashboard surfaces.",
         },
         {
             "id": "operational_runbook",

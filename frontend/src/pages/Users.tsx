@@ -32,6 +32,8 @@ export default function Users() {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState("");
+  const [cleanupPreview, setCleanupPreview] = useState<any | null>(null);
+  const [cleaning, setCleaning] = useState(false);
   const [message, setMessage] = useState("");
 
   const load = async () => setCfg(await api.config());
@@ -123,6 +125,34 @@ export default function Users() {
     }
   };
 
+  const previewCleanup = async () => {
+    setCleaning(true);
+    setMessage("");
+    try {
+      const result = await api.cleanupChatFollowupPreferences({ max_age_days: 90, apply: false });
+      setCleanupPreview(result);
+      setMessage(`Found ${result.candidate_count || 0} stale dismissed follow-up preferences.`);
+    } catch (e: any) {
+      setMessage(e.message || String(e));
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const applyCleanup = async () => {
+    setCleaning(true);
+    setMessage("");
+    try {
+      const result = await api.cleanupChatFollowupPreferences({ max_age_days: cleanupPreview?.max_age_days ?? 90, apply: true });
+      setCleanupPreview(result);
+      setMessage(`Cleaned up ${result.removed || 0} stale dismissed follow-up preferences.`);
+    } catch (e: any) {
+      setMessage(e.message || String(e));
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -132,6 +162,9 @@ export default function Users() {
           <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={() => void syncUsers()} disabled={syncing}>
               {syncing ? "Syncing..." : "Sync from HA"}
+            </Button>
+            <Button variant="ghost" onClick={() => void previewCleanup()} disabled={cleaning}>
+              {cleaning ? "Checking..." : "Preview cleanup"}
             </Button>
             <Button onClick={() => editUser()}>Add Manual Profile</Button>
           </div>
@@ -143,6 +176,38 @@ export default function Users() {
       </div>
 
       {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+
+      {cleanupPreview && (
+        <div className="card mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold">Follow-up preference cleanup</div>
+              <div className="mt-1 text-sm text-slate-400">
+                {cleanupPreview.candidate_count || 0} stale dismissed suggestions older than {cleanupPreview.max_age_days || 90} days.
+                Pinned follow-ups are protected.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={() => void previewCleanup()} disabled={cleaning}>Refresh preview</Button>
+              <Button onClick={() => void applyCleanup()} disabled={cleaning || !cleanupPreview.candidate_count}>
+                Apply cleanup
+              </Button>
+            </div>
+          </div>
+          {!!cleanupPreview.candidates?.length && (
+            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+              {cleanupPreview.candidates.slice(0, 6).map((item: any) => (
+                <div key={`${item.user}-${item.assistant}-${item.followup_id}`} className="rounded border border-slate-800 bg-slate-950/40 p-3 text-sm">
+                  <div className="font-semibold text-slate-200">{item.text || item.followup_id}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {item.user || "any user"} / {item.assistant || "any assistant"} / {item.state}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {editor && (
         <div className="card mb-6">
