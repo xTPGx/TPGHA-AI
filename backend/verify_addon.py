@@ -114,8 +114,10 @@ def main() -> int:
     discovery_classifier = (repo_root / "backend" / "app" / "discovery" / "classifier.py").read_text(encoding="utf-8")
     discovery_registry = (repo_root / "backend" / "app" / "discovery" / "registry.py").read_text(encoding="utf-8")
     discovery_recommendations = (repo_root / "backend" / "app" / "discovery" / "recommendations.py").read_text(encoding="utf-8")
+    entity_intelligence = (repo_root / "backend" / "app" / "entity_intelligence.py").read_text(encoding="utf-8")
     config_loader = (repo_root / "backend" / "app" / "config_loader.py").read_text(encoding="utf-8")
     discovery_frontend = (repo_root / "frontend" / "src" / "pages" / "Discovery.tsx").read_text(encoding="utf-8")
+    entities_frontend = (repo_root / "frontend" / "src" / "pages" / "Entities.tsx").read_text(encoding="utf-8")
     outcomes_source = (repo_root / "backend" / "app" / "outcomes.py").read_text(encoding="utf-8")
     media_brain = (repo_root / "backend" / "app" / "media_brain.py").read_text(encoding="utf-8")
     situational_brain = (repo_root / "backend" / "app" / "situational_brain.py").read_text(encoding="utf-8")
@@ -207,6 +209,14 @@ def main() -> int:
           and "c.auto_approvable" in discovery_recommendations
           and "Approve as light" in discovery_frontend,
           "Obvious HA domains should map themselves, merge room lights/fans, and keep mobile diagnostics out of manual device chores.")
+    check("Entity smart naming and health diagnostics are wired",
+          "smart_entity_name" in entity_intelligence
+          and "unavailable_diagnosis" in entity_intelligence
+          and "Browser Mod entity is unavailable" in entity_intelligence
+          and "enrich_entity" in backend_main
+          and "Jarvis name" in entities_frontend
+          and "recommended_action" in discovery_frontend,
+          "Entities and Discovery should show Jarvis-friendly names, aliases, and offline repair hints.")
     check("Chat voice session has runtime status and cancel",
           "VoiceSessionBar" in chat_frontend
           and "recordingSeconds" in chat_frontend

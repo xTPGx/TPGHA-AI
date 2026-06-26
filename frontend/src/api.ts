@@ -88,6 +88,16 @@ export interface HAEntity {
   domain: string;
   available: boolean;
   attributes: Record<string, any>;
+  smart_name?: string;
+  smart_aliases?: string[];
+  rename_recommended?: boolean;
+  rename_reason?: string;
+  device_kind?: string;
+  browser_mod_role?: string;
+  jarvis_use?: string;
+  health?: Record<string, any>;
+  unavailable_reason?: string;
+  recommended_action?: string;
 }
 
 export const api = {

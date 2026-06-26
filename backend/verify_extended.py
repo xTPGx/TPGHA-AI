@@ -53,8 +53,12 @@ FAKE_STATES = {
     "fan.office": "on",
     "fan.den_fan": "unavailable",
     "fan.garage": "unavailable",
+    "light.den_fan": "unavailable",
+    "light.garage": "unavailable",
     "climate.living_room_living_room": "cool",
     "camera.front_yard_front_yard": "streaming",
+    "sensor.browser_mod_714ad9dd_8fcfca52_browser_id": "unavailable",
+    "light.browser_mod_714ad9dd_8fcfca52_screen": "unavailable",
     "media_player.office_speaker": "idle",
     "sensor.backup_backup_manager_state": "idle",
     "sensor.tpg_iphone17_app_version": "2026.1",
@@ -64,6 +68,11 @@ FAKE_STATES = {
 FAKE_FRIENDLY = {
     "light.new_lamp": "Office Lamp",
     "fan.den_fan": "Den Fan",
+    "fan.garage": "Garage",
+    "light.den_fan": "Den Fan",
+    "light.garage": "Garage",
+    "sensor.browser_mod_714ad9dd_8fcfca52_browser_id": "Browser ID",
+    "light.browser_mod_714ad9dd_8fcfca52_screen": "Screen",
     "sensor.backup_backup_manager_state": "Backup Backup Manager state",
     "sensor.tpg_iphone17_app_version": "TPG iPhone17 App Version",
     "sensor.tpg_iphone17_bssid": "TPG iPhone17 BSSID",
@@ -194,6 +203,35 @@ async def main():
     check("P2 den fan classified as fan", fan_new and fan_new["likely_device_type"] == "fan")
     check("P2 den fan unavailable but not ignored",
           fan_new and fan_new["is_available"] is False and fan_new["status"] != "ignored")
+    check("P2 unavailable den fan is not auto-approved",
+          fan_new and fan_new["auto_approvable"] is False
+          and "fan.den_fan" not in res.get("auto_approved", []),
+          str(fan_new))
+    garage_fan = next((e for e in res["entities"] if e["entity_id"] == "fan.garage"), None)
+    check("P2 garage fan smart name",
+          garage_fan and garage_fan["suggested_name"] == "Garage Fan",
+          str(garage_fan))
+    check("P2 garage fan avoids bare room alias",
+          garage_fan and "garage fan" in garage_fan["suggested_aliases"]
+          and "garage" not in garage_fan["suggested_aliases"],
+          str(garage_fan))
+    den_light = next((e for e in res["entities"] if e["entity_id"] == "light.den_fan"), None)
+    check("P2 den fan light gets corrected name",
+          den_light and den_light["suggested_name"] == "Den Light",
+          str(den_light))
+    check("P2 den light aliases avoid wrong fan alias",
+          den_light and "den fan" not in den_light["suggested_aliases"]
+          and "den light" in den_light["suggested_aliases"],
+          str(den_light))
+    browser_diag = next((e for e in res["entities"]
+                         if e["entity_id"] == "sensor.browser_mod_714ad9dd_8fcfca52_browser_id"), None)
+    check("P2 browser mod diagnostic is not house device",
+          browser_diag and browser_diag["suggested_category"] == "browser_mod_diagnostic"
+          and browser_diag["auto_approvable"] is False,
+          str(browser_diag))
+    check("P2 browser mod unavailable explains panel connection",
+          browser_diag and "Browser Mod" in browser_diag["unavailable_reason"],
+          str(browser_diag))
     lock_c = next((e for e in res["entities"] if e["entity_id"] == "lock.front_door"), None)
     check("P2 lock unlock is critical-risk",
           lock_c and lock_c["risk_level"] == "high")

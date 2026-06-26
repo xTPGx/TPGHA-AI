@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.59
+
+- Added shared entity intelligence for smart Jarvis names, aliases, Browser Mod roles, and offline health explanations.
+- Discovery approvals now use corrected domain-aware names such as "Garage Fan", "Garage Light", and "Den Light" instead of raw ambiguous HA names.
+- Unavailable entities are no longer auto-approved; they stay visible with repair guidance for Tuya/Smart Life split surfaces, stale restored entities, and disconnected Browser Mod panels.
+- Entities now shows Jarvis name, raw HA name, aliases, Browser Mod role, and actionable health details for unavailable rows.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.58
 
 - Added smart Discovery automapping for obvious Home Assistant domains: lights, fans, people, and personal device trackers no longer require manual generic mapping.

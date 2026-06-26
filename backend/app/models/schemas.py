@@ -476,3 +476,13 @@ class HAEntity(BaseModel):
     domain: str
     available: bool = True
     attributes: dict[str, Any] = Field(default_factory=dict)
+    smart_name: Optional[str] = None
+    smart_aliases: list[str] = Field(default_factory=list)
+    rename_recommended: bool = False
+    rename_reason: str = ""
+    device_kind: str = ""
+    browser_mod_role: str = ""
+    jarvis_use: str = ""
+    health: dict[str, Any] = Field(default_factory=dict)
+    unavailable_reason: str = ""
+    recommended_action: str = ""

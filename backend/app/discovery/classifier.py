@@ -6,6 +6,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from ..entity_intelligence import (
+    browser_mod_role,
+    is_browser_mod_entity,
+    smart_entity_name,
+    unavailable_diagnosis,
+)
 from ..models.schemas import AppConfig, HAEntity
 from . import capabilities as caps
 
@@ -60,6 +66,7 @@ class EntityClassification:
     domain: str
     friendly_name: str
     state: str
+    suggested_name: str
     likely_room: Optional[str]
     likely_device_type: str
     capabilities: list[str]
@@ -70,6 +77,11 @@ class EntityClassification:
     approval_label: str
     auto_approvable: bool
     confidence: float
+    rename_recommended: bool
+    rename_reason: str
+    unavailable_reason: str
+    recommended_action: str
+    browser_mod_role: str
     is_available: bool
     is_duplicate_candidate: bool
     reason: str
@@ -129,6 +141,16 @@ def _suggest_aliases(friendly: str, room_id: Optional[str], domain: str) -> list
         kind = {"media_player": "speaker"}.get(domain, domain)
         out.append(f"{room_id.replace('_', ' ')} {kind}")
     return list(dict.fromkeys([a for a in out if a]))
+
+
+def _merge_aliases(*groups: list[str]) -> list[str]:
+    out: list[str] = []
+    for group in groups:
+        for alias in group or []:
+            normed = _norm(alias)
+            if normed and normed not in out:
+                out.append(normed)
+    return out
 
 
 def _mobile_signal_text(entity: HAEntity, friendly: str) -> str:
@@ -218,6 +240,8 @@ def _approval_label(mapping: str, category: str, domain: str) -> str:
 def _auto_approvable(domain: str, category: str, risk: str, duplicate: bool) -> bool:
     if duplicate or risk in {"high", "critical"}:
         return False
+    if category in {"browser_mod_panel", "browser_mod_diagnostic"}:
+        return False
     if category in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
         return False
     return domain in {"light", "fan", "person", "device_tracker"} or category == "personal_device"
@@ -225,7 +249,8 @@ def _auto_approvable(domain: str, category: str, risk: str, duplicate: bool) -> 
 
 def classify(entity: HAEntity, config: AppConfig,
              configured_ids: Optional[set[str]] = None,
-             room_idx: Optional[dict[str, str]] = None) -> EntityClassification:
+             room_idx: Optional[dict[str, str]] = None,
+             all_states: Optional[dict[str, HAEntity]] = None) -> EntityClassification:
     if configured_ids is None:
         configured_ids = _configured_entity_ids(config)
     if room_idx is None:
@@ -241,6 +266,24 @@ def classify(entity: HAEntity, config: AppConfig,
     mapping = _MAPPING_BY_DOMAIN.get(domain, "device_aliases")
     aliases = _suggest_aliases(friendly, room, domain)
     likely_type = domain
+    sibling_ids = list((all_states or {}).keys())
+    smart = smart_entity_name(
+        entity.entity_id,
+        domain,
+        friendly,
+        room_id=room,
+        siblings=[eid for eid in sibling_ids if eid != entity.entity_id],
+    )
+    suggested_name = smart["name"] or friendly
+    aliases = _merge_aliases(smart["aliases"], aliases)
+    health = unavailable_diagnosis(entity, all_states or {})
+    browser_role = browser_mod_role(entity)
+
+    if is_browser_mod_entity(entity.entity_id, friendly):
+        category = "browser_mod_panel" if browser_role in {"panel_screen", "panel_speaker"} else "browser_mod_diagnostic"
+        mapping = "device_aliases"
+        likely_type = browser_role or "browser_mod"
+        aliases = _merge_aliases(aliases, ["browser mod panel"])
 
     if entity.domain in {"sensor", "binary_sensor"} and _is_personal_device_entity(entity, friendly):
         category = "personal_device_sensor"
@@ -253,6 +296,13 @@ def classify(entity: HAEntity, config: AppConfig,
         mapping = "personal_devices"
         likely_type = device_type
         aliases = list(dict.fromkeys([*aliases, platform, device_type]))
+
+    if domain == "light" and "domain is light" in str(smart.get("rename_reason") or ""):
+        aliases = [a for a in aliases if not _contains_phrase(_tokens(a), "fan")]
+    elif domain == "fan" and "domain is fan" in str(smart.get("rename_reason") or ""):
+        aliases = [a for a in aliases if not _contains_phrase(_tokens(a), "light")]
+    if room and domain in {"light", "fan", "switch"}:
+        aliases = [a for a in aliases if a != _norm(room)]
 
     avoid = set(config.devices.avoid)
     is_known = entity.entity_id in configured_ids
@@ -276,11 +326,13 @@ def classify(entity: HAEntity, config: AppConfig,
         reason_bits.append("already mapped in config")
     if not is_available:
         reason_bits.append("currently unavailable (kept, not auto-ignored)")
+        if health.get("reason"):
+            reason_bits.append(str(health["reason"]))
     if dup:
         reason_bits.append("possible duplicate surface")
     if room:
         reason_bits.append(f"likely room {room}")
-    auto_ok = _auto_approvable(domain, category, risk, dup)
+    auto_ok = is_available and _auto_approvable(domain, category, risk, dup)
     if auto_ok:
         reason_bits.append("safe obvious HA domain auto-map")
 
@@ -289,6 +341,7 @@ def classify(entity: HAEntity, config: AppConfig,
         domain=domain,
         friendly_name=friendly,
         state=entity.state,
+        suggested_name=suggested_name,
         likely_room=room,
         likely_device_type=likely_type,
         capabilities=capability,
@@ -299,6 +352,11 @@ def classify(entity: HAEntity, config: AppConfig,
         approval_label=_approval_label(mapping, category, domain),
         auto_approvable=auto_ok,
         confidence=1.0 if domain in _CATEGORY_BY_DOMAIN else 0.65,
+        rename_recommended=bool(smart.get("rename_recommended")),
+        rename_reason=str(smart.get("rename_reason") or ""),
+        unavailable_reason=str(health.get("reason") or "") if not is_available else "",
+        recommended_action=str(health.get("recommended_action") or ""),
+        browser_mod_role=browser_role,
         is_available=is_available,
         is_duplicate_candidate=dup,
         reason="; ".join(reason_bits),

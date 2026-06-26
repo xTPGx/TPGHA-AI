@@ -45,7 +45,7 @@ async def scan(auto_low_risk: bool = False,
     for entity in states.values():
         if entity.domain not in SUPPORTED_DOMAINS:
             continue
-        classifications.append(classify(entity, config, configured, room_idx))
+        classifications.append(classify(entity, config, configured, room_idx, states))
 
     registry.sync_classifications(classifications)
 
@@ -54,7 +54,7 @@ async def scan(auto_low_risk: bool = False,
     for c in classifications:
         if recommendations.should_auto_approve(c, auto_low_risk, auto_domains or []):
             registry.approve(c.entity_id, mapping=c.suggested_mapping,
-                             room=c.likely_room, friendly_name=c.friendly_name,
+                             room=c.likely_room, friendly_name=c.suggested_name,
                              aliases=c.suggested_aliases)
             c.status = "approved"
             auto_approved.append(c.entity_id)

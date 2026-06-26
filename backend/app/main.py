@@ -36,6 +36,7 @@ from .db.models import CommandLog
 from .discovery import registry as discovery_registry
 from .discovery import scanner as discovery_scanner
 from .events import get_event_bus
+from .entity_intelligence import enrich_entity
 from .homeassistant.rest import HAError, get_ha_client
 from .homeassistant.services import get_states_cache, normalize_entity
 from .homeassistant.websocket import HomeAssistantWebSocket
@@ -242,7 +243,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.58"
+APP_VERSION = "1.2.59"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -743,7 +744,9 @@ async def ha_entities():
         raw = await ha.get_states()
     except HAError as exc:
         raise HTTPException(status_code=502, detail=exc.message)
-    return [normalize_entity(item).model_dump() for item in raw]
+    entities = [normalize_entity(item) for item in raw]
+    states = {entity.entity_id: entity for entity in entities}
+    return [enrich_entity(entity, states) for entity in entities]
 
 
 @app.get("/ha/entity/{entity_id}")
@@ -756,7 +759,12 @@ async def ha_entity(entity_id: str):
         raise HTTPException(status_code=status, detail=exc.message)
     if not item:
         raise HTTPException(status_code=404, detail="Entity not found")
-    return normalize_entity(item).model_dump()
+    entity = normalize_entity(item)
+    try:
+        states = await get_states_cache().get_states()
+    except HAError:
+        states = {entity.entity_id: entity}
+    return enrich_entity(entity, states)
 
 
 # -------------------------------------------------------------------- commands

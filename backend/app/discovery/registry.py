@@ -17,6 +17,13 @@ import yaml
 
 from ..db.database import get_session
 from ..db.models import DiscoveredEntity
+from ..entity_intelligence import (
+    browser_mod_role,
+    is_browser_mod_entity,
+    smart_entity_name,
+    unavailable_diagnosis,
+)
+from ..models.schemas import HAEntity
 from ..settings import get_settings
 from .classifier import EntityClassification
 
@@ -94,6 +101,15 @@ def _derive_device_name(entity_id: str, friendly: str = "") -> str:
 def _semantic_category(entity_id: str, domain: str, category: str = "",
                        friendly: str = "") -> str:
     text = f"{entity_id} {friendly} {category}".lower()
+    if is_browser_mod_entity(entity_id, friendly):
+        role = browser_mod_role(HAEntity(
+            entity_id=entity_id,
+            state="unknown",
+            friendly_name=friendly,
+            domain=domain,
+            available=False,
+        ))
+        return "browser_mod_panel" if role in {"panel_screen", "panel_speaker"} else "browser_mod_diagnostic"
     if category == "personal_device" and domain in {"sensor", "binary_sensor"}:
         return "personal_device_sensor"
     if category == "personal_device" or domain == "device_tracker":
@@ -156,6 +172,10 @@ def _approval_label(mapping: str, semantic: str, domain: str) -> str:
         return "Approve as person"
     if mapping == "personal_devices":
         return "Map as personal device"
+    if semantic == "browser_mod_panel":
+        return "Approve as panel control"
+    if semantic == "browser_mod_diagnostic":
+        return "Approve as panel diagnostic"
     if semantic in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
         return "Approve as diagnostic"
     if domain == "switch":
@@ -165,6 +185,8 @@ def _approval_label(mapping: str, semantic: str, domain: str) -> str:
 
 def _auto_approvable(domain: str, semantic: str, risk: str, duplicate: bool) -> bool:
     if duplicate or risk in {"high", "critical"}:
+        return False
+    if semantic in {"browser_mod_panel", "browser_mod_diagnostic"}:
         return False
     if semantic in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
         return False
@@ -203,15 +225,20 @@ def get_pending() -> list[dict[str, Any]]:
     with get_session() as session:
         rows = session.query(DiscoveredEntity).filter(
             DiscoveredEntity.status == "new").all()
-        return [_row_dict(r) for r in rows]
+        return _row_dicts(rows)
 
 
 def get_all() -> list[dict[str, Any]]:
     with get_session() as session:
-        return [_row_dict(r) for r in session.query(DiscoveredEntity).all()]
+        return _row_dicts(session.query(DiscoveredEntity).all())
 
 
-def _row_dict(r: DiscoveredEntity) -> dict[str, Any]:
+def _row_dicts(rows: list[DiscoveredEntity]) -> list[dict[str, Any]]:
+    all_ids = [r.entity_id for r in rows]
+    return [_row_dict(r, all_ids) for r in rows]
+
+
+def _row_dict(r: DiscoveredEntity, all_entity_ids: Optional[list[str]] = None) -> dict[str, Any]:
     try:
         aliases = json.loads(r.suggested_aliases) if r.suggested_aliases else []
     except json.JSONDecodeError:
@@ -221,21 +248,65 @@ def _row_dict(r: DiscoveredEntity) -> dict[str, Any]:
     device_name = _derive_device_name(r.entity_id, r.friendly_name or "")
     suggested_mapping = _suggested_mapping(semantic, r.domain or "")
     duplicate = "possible duplicate" in (r.reason or "").lower()
+    state = "unknown" if r.is_available else "unavailable"
+    entity = HAEntity(
+        entity_id=r.entity_id,
+        state=state,
+        friendly_name=r.friendly_name or "",
+        domain=r.domain or r.entity_id.split(".", 1)[0],
+        available=bool(r.is_available),
+    )
+    sibling_states = {
+        eid: HAEntity(
+            entity_id=eid,
+            state="unknown",
+            friendly_name="",
+            domain=eid.split(".", 1)[0],
+            available=False,
+        )
+        for eid in (all_entity_ids or [])
+        if eid != r.entity_id
+    }
+    smart = smart_entity_name(
+        r.entity_id,
+        r.domain or "",
+        r.friendly_name or "",
+        room_id=r.room or None,
+        siblings=(all_entity_ids or []),
+    )
+    if smart.get("aliases"):
+        aliases = list(dict.fromkeys([*smart["aliases"], *aliases]))
+    if (r.domain or "") == "light" and "domain is light" in str(smart.get("rename_reason") or ""):
+        aliases = [a for a in aliases if " fan" not in f" {a} "]
+    elif (r.domain or "") == "fan" and "domain is fan" in str(smart.get("rename_reason") or ""):
+        aliases = [a for a in aliases if " light" not in f" {a} "]
+    if r.room and (r.domain or "") in {"light", "fan", "switch"}:
+        aliases = [a for a in aliases if a != r.room.replace("_", " ").lower()]
+    health = unavailable_diagnosis(entity, sibling_states)
+    browser_role = browser_mod_role(entity)
     return {
         "entity_id": r.entity_id, "status": r.status, "domain": r.domain,
         "friendly_name": r.friendly_name, "category": r.category,
+        "suggested_name": smart.get("name") or r.friendly_name,
+        "smart_aliases": smart.get("aliases", []),
+        "rename_recommended": bool(smart.get("rename_recommended")),
+        "rename_reason": smart.get("rename_reason") or "",
         "suggested_category": r.category, "semantic_category": semantic,
         "room": r.room, "likely_room": r.room,
         "device_name": device_name, "source": "Home Assistant",
         "source_detail": "Home Assistant entity state registry (/api/states)",
         "suggested_mapping": suggested_mapping,
         "approval_label": _approval_label(suggested_mapping, semantic, r.domain or ""),
-        "auto_approvable": _auto_approvable(
+        "auto_approvable": bool(r.is_available) and _auto_approvable(
             r.domain or "", semantic, r.risk_level or "low", duplicate
         ),
         "confidence": 1.0 if r.domain else 0.65,
         "risk_level": r.risk_level, "suggested_aliases": aliases,
         "reason": r.reason, "is_available": r.is_available,
+        "browser_mod_role": browser_role,
+        "health": health,
+        "unavailable_reason": health.get("reason", "") if not r.is_available else "",
+        "recommended_action": health.get("recommended_action", ""),
         "is_duplicate_candidate": duplicate,
         "ignore_reason": r.ignore_reason,
     }

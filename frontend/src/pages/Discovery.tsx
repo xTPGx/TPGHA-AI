@@ -9,6 +9,7 @@ interface Discovered {
   entity_id: string;
   domain: string;
   friendly_name: string;
+  suggested_name?: string;
   device_name?: string;
   source?: string;
   source_detail?: string;
@@ -25,6 +26,13 @@ interface Discovered {
   approval_label?: string;
   auto_approvable?: boolean;
   confidence?: number;
+  smart_aliases?: string[];
+  rename_recommended?: boolean;
+  rename_reason?: string;
+  health?: Record<string, any>;
+  unavailable_reason?: string;
+  recommended_action?: string;
+  browser_mod_role?: string;
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -131,16 +139,16 @@ export default function Discovery() {
         await api.approve({
           entity_id: d.entity_id,
           room: roomOf(d),
-          friendly_name: d.friendly_name,
-          aliases: d.suggested_aliases,
+          friendly_name: d.suggested_name || d.friendly_name,
+          aliases: d.smart_aliases?.length ? d.smart_aliases : d.suggested_aliases,
         });
       } else {
         await api.mapEntity({
           entity_id: d.entity_id,
           target,
           room: roomOf(d),
-          friendly_name: d.friendly_name,
-          aliases: d.suggested_aliases,
+          friendly_name: d.suggested_name || d.friendly_name,
+          aliases: d.smart_aliases?.length ? d.smart_aliases : d.suggested_aliases,
         });
       }
       await load();
@@ -277,10 +285,14 @@ function EntityCard({
         <span className={`badge ${RISK_COLORS[d.risk_level] || ""}`}>{d.risk_level}</span>
         <Badge>{prettyCategory(categoryOf(d))}</Badge>
         {d.auto_approvable && <Badge tone="good">smart map</Badge>}
+        {d.rename_recommended && <Badge tone="brand">smart name</Badge>}
         {!d.is_available && <Badge tone="warn">unavailable</Badge>}
         {d.is_duplicate_candidate && <Badge tone="warn">duplicate?</Badge>}
       </div>
-      <div className="mt-2 text-base font-semibold text-slate-100">{d.friendly_name}</div>
+      <div className="mt-2 text-base font-semibold text-slate-100">{d.suggested_name || d.friendly_name}</div>
+      {d.suggested_name && d.suggested_name !== d.friendly_name && (
+        <div className="mt-1 text-xs text-slate-500">HA name: {d.friendly_name}</div>
+      )}
       <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
         <div>Device: <span className="text-slate-300">{d.device_name || "-"}</span></div>
         <div>Room: <span className="text-slate-300">{roomOf(d) || "-"}</span></div>
@@ -288,8 +300,15 @@ function EntityCard({
         <div>Mapping: <span className="text-slate-300">{prettyCategory(d.suggested_mapping || "device_aliases")}</span></div>
       </div>
       <div className="mt-2 text-xs text-slate-500">
-        Aliases: {(d.suggested_aliases || []).join(", ") || "-"}
+        Aliases: {(d.smart_aliases?.length ? d.smart_aliases : d.suggested_aliases || []).join(", ") || "-"}
       </div>
+      {d.rename_reason && <div className="mt-2 text-xs text-sky-200">{d.rename_reason}</div>}
+      {!d.is_available && d.unavailable_reason && (
+        <div className="mt-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100">
+          <div>{d.unavailable_reason}</div>
+          {d.recommended_action && <div className="mt-1 text-amber-200/80">{d.recommended_action}</div>}
+        </div>
+      )}
       <div className="mt-2 text-xs leading-relaxed text-slate-500">{d.reason}</div>
       <div className="mt-3 flex flex-wrap gap-2">
         {mapTargets(d).map((t) => (
