@@ -1,4 +1,4 @@
-"""Experience and release acceptance brains for Jarvis phases 92-97."""
+"""Experience and release acceptance brains for Jarvis phases 92-101."""
 from __future__ import annotations
 
 import datetime as dt
@@ -294,6 +294,58 @@ def list_live_acceptance_results(limit: int = 100) -> dict[str, Any]:
     }
 
 
+async def build_live_acceptance_report(config: AppConfig, version: str) -> dict[str, Any]:
+    live = await build_live_acceptance_runner(config)
+    evidence = live.get("evidence", {})
+    latest_by_test = evidence.get("latest_by_test", {}) or {}
+    tests = live.get("tests", []) or []
+    required_passes = 5
+    required_test_ids = [test["id"] for test in tests]
+    passed_tests = sorted(
+        test_id
+        for test_id in required_test_ids
+        if latest_by_test.get(test_id, {}).get("status") == "passed"
+    )
+    failed_or_blocked_tests = sorted(
+        test_id
+        for test_id in required_test_ids
+        if latest_by_test.get(test_id, {}).get("status") in {"failed", "blocked"}
+    )
+    missing_tests = sorted(
+        test_id
+        for test_id in required_test_ids
+        if latest_by_test.get(test_id, {}).get("status") != "passed"
+    )
+    blockers = list(live.get("blockers", []) or [])
+    if len(passed_tests) < required_passes:
+        blockers.append(f"Record at least {required_passes} passed acceptance checks.")
+    if failed_or_blocked_tests:
+        blockers.append(f"Resolve {len(failed_or_blocked_tests)} failed or blocked checks.")
+    status = "ready" if len(passed_tests) >= required_passes and not failed_or_blocked_tests else "attention"
+    report = {
+        "status": status,
+        "version": version,
+        "generated_at": dt.datetime.utcnow().isoformat() + "Z",
+        "policy": live.get("policy", {}),
+        "summary": {
+            "tests": len(tests),
+            "evidence_results": evidence.get("count", 0),
+            "required_passes": required_passes,
+            "passed": len(passed_tests),
+            "failed_or_blocked": len(failed_or_blocked_tests),
+            "missing": len(missing_tests),
+        },
+        "passed_tests": passed_tests,
+        "failed_or_blocked_tests": failed_or_blocked_tests,
+        "missing_tests": missing_tests,
+        "latest_by_test": latest_by_test,
+        "blockers": blockers,
+        "markdown": "",
+    }
+    report["markdown"] = _live_acceptance_report_markdown(report, tests)
+    return report
+
+
 async def build_release_checklist(config: AppConfig, version: str) -> dict[str, Any]:
     settings = get_settings()
     interaction = build_interaction_quality_report(config)
@@ -379,6 +431,17 @@ async def build_jarvis_phase_97(config: AppConfig, version: str) -> dict[str, An
     }
 
 
+async def build_jarvis_phase_101(config: AppConfig, version: str) -> dict[str, Any]:
+    report = await build_live_acceptance_report(config, version)
+    return {
+        "status": report["status"],
+        "version": version,
+        "phase": 101,
+        "acceptance_report": report,
+        "guardrail": "Phase 101 exports live-house acceptance evidence without changing real devices.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -413,6 +476,51 @@ def _acceptance_run_card(row: AcceptanceRun) -> dict[str, Any]:
         "evidence": _safe_json(row.evidence),
         "version": row.version,
     }
+
+
+def _live_acceptance_report_markdown(report: dict[str, Any], tests: list[dict[str, Any]]) -> str:
+    latest_by_test = report.get("latest_by_test", {}) or {}
+    summary = report.get("summary", {}) or {}
+    lines = [
+        "# TPG HomeAI Live Acceptance Report",
+        "",
+        f"- Version: {report.get('version')}",
+        f"- Generated: {report.get('generated_at')}",
+        f"- Status: {report.get('status')}",
+        f"- Evidence results: {summary.get('evidence_results', 0)}",
+        f"- Passed checks: {summary.get('passed', 0)}/{summary.get('required_passes', 0)} required",
+        f"- Failed or blocked checks: {summary.get('failed_or_blocked', 0)}",
+        "",
+        "## Policy",
+        "",
+        f"- Read-only runner: {report.get('policy', {}).get('read_only')}",
+        f"- Executes actions: {report.get('policy', {}).get('executes_actions')}",
+        f"- Human-run mutating tests required: {report.get('policy', {}).get('requires_human_to_run_mutating_tests')}",
+        "",
+        "## Blockers",
+        "",
+    ]
+    blockers = report.get("blockers", []) or []
+    if blockers:
+        lines.extend(f"- {blocker}" for blocker in blockers)
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Tests", ""])
+    for test in tests:
+        result = latest_by_test.get(test["id"], {})
+        status = result.get("status", "not_recorded")
+        notes = result.get("notes") or test.get("expected_result") or ""
+        lines.append(f"- [{status.upper()}] {test.get('title')} (`{test.get('id')}`)")
+        lines.append(f"  - Mode: {test.get('mode')}")
+        lines.append(f"  - Domain: {test.get('domain')}")
+        lines.append(f"  - Notes: {notes}")
+    lines.extend([
+        "",
+        "## Stop Line",
+        "",
+        "Call live-house deployment complete only after enough required checks pass and no failed or blocked checks remain.",
+    ])
+    return "\n".join(lines)
 
 
 def _interaction_recommendations(total: int, failed: list[CommandLog], confusion: list[CommandLog]) -> list[str]:

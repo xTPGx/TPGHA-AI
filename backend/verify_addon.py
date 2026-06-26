@@ -497,6 +497,16 @@ def main() -> int:
           and "required_acceptance_passes" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
           and "failed_or_blocked" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
           "Jarvis completion must require recorded live-house acceptance evidence.")
+    check("phase 101 live acceptance report exists",
+          "build_live_acceptance_report" in experience_brain
+          and "build_jarvis_phase_101" in experience_brain
+          and "# TPG HomeAI Live Acceptance Report" in experience_brain
+          and "acceptance_release_report" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Live acceptance evidence must be exportable as structured JSON and Markdown.")
+    check("phase 101 endpoints are exposed",
+          "/experience/live-acceptance/report" in backend_main
+          and "/brain/phase-101" in backend_main,
+          "Backend must expose the live acceptance report and phase 101 summary.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1349,6 +1359,25 @@ def main() -> int:
           r.status_code == 200
           and is_json(r)
           and r.json().get("evidence", {}).get("count", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/experience/live-acceptance/report")
+    check("/experience/live-acceptance/report returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/experience/live-acceptance/report exports markdown",
+          "# TPG HomeAI Live Acceptance Report" in r.json().get("markdown", "")
+          and r.json().get("summary", {}).get("evidence_results", 0) >= 1
+          and "blockers" in r.json(),
+          str(r.json()))
+
+    r = client.get("/brain/phase-101")
+    check("/brain/phase-101 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-101 has acceptance report section",
+          r.json().get("phase") == 101
+          and "acceptance_report" in r.json()
+          and "markdown" in r.json().get("acceptance_report", {}),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -43,6 +43,11 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             .filter(AcceptanceRun.status == "passed")
             .count()
         )
+        failed_acceptance = (
+            session.query(AcceptanceRun)
+            .filter(AcceptanceRun.status.in_(["failed", "blocked"]))
+            .count()
+        )
 
     settings = get_settings()
     ai = get_ai_client()
@@ -130,6 +135,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         ),
         "acceptance_runs": acceptance_runs,
         "accepted_tests": accepted_tests,
+        "failed_acceptance": failed_acceptance,
     }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
@@ -677,6 +683,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Evidence rows preserve test id, status, assistant, user, notes, structured evidence, and version.",
             ],
             "next": "Record pass/fail/blocked evidence for each live acceptance test after running it in the real house.",
+        },
+        {
+            "id": "acceptance_release_report",
+            "title": "Acceptance Release Report",
+            "status": "ready" if acceptance_counts["acceptance_runs"] else "partial",
+            "score": 100 if acceptance_counts["acceptance_runs"] else 78,
+            "evidence": [
+                "Live acceptance report endpoint exports structured JSON and Markdown.",
+                f"{acceptance_counts['acceptance_runs']} acceptance result(s) are available for reporting.",
+                f"{acceptance_counts['accepted_tests']} passed and {acceptance_counts['failed_acceptance']} failed/blocked result(s) recorded.",
+            ],
+            "next": "Use the report as the owner-facing proof that the live house is or is not deployment-complete.",
         },
         {
             "id": "release_checklist",

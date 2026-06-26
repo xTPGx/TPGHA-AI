@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.5
+
+- Added Jarvis phase 101 live acceptance reporting.
+- Added `/experience/live-acceptance/report` with structured JSON plus Markdown evidence export.
+- Added `/brain/phase-101` for the phase summary and guardrail.
+- Expanded Jarvis Brain with an Acceptance Release Report readiness layer.
+- Added verifier coverage for the report endpoint, Markdown export, and phase 101 summary.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.4
 
 - Added Jarvis phase 100 completion evidence gating.

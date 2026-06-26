@@ -144,7 +144,9 @@ from .experience_brain import (
     build_interaction_quality_report,
     build_jarvis_phase_92_96,
     build_jarvis_phase_97,
+    build_jarvis_phase_101,
     list_live_acceptance_results,
+    build_live_acceptance_report,
     build_live_acceptance_runner,
     build_operational_runbook,
     record_live_acceptance_result,
@@ -156,7 +158,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.4"
+APP_VERSION = "1.2.5"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1281,6 +1283,11 @@ async def brain_phase_97():
     return await build_jarvis_phase_97(get_config(), APP_VERSION)
 
 
+@app.get("/brain/phase-101")
+async def brain_phase_101():
+    return await build_jarvis_phase_101(get_config(), APP_VERSION)
+
+
 @app.get("/experience/interaction-quality")
 async def experience_interaction_quality():
     return build_interaction_quality_report(get_config())
@@ -1299,6 +1306,11 @@ async def experience_device_acceptance():
 @app.get("/experience/live-acceptance")
 async def experience_live_acceptance():
     return await build_live_acceptance_runner(get_config())
+
+
+@app.get("/experience/live-acceptance/report")
+async def experience_live_acceptance_report():
+    return await build_live_acceptance_report(get_config(), APP_VERSION)
 
 
 @app.get("/experience/live-acceptance/results")
