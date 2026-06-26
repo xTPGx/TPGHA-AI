@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.8
+
+- Added Jarvis phases 87-91 governance intelligence.
+- Added privacy/data controls, role/permission matrix, memory quality report, redacted context export, and completion readiness auditor.
+- Added `/governance/privacy`, `/governance/roles`, `/governance/memory-quality`, `/context/export`, `/governance/completion-audit`, and `/brain/phase-87-91` endpoints.
+- Expanded Jarvis Brain readiness with privacy, role, memory, export, and completion-audit layers.
+- Kept context export and diagnostics explicitly redacted for support/ChatGPT handoff.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.7
 
 - Added Jarvis phases 82-86 operations intelligence.

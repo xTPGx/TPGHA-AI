@@ -130,19 +130,27 @@ from .operations_brain import (
     build_jarvis_phase_82_86,
     build_onboarding_wizard_plan,
 )
+from .governance_brain import (
+    build_completion_auditor,
+    build_jarvis_phase_87_91,
+    build_memory_quality_report,
+    build_privacy_data_controls,
+    build_redacted_context_export,
+    build_role_permission_matrix,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.1.7"
+APP_VERSION = "1.1.8"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "openapi.json",
+    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "governance", "context", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -1218,6 +1226,36 @@ async def ops_backup_readiness():
 @app.get("/ops/integration-matrix")
 async def ops_integration_matrix():
     return await build_integration_readiness_matrix(get_config())
+
+
+@app.get("/brain/phase-87-91")
+async def brain_phase_87_91():
+    return await build_jarvis_phase_87_91(get_config())
+
+
+@app.get("/governance/privacy")
+async def governance_privacy():
+    return build_privacy_data_controls(get_config())
+
+
+@app.get("/governance/roles")
+async def governance_roles():
+    return build_role_permission_matrix(get_config())
+
+
+@app.get("/governance/memory-quality")
+async def governance_memory_quality():
+    return build_memory_quality_report(get_config())
+
+
+@app.get("/context/export")
+async def context_export():
+    return await build_redacted_context_export(get_config())
+
+
+@app.get("/governance/completion-audit")
+async def governance_completion_audit():
+    return await build_completion_auditor(get_config())
 
 
 @app.get("/ai/providers")

@@ -101,6 +101,14 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "weather": _domain_count(graph, "weather"),
         "pending": pending,
     }
+    governance_counts = {
+        "users": len(config.assistants.users),
+        "admins": sum(1 for user in config.assistants.users if user.role == "admin"),
+        "non_admins": sum(1 for user in config.assistants.users if user.role != "admin"),
+        "ha_synced": sum(1 for user in config.assistants.users if user.access_source == "home_assistant"),
+        "assistants": len(config.assistants.assistants),
+        "approved_memories": approved_memories,
+    }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -525,6 +533,68 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "The matrix is best-effort and uses only safe config/state hints.",
             ],
             "next": "Promote matrix issues into setup suggestions when an expected integration is missing.",
+        },
+        {
+            "id": "privacy_data_controls",
+            "title": "Privacy + Data Controls",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Privacy endpoint explains command logs, notes, memories, suggestions, and house assets.",
+                "Conversation delete is soft-archive, preserving audit history.",
+                "Diagnostics and context exports are marked secrets_redacted.",
+                "Security actions remain confirmation/PIN gated.",
+            ],
+            "next": "Add owner-selectable retention settings after v1 stabilizes.",
+        },
+        {
+            "id": "role_permission_matrix",
+            "title": "Role + Permission Matrix",
+            "status": "ready" if governance_counts["users"] and governance_counts["admins"] else "partial",
+            "score": 100 if governance_counts["users"] and governance_counts["admins"] else 74,
+            "evidence": [
+                f"{governance_counts['users']} user profile(s), {governance_counts['admins']} admin/owner profile(s), and {governance_counts['non_admins']} non-admin profile(s) configured.",
+                f"{governance_counts['ha_synced']} profile(s) synced from Home Assistant.",
+                "Residents can use general AI and draft schedules without dashboard/system management rights.",
+                "Admins/owners can manage all Jarvis and HA configuration surfaces.",
+            ],
+            "next": "Add UI badges showing exactly why each menu item is visible or hidden for the current user.",
+        },
+        {
+            "id": "memory_quality_recall",
+            "title": "Memory Quality + Recall",
+            "status": "ready" if governance_counts["approved_memories"] else "partial",
+            "score": 100 if governance_counts["approved_memories"] else 78,
+            "evidence": [
+                f"{governance_counts['approved_memories']} approved long-term memory item(s).",
+                "Memory quality endpoint reports approved/draft/ignored counts, duplicate keys, and correction-like command signals.",
+                "Memory stays approval-first so repeated corrections do not silently become permanent facts.",
+            ],
+            "next": "Review draft memories until each profile has useful, approved preferences.",
+        },
+        {
+            "id": "redacted_context_export",
+            "title": "Redacted Context Export",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Context export endpoint returns JSON payload and Markdown summary.",
+                "Export includes rooms, users, assistants, privacy counts, memory quality, and approved house assets.",
+                "Secrets are redacted and export is safe for ChatGPT/support handoff.",
+            ],
+            "next": "Add UI download buttons for JSON and Markdown context packs.",
+        },
+        {
+            "id": "completion_auditor",
+            "title": "Completion Readiness Auditor",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Completion audit combines v1 gates, privacy controls, roles, memory quality, and blockers.",
+                "Stop-line text explains when feature work should pause and house-specific setup begins.",
+                "Auditor is exposed as /governance/completion-audit and /brain/phase-87-91.",
+            ],
+            "next": "Keep adding only blockers and bug fixes once the completion audit is clean.",
         },
         {
             "id": "ha_native_ui",

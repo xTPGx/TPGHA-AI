@@ -109,6 +109,7 @@ def main() -> int:
     situational_brain = (repo_root / "backend" / "app" / "situational_brain.py").read_text(encoding="utf-8")
     routine_brain = (repo_root / "backend" / "app" / "routine_brain.py").read_text(encoding="utf-8")
     operations_brain = (repo_root / "backend" / "app" / "operations_brain.py").read_text(encoding="utf-8")
+    governance_brain = (repo_root / "backend" / "app" / "governance_brain.py").read_text(encoding="utf-8")
     house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
     security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -401,6 +402,34 @@ def main() -> int:
           and "backup_recovery_readiness" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
           and "integration_matrix" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
           "Readiness UI must show the operational deployment layers.")
+    check("phases 87-91 governance brain module exists",
+          "build_privacy_data_controls" in governance_brain
+          and "build_role_permission_matrix" in governance_brain
+          and "build_memory_quality_report" in governance_brain
+          and "build_redacted_context_export" in governance_brain
+          and "build_completion_auditor" in governance_brain,
+          "Privacy, roles, memory quality, context export, and completion audit must be reusable.")
+    check("governance brain keeps exports redacted",
+          "safe_for_export" in governance_brain
+          and "secrets_redacted" in governance_brain
+          and "Secrets redacted" in governance_brain
+          and "context_markdown" in governance_brain,
+          "Context exports must be explicit about redaction and portability.")
+    check("phases 87-91 endpoints are exposed",
+          "/governance/privacy" in backend_main
+          and "/governance/roles" in backend_main
+          and "/governance/memory-quality" in backend_main
+          and "/context/export" in backend_main
+          and "/governance/completion-audit" in backend_main
+          and "/brain/phase-87-91" in backend_main,
+          "Backend must expose phase 87-91 governance brains as API endpoints.")
+    check("Jarvis Brain includes governance readiness layers",
+          "privacy_data_controls" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "role_permission_matrix" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "memory_quality_recall" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "redacted_context_export" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "completion_auditor" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Readiness UI must show privacy, roles, memory, export, and completion audit layers.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1085,6 +1114,62 @@ def main() -> int:
           "integrations" in r.json()
           and any(item.get("id") == "home_assistant" for item in r.json().get("integrations", []))
           and any(item.get("id") == "openai" for item in r.json().get("integrations", [])),
+          str(r.json()))
+
+    r = client.get("/brain/phase-87-91")
+    check("/brain/phase-87-91 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-87-91 has governance sections",
+          "privacy" in r.json()
+          and "roles" in r.json()
+          and "memory_quality" in r.json()
+          and "context_export" in r.json()
+          and "completion_audit" in r.json(),
+          str(r.json()))
+
+    r = client.get("/governance/privacy")
+    check("/governance/privacy returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/governance/privacy exposes data controls",
+          "data_stores" in r.json()
+          and "controls" in r.json()
+          and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/governance/roles")
+    check("/governance/roles returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/governance/roles exposes HA authority policy",
+          r.json().get("policy", {}).get("ha_is_authority") is True
+          and "users" in r.json()
+          and "roles" in r.json(),
+          str(r.json()))
+
+    r = client.get("/governance/memory-quality")
+    check("/governance/memory-quality returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/governance/memory-quality exposes memory health",
+          "counts" in r.json()
+          and "recommendations" in r.json()
+          and "duplicate_keys" in r.json(),
+          str(r.json()))
+
+    r = client.get("/context/export")
+    check("/context/export returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/context/export is redacted and portable",
+          r.json().get("payload", {}).get("safe_for_export") is True
+          and r.json().get("payload", {}).get("secrets_redacted") is True
+          and "markdown" in r.json(),
+          str(r.json()))
+
+    r = client.get("/governance/completion-audit")
+    check("/governance/completion-audit returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/governance/completion-audit exposes stop line",
+          "completion" in r.json()
+          and "stop_line" in r.json()
+          and "blockers" in r.json(),
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")
