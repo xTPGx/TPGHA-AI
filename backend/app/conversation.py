@@ -6,6 +6,7 @@ planning around dashboards, zones, rooms, blueprints, and future house design.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from .ai.client import get_ai_client
@@ -38,7 +39,12 @@ async def answer_general(
     if should_search(message):
         research = await search_web(message, max_results=5)
         house_context = f"{house_context}\n\n{format_search_context(research)}"
-    recent_context = _recent_context(assistant_id, user_id, conversation_id)
+    recent_context = "\n\n".join(
+        item for item in [
+            _recent_context(assistant_id, user_id, conversation_id),
+            _notebook_context(assistant_id, user_id),
+        ] if item
+    )
     response = get_ai_client().general_chat(
         message,
         config,
@@ -221,6 +227,53 @@ def _recent_context(assistant: str, user: Optional[str], conversation_id: Option
     for row in reversed(rows):
         lines.append(f"- User: {row.message}\n  Assistant: {row.response_message}")
     return "\n".join(lines)
+
+
+def _notebook_context(assistant: str, user: Optional[str]) -> str:
+    """Summarize persistent Notebook coverage for the active profile.
+
+    This keeps the model from claiming it cannot retain conversation history
+    when TPG HomeAI is already storing CommandLog-backed Notebook sessions.
+    """
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    with get_session() as session:
+        query = session.query(CommandLog).filter(CommandLog.assistant == (assistant or ""))
+        if user:
+            query = query.filter(CommandLog.user == user)
+        rows = query.order_by(CommandLog.created_at.desc()).limit(200).all()
+    recent_rows = [
+        row for row in rows
+        if row.created_at and _as_utc(row.created_at) >= cutoff
+    ]
+    conversation_ids = {row.conversation_id for row in rows if row.conversation_id}
+    recent_conversation_ids = {row.conversation_id for row in recent_rows if row.conversation_id}
+    last_titles: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not row.conversation_id or row.conversation_id in seen:
+            continue
+        seen.add(row.conversation_id)
+        title = " ".join((row.message or "").split()).strip()
+        if title:
+            last_titles.append(title[:90])
+        if len(last_titles) >= 5:
+            break
+    lines = [
+        "Persistent TPG Notebook context:",
+        f"- Stored conversations for this assistant/profile: {len(conversation_ids)} total; {len(recent_conversation_ids)} in the last 30 days.",
+        "- Conversation transcripts are saved per HA/TPG user profile and can be reopened/exported from Chat > Notes/Notebook.",
+        "- Approved Memory is separate from Notebook: Notebook stores chat history; approved Memory stores durable preferences/facts.",
+    ]
+    if last_titles:
+        lines.append("- Recent saved conversation topics: " + "; ".join(last_titles))
+    return "\n".join(lines)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _log_general(assistant: str, user: str, message: str, response: str,

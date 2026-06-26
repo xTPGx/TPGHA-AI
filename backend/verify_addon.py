@@ -264,8 +264,9 @@ def main() -> int:
           and "Pause when you are done speaking" in chat_frontend,
           "Voice mode should auto-send after a pause, speak the answer, and re-arm listening without push-to-stop turns.")
     check("Chat live voice supports faster turns and barge-in",
-          "VOICE_SILENCE_STOP_MS = 760" in chat_frontend
-          and "VOICE_RESUME_DELAY_MS = 300" in chat_frontend
+          "VOICE_SILENCE_STOP_MS = 520" in chat_frontend
+          and "VOICE_RESUME_DELAY_MS = 120" in chat_frontend
+          and "startSpeechRecognition" in chat_frontend
           and "startBargeInDetection" in chat_frontend
           and "VOICE_BARGE_RMS_THRESHOLD" in chat_frontend
           and "interruptSpeechAndListen" in chat_frontend
@@ -282,6 +283,12 @@ def main() -> int:
           and "latency_ms" in voice_source
           and "latency_ms" in (repo_root / "backend" / "app" / "transcription.py").read_text(encoding="utf-8"),
           "Live chat should send smaller mic blobs, request path-only TTS audio, and expose timing metrics.")
+    check("Conversational brain knows Notebook and Memory are persistent",
+          "Persistent TPG Notebook context" in (repo_root / "backend" / "app" / "conversation.py").read_text(encoding="utf-8")
+          and "Never claim you cannot retain or access conversation history" in ai_client_source
+          and "approved long-term Memory" in ai_client_source
+          and "Do not end every response with a" in ai_client_source,
+          "Atlas should not deny TPG Notebook/history/memory or add generic assistant closers every turn.")
     check("Live voice fast-lanes non-action conversation",
           "/chat/general" in backend_main
           and "chatGeneral" in api_frontend

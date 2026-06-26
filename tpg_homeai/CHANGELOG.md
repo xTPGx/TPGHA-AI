@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.67
+
+- Grounded conversational replies in persistent Notebook and approved Memory context so Atlas no longer claims it cannot retain conversation history.
+- Added Notebook session counts and recent conversation topics to the general chat context for the active assistant/user profile.
+- Tightened live voice VAD timing for faster pause detection, faster re-listening, and more sensitive barge-in.
+- Added a browser-native speech recognition fast path for live voice when available, falling back to OpenAI transcription when it is not.
+- Updated acceptance checks for the faster live voice loop and conversational memory behavior.
+
 ## 1.2.66
 
 - Reduced live mic upload size by capping browser MediaRecorder speech bitrate.

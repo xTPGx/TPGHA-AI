@@ -41,14 +41,14 @@ type RecorderOptions = { autoStop?: boolean };
 
 const VOICE_RMS_THRESHOLD = 0.016;
 const VOICE_AUDIO_BITS_PER_SECOND = 32000;
-const VOICE_MIN_LISTEN_MS = 650;
-const VOICE_SILENCE_STOP_MS = 760;
+const VOICE_MIN_LISTEN_MS = 420;
+const VOICE_SILENCE_STOP_MS = 520;
 const VOICE_NO_SPEECH_TIMEOUT_MS = 6000;
 const VOICE_MAX_TURN_MS = 45000;
-const VOICE_RESUME_DELAY_MS = 300;
-const VOICE_BARGE_RMS_THRESHOLD = 0.034;
-const VOICE_BARGE_MIN_MS = 180;
-const VOICE_BARGE_GRACE_MS = 550;
+const VOICE_RESUME_DELAY_MS = 120;
+const VOICE_BARGE_RMS_THRESHOLD = 0.022;
+const VOICE_BARGE_MIN_MS = 90;
+const VOICE_BARGE_GRACE_MS = 220;
 
 const FAST_VOICE_GENERAL_PATTERN =
   /\b(good\s+morning|good\s+night|hello|hey|what|why|how|should|recommend|advice|input|think|brainstorm|explain|review|compare|help\s+me|find|search|weather|tell\s+me|talk|idea|ideas|plan|project|remember|note)\b/i;
@@ -694,6 +694,7 @@ export default function Chat() {
         scheduleResumeVoiceConversation(250);
         return;
       }
+      if (speechSupported && startSpeechRecognition()) return;
       void startRecorder({ autoStop: true });
     }, delayMs);
   };
@@ -743,8 +744,7 @@ export default function Chat() {
     if (micStateRef.current === "idle") {
       setVoiceError(null);
       discardRecordingRef.current = false;
-      micStateRef.current = "recording";
-      setMicState("recording");
+      if (speechSupported && startSpeechRecognition()) return;
       await startRecorder({ autoStop: true });
     }
   }
@@ -1466,6 +1466,77 @@ export default function Chat() {
     }
   };
 
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = getSpeechRecognition();
+    if (!SpeechRecognition) return false;
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      let finalTranscript = "";
+      recognition.onresult = (event: any) => {
+        let interimTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalTranscript += transcript;
+          else interimTranscript += transcript;
+        }
+        setText((finalTranscript || interimTranscript).trim());
+      };
+      recognition.onerror = (event: any) => {
+        const error = String(event?.error || event?.message || "");
+        setMicState("idle");
+        setListening(false);
+        if (["no-speech", "aborted"].includes(error) && voiceConversationActiveRef.current) {
+          scheduleResumeVoiceConversation();
+          return;
+        }
+        voiceConversationActiveRef.current = false;
+        setVoiceConversationActive(false);
+        setVoiceError(microphoneErrorMessage(event));
+      };
+      recognition.onend = () => {
+        setMicState("idle");
+        setListening(false);
+        if (discardRecordingRef.current) {
+          discardRecordingRef.current = false;
+          return;
+        }
+        const transcript = finalTranscript.trim();
+        if (!transcript) {
+          scheduleResumeVoiceConversation();
+          return;
+        }
+        setLastTranscript(transcript);
+        if (voiceConversationActiveRef.current) {
+          const localControl = localVoiceControlCommand(transcript);
+          if (localControl === "end") {
+            stopVoiceConversation();
+            setText("");
+            return;
+          }
+          if (localControl === "pause") {
+            setText("");
+            scheduleResumeVoiceConversation();
+            return;
+          }
+        }
+        void send(transcript);
+      };
+      setMicState("recording");
+      setListening(true);
+      recognition.start();
+      return true;
+    } catch {
+      recognitionRef.current = null;
+      setMicState("idle");
+      setListening(false);
+      return false;
+    }
+  };
+
   async function startRecorder(options: RecorderOptions = {}) {
     if (!recorderSupported) return false;
     try {
@@ -1556,61 +1627,14 @@ export default function Chat() {
     if (micState === "transcribing") return;
 
     discardRecordingRef.current = false;
+    if (speechSupported && startSpeechRecognition()) return;
+
     const recordingStarted = await startRecorder({ autoStop: true });
     if (recordingStarted) return;
 
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const SpeechRecognition = getSpeechRecognition();
-    if (!SpeechRecognition) {
-      voiceConversationActiveRef.current = false;
-      setVoiceConversationActive(false);
-      setVoiceError(microphoneUnavailableMessage());
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-    let finalTranscript = "";
-    recognition.onresult = (event: any) => {
-      let interimTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalTranscript += transcript;
-        else interimTranscript += transcript;
-      }
-      setText((finalTranscript || interimTranscript).trim());
-    };
-    recognition.onerror = (event: any) => {
-      voiceConversationActiveRef.current = false;
-      setVoiceConversationActive(false);
-      setVoiceError(microphoneErrorMessage(event));
-      setMicState("idle");
-      setListening(false);
-    };
-    recognition.onend = () => {
-      setMicState("idle");
-      setListening(false);
-      if (discardRecordingRef.current) {
-        discardRecordingRef.current = false;
-        return;
-      }
-      const transcript = finalTranscript.trim();
-      if (transcript) {
-        setLastTranscript(transcript);
-        void send(transcript);
-      } else {
-        scheduleResumeVoiceConversation();
-      }
-    };
-    setMicState("recording");
-    setListening(true);
-    recognition.start();
+    voiceConversationActiveRef.current = false;
+    setVoiceConversationActive(false);
+    setVoiceError(microphoneUnavailableMessage());
   };
 
   const cancelVoiceInput = () => {
