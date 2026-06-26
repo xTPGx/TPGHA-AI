@@ -99,19 +99,26 @@ from .house_state import (
     build_voice_runtime,
     build_wake_word_deployment,
 )
+from .media_brain import (
+    build_camera_security_brain,
+    build_jarvis_phase_66_71,
+    build_media_control_brain,
+    build_music_assistant_brain,
+    build_room_occupancy_brain,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.1.3"
+APP_VERSION = "1.1.4"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "openapi.json",
+    "media", "security", "rooms", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -1072,6 +1079,31 @@ async def brain_modes():
 @app.get("/brain/assistants")
 async def brain_assistants():
     return build_assistant_intelligence(get_config())
+
+
+@app.get("/brain/phase-66-71")
+async def brain_phase_66_71():
+    return await build_jarvis_phase_66_71(get_config())
+
+
+@app.get("/media/music-assistant")
+async def media_music_assistant():
+    return await build_music_assistant_brain(get_config())
+
+
+@app.get("/media/control")
+async def media_control():
+    return await build_media_control_brain(get_config())
+
+
+@app.get("/security/briefing")
+async def security_briefing():
+    return await build_camera_security_brain(get_config())
+
+
+@app.get("/rooms/occupancy")
+async def room_occupancy():
+    return await build_room_occupancy_brain(get_config())
 
 
 @app.get("/ai/providers")

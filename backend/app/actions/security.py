@@ -3,14 +3,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..homeassistant.rest import HAError
 from ..homeassistant.services import safe_get_states
+from ..media_brain import build_camera_security_brain
 from ..models.results import ActionResult
 from . import ActionContext
 
 
 async def security_check(ctx: ActionContext, params: dict[str, Any]) -> ActionResult:
     intent = "security_check"
+    brain = await build_camera_security_brain(ctx.config)
     states = await safe_get_states()
 
     locks_report = []
@@ -57,12 +58,13 @@ async def security_check(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
     if not states:
         parts.append("(Live Home Assistant state unavailable; showing config only.)")
 
-    message = " ".join(parts) or "Security status compiled."
+    message = brain.get("briefing") or " ".join(parts) or "Security status compiled."
     return ActionResult(
         success=True, intent=intent, executed=False, message=message,
         data={
             "locks": locks_report,
             "cameras": cameras_report,
             "sensors": sensors_report,
+            "briefing": brain,
         },
     )

@@ -14,6 +14,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .db.database import get_session
 from .db.models import CommandLog, MemoryItem, Suggestion
 from .homeassistant.services import safe_get_states
+from .media_brain import (
+    build_camera_security_brain,
+    build_media_control_brain,
+    build_room_occupancy_brain,
+)
 from .models.schemas import AppConfig, HouseMode
 
 
@@ -84,12 +89,18 @@ async def build_house_state(config: AppConfig, graph: dict[str, Any] | None = No
     }
     mode_brain = build_mode_brain(config, snapshot)
     wake_word = build_wake_word_deployment(config)
+    media_control = await build_media_control_brain(config)
+    camera_security = await build_camera_security_brain(config)
+    occupancy_brain = await build_room_occupancy_brain(config)
     recommendations = _recommendations(away, security, energy, media, maintenance)
     return {
         "status": "attention" if security else ("active" if media or energy else "calm"),
         "modes": modes,
         "mode_brain": mode_brain,
         "wake_word": wake_word,
+        "media_control": media_control,
+        "camera_security": camera_security,
+        "room_occupancy": occupancy_brain,
         "presence": {
             "known_people": len(people),
             "home": [p.friendly_name or p.entity_id for p in home_people],

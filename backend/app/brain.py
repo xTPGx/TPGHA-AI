@@ -53,6 +53,10 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
     wake_word = build_wake_word_deployment(config)
     spatial_brain = build_spatial_brain()
     reliability = build_reliability_summary(limit=250)
+    music_counts = _music_counts(config)
+    media_counts = _media_counts(config, graph)
+    security_counts = _security_counts(config)
+    occupancy_counts = _occupancy_counts(config)
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -244,6 +248,56 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Automation drafts remain approval-first before being installed into Home Assistant.",
             ],
             "next": "Add calendar entity discovery/mapping helpers and generated cleanup reminders.",
+        },
+        {
+            "id": "music_assistant_deep",
+            "title": "Music Assistant Deep Integration",
+            "status": "ready" if music_counts["accounts"] and music_counts["music_assistant_speakers"] else "partial",
+            "score": 100 if music_counts["accounts"] and music_counts["music_assistant_speakers"] else 78,
+            "evidence": [
+                f"{music_counts['accounts']} music account(s) configured.",
+                f"{music_counts['music_assistant_speakers']} speaker(s) mapped to Music Assistant players.",
+                "Playback resolves assistant owner -> music account -> room speaker -> Music Assistant search/playback.",
+                "Per-user music account boundaries remain enforced.",
+            ],
+            "next": "Add live Music Assistant library browsing, queue management, and playlist picker UI.",
+        },
+        {
+            "id": "media_display_control",
+            "title": "Media + TV Display Control",
+            "status": "ready" if media_counts["media_players"] or media_counts["displays"] else "partial",
+            "score": 100 if media_counts["media_players"] or media_counts["displays"] else 70,
+            "evidence": [
+                f"{media_counts['media_players']} media_player entities observed or configured.",
+                f"{media_counts['displays']} display route(s) configured.",
+                f"{media_counts['speakers']} speaker route(s) configured.",
+                "Media control brain tracks source, app, volume, title, display routes, and sleep-timer candidates.",
+            ],
+            "next": "Add app launching/source switching helpers and direct TV brightness/display-control adapters.",
+        },
+        {
+            "id": "camera_security_intelligence",
+            "title": "Camera Intelligence + Security Briefing",
+            "status": "ready" if security_counts["cameras"] or security_counts["locks"] else "partial",
+            "score": 100 if security_counts["cameras"] or security_counts["locks"] else 68,
+            "evidence": [
+                f"{security_counts['cameras']} camera(s), {security_counts['locks']} lock(s), and {security_counts['security_sensors']} security sensor(s) configured.",
+                "Security briefing combines locks, camera availability, motion/person/package/vehicle-style event sensors, and security sensors.",
+                "Live attention counts are exposed through /security/briefing and /brain/house-state.",
+            ],
+            "next": "Add Frigate/Nest event detail APIs with thumbnails, clips, and last-event timelines.",
+        },
+        {
+            "id": "room_occupancy_brain",
+            "title": "Room Occupancy Brain",
+            "status": "ready" if occupancy_counts["rooms"] else "partial",
+            "score": 100 if occupancy_counts["rooms"] else 65,
+            "evidence": [
+                f"{occupancy_counts['rooms']} room(s) available for occupancy likelihood scoring.",
+                f"{occupancy_counts['with_voice_source']} room(s) have voice-source context.",
+                "Occupancy uses motion-style sensors, media state, lights, fans, and voice source mappings as signals.",
+            ],
+            "next": "Add room-level confidence memory and proactive mode changes based on repeated occupancy patterns.",
         },
         {
             "id": "ha_native_ui",
@@ -626,3 +680,58 @@ def _controllable_count(graph: dict[str, Any]) -> int:
 
 def _diagnostic_count(graph: dict[str, Any]) -> int:
     return sum(len(d.get("diagnostic_entities", [])) for d in graph.get("devices", []))
+
+
+def _music_counts(config: Any) -> dict[str, int]:
+    speakers = getattr(config.devices, "speakers", []) or []
+    accounts = getattr(config.devices, "music_accounts", {}) or {}
+    return {
+        "accounts": len(accounts),
+        "speakers": len(speakers),
+        "music_assistant_speakers": sum(
+            1 for speaker in speakers if getattr(speaker, "music_assistant_entity_id", None)
+        ),
+    }
+
+
+def _media_counts(config: Any, graph: dict[str, Any]) -> dict[str, int]:
+    media_players = 0
+    for device in graph.get("devices", []):
+        entities = [
+            *(device.get("controllable_entities", []) or []),
+            *(device.get("diagnostic_entities", []) or []),
+        ]
+        media_players += sum(1 for entity in entities if str(entity.get("entity_id", "")).startswith("media_player."))
+    configured_media = len(getattr(config.devices, "speakers", []) or []) + len(getattr(config.devices, "displays", []) or [])
+    return {
+        "media_players": max(media_players, configured_media),
+        "displays": len(getattr(config.devices, "displays", []) or []),
+        "speakers": len(getattr(config.devices, "speakers", []) or []),
+    }
+
+
+def _security_counts(config: Any) -> dict[str, int]:
+    return {
+        "cameras": len(getattr(config.devices, "cameras", []) or []),
+        "locks": len(getattr(config.devices, "locks", []) or []),
+        "security_sensors": len(getattr(config.devices, "security_sensors", []) or []),
+    }
+
+
+def _occupancy_counts(config: Any) -> dict[str, int]:
+    rooms = getattr(config.devices, "rooms", []) or []
+    voice_sources = getattr(config.devices, "voice_sources", []) or []
+    voice_room_ids = {
+        str(getattr(source, "room", "")).strip().lower()
+        for source in voice_sources
+        if getattr(source, "room", None)
+    }
+    return {
+        "rooms": len(rooms),
+        "with_voice_source": sum(
+            1
+            for room in rooms
+            if str(getattr(room, "id", "")).strip().lower() in voice_room_ids
+            or str(getattr(room, "name", "")).strip().lower() in voice_room_ids
+        ),
+    }

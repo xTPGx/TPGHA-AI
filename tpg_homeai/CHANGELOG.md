@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.4
+
+- Added phases 66-71 media and awareness expansion.
+- Added Music Assistant readiness brain for music accounts, speaker routing, playback/search capabilities, and per-user account boundaries.
+- Added media/TV display control brain for media players, active playback, display routes, source/app/volume state, and sleep-timer candidates.
+- Added camera/security briefing brain for cameras, locks, security sensors, and motion/person/package/vehicle-style event sensors.
+- Added room occupancy brain using lights, fans, media players, motion-style sensors, and voice-source mappings.
+- Added `/media/music-assistant`, `/media/control`, `/security/briefing`, `/rooms/occupancy`, and `/brain/phase-66-71` endpoints.
+- Fed media/security/occupancy intelligence into House State and security check responses.
+- Expanded Jarvis Brain readiness map and verifier coverage for phases 66-71.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.3
 
 - Added phases 61-65 reliability expansion for vacuums, helper entities, humidifiers, water heaters, and valves.

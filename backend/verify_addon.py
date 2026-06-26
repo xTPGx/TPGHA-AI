@@ -105,6 +105,9 @@ def main() -> int:
     climate_actions = (repo_root / "backend" / "app" / "actions" / "climate.py").read_text(encoding="utf-8")
     device_adapters = (repo_root / "backend" / "app" / "device_adapters.py").read_text(encoding="utf-8")
     outcomes_source = (repo_root / "backend" / "app" / "outcomes.py").read_text(encoding="utf-8")
+    media_brain = (repo_root / "backend" / "app" / "media_brain.py").read_text(encoding="utf-8")
+    house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
+    security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
     docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
     manifest_version = re.search(r'"version":\s*"([^"]+)"', manifest)
@@ -272,6 +275,52 @@ def main() -> int:
           and "houseAssets" in api_frontend
           and (repo_root / "frontend" / "src" / "pages" / "HouseKnowledge.tsx").is_file(),
           "Floor plans, blueprints, room photos, and notes need a managed upload/approval layer.")
+    check("phases 66-71 media brain module exists",
+          "build_music_assistant_brain" in media_brain
+          and "build_media_control_brain" in media_brain
+          and "build_camera_security_brain" in media_brain
+          and "build_room_occupancy_brain" in media_brain,
+          "Media, security, and occupancy intelligence must live in a reusable backend module.")
+    check("Music Assistant brain tracks accounts and playback services",
+          "music_assistant_entity_id" in media_brain
+          and "music_assistant.search" in media_brain
+          and "music_assistant.play_media" in media_brain
+          and "Keep per-user music account privacy boundaries" in media_brain,
+          "Music Assistant readiness must include speaker mappings, search/play services, and account boundaries.")
+    check("media control brain tracks display state and sleep candidates",
+          "sleep_timer_candidate" in media_brain
+          and "source_list" in media_brain
+          and "app_name" in media_brain
+          and "media_title" in media_brain,
+          "TV/display brain must expose source/app/title/volume state and sleep-timer candidates.")
+    check("camera security brain detects event sensors",
+          "doorbell" in media_brain
+          and "package" in media_brain
+          and "vehicle" in media_brain
+          and "briefing" in media_brain,
+          "Security briefing must include camera/event keywords and a human-readable briefing.")
+    check("room occupancy brain uses room activity signals",
+          "occupied_likelihood" in media_brain
+          and "voice_sources" in media_brain
+          and "motion" in media_brain
+          and "active_entities" in media_brain,
+          "Occupancy should use activity signals and voice-source room context.")
+    check("phases 66-71 endpoints are exposed",
+          "/media/music-assistant" in backend_main
+          and "/media/control" in backend_main
+          and "/security/briefing" in backend_main
+          and "/rooms/occupancy" in backend_main
+          and "/brain/phase-66-71" in backend_main,
+          "Backend must expose phase 66-71 brains as API endpoints.")
+    check("house state includes media/security/occupancy brains",
+          "media_control" in house_state_source
+          and "camera_security" in house_state_source
+          and "room_occupancy" in house_state_source,
+          "House State should include the new situational intelligence layers.")
+    check("security action uses security briefing brain",
+          "build_camera_security_brain" in security_action
+          and '"briefing": brain' in security_action,
+          "Security check responses should include the richer camera/security briefing.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -747,6 +796,11 @@ def main() -> int:
     check("/brain/house-state wake word has assistants",
           bool(wake_word.get("assistants")) and "assistants_ready" in wake_word.get("counts", {}),
           str(wake_word))
+    check("/brain/house-state includes media/security/occupancy brain",
+          "media_control" in r.json()
+          and "camera_security" in r.json()
+          and "room_occupancy" in r.json(),
+          str(r.json()))
 
     r = client.get("/brain/modes")
     check("/brain/modes returns JSON", r.status_code == 200 and is_json(r),
@@ -760,6 +814,44 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/brain/assistants includes assistant intelligence",
           len(r.json().get("assistants", [])) >= 2,
+          str(r.json()))
+
+    r = client.get("/brain/phase-66-71")
+    check("/brain/phase-66-71 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-66-71 has media/security/occupancy sections",
+          "music_assistant" in r.json()
+          and "media_control" in r.json()
+          and "camera_security" in r.json()
+          and "room_occupancy" in r.json(),
+          str(r.json()))
+
+    r = client.get("/media/music-assistant")
+    check("/media/music-assistant returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/media/music-assistant exposes accounts and speakers",
+          "accounts" in r.json() and "speakers" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/media/control")
+    check("/media/control returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/media/control exposes player and display routes",
+          "media_players" in r.json() and "display_routes" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/security/briefing")
+    check("/security/briefing returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/security/briefing exposes briefing and configured security devices",
+          "briefing" in r.json() and "cameras" in r.json() and "locks" in r.json(),
+          str(r.json()))
+
+    r = client.get("/rooms/occupancy")
+    check("/rooms/occupancy returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/rooms/occupancy exposes room likelihoods",
+          "rooms" in r.json() and "counts" in r.json(),
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")
