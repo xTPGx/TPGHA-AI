@@ -1152,6 +1152,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release history pruning so long-running installs can manage old snapshots.",
         },
         {
+            "id": "release_history_pruning",
+            "title": "Release History Pruning",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/prune previews old release snapshots before deleting them.",
+                "Pruning defaults to dry-run and keeps the newest release snapshots.",
+                "The pruning endpoint never touches CommandLog, acceptance evidence, conversations, or notes.",
+            ],
+            "next": "Add release snapshot annotations so owners can label why a release was held or shipped.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

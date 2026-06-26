@@ -161,6 +161,34 @@ export default function Dashboard() {
     setReleaseMessage("Release history downloaded.");
   };
 
+  const previewPruneHistory = async () => {
+    try {
+      const result = await api.pruneReleaseHistory(20, true);
+      setReleaseMessage(
+        result.prunable
+          ? `${result.prunable} old release snapshot${result.prunable === 1 ? "" : "s"} can be pruned.`
+          : "No old release snapshots need pruning."
+      );
+    } catch (e: any) {
+      setReleaseMessage(`Prune preview failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const pruneReleaseHistory = async () => {
+    try {
+      const result = await api.pruneReleaseHistory(20, false);
+      const [history, comparison] = await Promise.all([
+        api.releaseStatusHistory(),
+        api.releaseHistoryComparison(),
+      ]);
+      setReleaseHistory(history);
+      setReleaseComparison(comparison);
+      setReleaseMessage(`${result.pruned || 0} old release snapshot${result.pruned === 1 ? "" : "s"} pruned.`);
+    } catch (e: any) {
+      setReleaseMessage(`Prune failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const ha = health?.home_assistant;
   const disc = health?.discovery ?? {};
   const scanRunning = disc.scan_in_progress || phase === "initializing";
@@ -223,6 +251,8 @@ export default function Dashboard() {
             onSnapshot={saveReleaseSnapshot}
             onCopyHistory={copyReleaseHistory}
             onDownloadHistory={downloadReleaseHistory}
+            onPreviewPrune={previewPruneHistory}
+            onPrune={pruneReleaseHistory}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -398,6 +428,8 @@ function DashboardReleaseStatus({
   onSnapshot,
   onCopyHistory,
   onDownloadHistory,
+  onPreviewPrune,
+  onPrune,
 }: {
   release: any;
   history: any;
@@ -408,6 +440,8 @@ function DashboardReleaseStatus({
   onSnapshot: () => void;
   onCopyHistory: () => void;
   onDownloadHistory: () => void;
+  onPreviewPrune: () => void;
+  onPrune: () => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -425,6 +459,8 @@ function DashboardReleaseStatus({
           <Button variant="ghost" onClick={onSnapshot}>Save status snapshot</Button>
           <Button variant="ghost" onClick={onCopyHistory} disabled={!comparison}>Copy release history</Button>
           <Button variant="ghost" onClick={onDownloadHistory} disabled={!comparison}>Download release history</Button>
+          <Button variant="ghost" onClick={onPreviewPrune} disabled={!snapshots.length}>Preview prune history</Button>
+          <Button variant="ghost" onClick={onPrune} disabled={snapshots.length <= 20}>Prune old snapshots</Button>
           <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>
           <Button variant="ghost" onClick={onDownload}>Download release checklist</Button>
           <Link to="/setup" className="btn-ghost">Open Setup</Link>

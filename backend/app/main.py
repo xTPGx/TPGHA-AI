@@ -193,6 +193,7 @@ from .experience_brain import (
     build_jarvis_phase_134,
     build_jarvis_phase_135,
     build_jarvis_phase_136,
+    build_jarvis_phase_137,
     build_release_history_comparison,
     list_live_acceptance_results,
     list_release_status_snapshots,
@@ -202,6 +203,7 @@ from .experience_brain import (
     build_role_acceptance_matrix,
     record_live_acceptance_result,
     record_release_status_snapshot,
+    prune_release_status_snapshots,
     build_release_checklist,
     build_setup_action_plan,
     build_setup_support_packet,
@@ -212,7 +214,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.40"
+APP_VERSION = "1.2.41"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1584,6 +1586,11 @@ async def brain_phase_136():
     return await build_jarvis_phase_136(APP_VERSION)
 
 
+@app.get("/brain/phase-137")
+async def brain_phase_137():
+    return await build_jarvis_phase_137(APP_VERSION)
+
+
 @app.get("/experience/interaction-quality")
 async def experience_interaction_quality():
     return build_interaction_quality_report(get_config())
@@ -1652,6 +1659,11 @@ async def release_status_snapshot():
 @app.get("/release/status-history/compare")
 async def release_status_history_compare(limit: int = 10):
     return build_release_history_comparison(limit=limit)
+
+
+@app.post("/release/status-history/prune")
+async def release_status_history_prune(keep: int = 20, dry_run: bool = True):
+    return prune_release_status_snapshots(keep=keep, dry_run=dry_run)
 
 
 @app.get("/release/runbook")

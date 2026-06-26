@@ -1,3 +1,3 @@
 """TPG HomeAI Orchestrator backend package."""
 
-__version__ = "1.2.40"
+__version__ = "1.2.41"

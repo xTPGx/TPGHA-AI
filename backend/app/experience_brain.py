@@ -651,6 +651,31 @@ def build_release_history_comparison(limit: int = 10) -> dict[str, Any]:
     return comparison
 
 
+def prune_release_status_snapshots(keep: int = 20, dry_run: bool = True) -> dict[str, Any]:
+    keep = max(1, min(int(keep or 20), 200))
+    with get_session() as session:
+        rows = (
+            session.query(ReleaseStatusSnapshot)
+            .order_by(ReleaseStatusSnapshot.created_at.desc())
+            .all()
+        )
+        candidates = rows[keep:]
+        candidate_cards = [_release_snapshot_card(row) for row in candidates]
+        if not dry_run:
+            for row in candidates:
+                session.delete(row)
+            session.commit()
+    return {
+        "status": "ready",
+        "dry_run": dry_run,
+        "keep": keep,
+        "total_seen": len(rows),
+        "prunable": len(candidate_cards),
+        "pruned": 0 if dry_run else len(candidate_cards),
+        "candidates": candidate_cards,
+    }
+
+
 async def record_release_status_snapshot(config: AppConfig, version: str) -> dict[str, Any]:
     checklist = await build_release_checklist(config, version)
     checks = checklist.get("checks", []) or []
@@ -1479,6 +1504,21 @@ async def build_jarvis_phase_136(version: str) -> dict[str, Any]:
             "requires_snapshots": True,
         },
         "guardrail": "Phase 136 exports release readiness history for owner review only; it does not alter release gates.",
+    }
+
+
+async def build_jarvis_phase_137(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 137,
+        "release_history_pruning": {
+            "endpoint": "/release/status-history/prune",
+            "default_keep": 20,
+            "dry_run_first": True,
+            "dashboard_actions": ["Preview prune history", "Prune old snapshots"],
+        },
+        "guardrail": "Phase 137 prunes only saved release snapshots; it never removes command audit history or acceptance evidence.",
     }
 
 

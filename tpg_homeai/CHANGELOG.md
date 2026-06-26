@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.41
+
+- Added Jarvis phase 137 release history pruning.
+- Added dry-run-first `/release/status-history/prune` for managing old release snapshots.
+- Added owner Dashboard actions to preview pruning and prune old release snapshots.
+- Added Jarvis Brain evidence for bounded release snapshot history management.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.40
 
 - Added Jarvis phase 136 release comparison export.

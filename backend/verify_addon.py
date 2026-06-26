@@ -868,6 +868,18 @@ def main() -> int:
     check("phase 136 endpoint is exposed",
           "/brain/phase-136" in backend_main,
           "Backend must expose the phase 136 release comparison export marker.")
+    check("phase 137 release history pruning is wired",
+          "/release/status-history/prune" in backend_main
+          and "prune_release_status_snapshots" in experience_brain
+          and "Preview prune history" in dashboard_frontend
+          and "Prune old snapshots" in dashboard_frontend
+          and "api.pruneReleaseHistory" in dashboard_frontend
+          and "release_history_pruning" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_137" in experience_brain,
+          "Owners need dry-run-first release snapshot pruning controls.")
+    check("phase 137 endpoint is exposed",
+          "/brain/phase-137" in backend_main,
+          "Backend must expose the phase 137 release history pruning marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2434,6 +2446,30 @@ def main() -> int:
           r.json().get("phase") == 136
           and r.json().get("release_comparison_export", {}).get("source_endpoint") == "/release/status-history/compare"
           and "Download release history" in r.json().get("release_comparison_export", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.post("/release/status-history/prune?keep=1&dry_run=true")
+    check("/release/status-history/prune previews old snapshots",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("dry_run") is True
+          and r.json().get("prunable", 0) >= 1,
+          str(r.json()))
+    r = client.post("/release/status-history/prune?keep=1&dry_run=false")
+    check("/release/status-history/prune deletes old snapshots when applied",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("dry_run") is False
+          and r.json().get("pruned", 0) >= 1,
+          str(r.json()))
+    r = client.get("/brain/phase-137")
+    check("/brain/phase-137 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-137 has release pruning marker",
+          r.json().get("phase") == 137
+          and r.json().get("release_history_pruning", {}).get("dry_run_first") is True
+          and "Prune old snapshots" in r.json().get("release_history_pruning", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
