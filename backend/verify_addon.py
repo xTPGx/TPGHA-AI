@@ -95,6 +95,10 @@ def main() -> int:
     ha_conversation = (repo_root / "custom_components" / "tpg_homeai" / "conversation.py").read_text(encoding="utf-8")
     chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
     ha_auth = (repo_root / "frontend" / "src" / "haAuth.ts").read_text(encoding="utf-8")
+    app_frontend = (repo_root / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app_shell_frontend = (repo_root / "frontend" / "src" / "components" / "AppShell.tsx").read_text(encoding="utf-8")
+    chat_fab_frontend = (repo_root / "frontend" / "src" / "components" / "ChatFab.tsx").read_text(encoding="utf-8")
+    owner_console_frontend = (repo_root / "frontend" / "src" / "pages" / "OwnerConsole.tsx").read_text(encoding="utf-8")
     setup_frontend = (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
     dashboard_frontend = (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
     dashboard_builder_frontend = (repo_root / "frontend" / "src" / "pages" / "DashboardBuilder.tsx").read_text(encoding="utf-8")
@@ -172,6 +176,22 @@ def main() -> int:
           and "microphoneReadinessReport" in chat_frontend
           and "Localhost only works on the device running the browser" in chat_frontend,
           "Voice failures should explain HTTP/HTTPS, app permission, and localhost behavior.")
+    check("product shell defaults to Jarvis chat",
+          '<Route path="/" element={<Navigate to={fallbackPath} replace />} />' in app_frontend
+          and '{ to: "/home", label: "House"' in app_frontend
+          and 'import OwnerConsole from "./pages/OwnerConsole";' in app_frontend,
+          "The app should open to Chat and expose House/Owner Console as intentional product surfaces.")
+    check("owner console groups admin tools",
+          "Owner Console" in owner_console_frontend
+          and "Configure Intelligence" in owner_console_frontend
+          and "Install + Diagnose" in owner_console_frontend,
+          "Admin/config/debug pages should be grouped behind an owner hub, not scattered in the everyday menu.")
+    check("draggable chat FAB is wired",
+          "ChatFab" in app_shell_frontend
+          and "tpg.chatFab.position" in chat_fab_frontend
+          and "setPointerCapture" in chat_fab_frontend
+          and 'navigate("/chat")' in chat_fab_frontend,
+          "Non-chat pages need a movable in-app launcher back to Jarvis chat.")
     check("Chat voice session has runtime status and cancel",
           "VoiceSessionBar" in chat_frontend
           and "recordingSeconds" in chat_frontend
@@ -3935,6 +3955,12 @@ def main() -> int:
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/chat")
     check("GET ingress chat route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/home")
+    check("GET ingress house route is HTML", is_html(r),
+          r.headers.get("content-type", ""))
+    r = client.get(f"{ingress}/owner")
+    check("GET ingress owner console route is HTML", is_html(r),
           r.headers.get("content-type", ""))
     r = client.get(f"{ingress}/notebook")
     check("GET ingress notebook route is HTML", is_html(r),

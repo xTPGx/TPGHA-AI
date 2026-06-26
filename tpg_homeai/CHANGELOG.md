@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.57
+
+- Reworked the app navigation into everyday Jarvis surfaces plus an Owner Console hub.
+- Made Chat the default Home Assistant panel landing route and moved the house view to `/home`.
+- Added a grouped Owner Console for setup, users, assistants, discovery, dashboards, release, and diagnostics.
+- Added a draggable, persisted in-app chat launcher FAB for non-chat TPG HomeAI pages.
+- Kept legacy/admin routes available while hiding them from the everyday sidebar flow.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.56
 
 - Added Jarvis phase 152 release packet fingerprint verification.

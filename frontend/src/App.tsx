@@ -23,6 +23,8 @@ import DashboardBuilder from "./pages/DashboardBuilder";
 import Setup from "./pages/Setup";
 import IdentityDebug from "./pages/IdentityDebug";
 import HouseKnowledge from "./pages/HouseKnowledge";
+import HouseBrain from "./pages/HouseBrain";
+import OwnerConsole from "./pages/OwnerConsole";
 
 type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
 
@@ -31,41 +33,38 @@ const navGroups: NavGroupDef[] = [
     label: "Main",
     items: [
       { to: "/chat", label: "Chat", roles: ["admin", "manager", "resident", "kiosk", "guest"] },
-      { to: "/", label: "Dashboard", end: true, roles: ["admin", "manager", "resident", "kiosk"] },
+      { to: "/home", label: "House", roles: ["admin", "manager", "resident", "kiosk"] },
     ],
   },
   {
-    label: "Home",
+    label: "Personal",
     items: [
-      { to: "/discovery", label: "Discovery", roles: ["admin", "manager"] },
-      { to: "/entities", label: "Entities", roles: ["admin"] },
-      { to: "/rooms", label: "Rooms", roles: ["admin", "manager"] },
-      { to: "/music", label: "Music", roles: ["admin", "manager"] },
-    ],
-  },
-  {
-    label: "AI",
-    items: [
-      { to: "/jarvis", label: "Brain", roles: ["admin", "manager", "resident"] },
-      { to: "/assistants", label: "Assistants", roles: ["admin", "manager", "resident"] },
+      { to: "/music", label: "Music", roles: ["admin", "manager", "resident", "kiosk"] },
+      { to: "/assistants", label: "My Assistant", roles: ["admin", "manager", "resident"] },
       { to: "/memory-center", label: "Memory", roles: ["admin", "manager", "resident"] },
-      { to: "/house-knowledge", label: "House Knowledge", roles: ["admin", "manager"] },
-      { to: "/users", label: "Users", roles: ["admin"] },
-      { to: "/permissions", label: "Permissions", roles: ["admin"] },
-      { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
     ],
   },
   {
-    label: "Developer",
+    label: "Owner Console",
     collapsible: true,
     items: [
-      { to: "/setup", label: "Setup", roles: ["admin", "manager"] },
+      { to: "/owner", label: "Overview", roles: ["admin", "manager"] },
+      { to: "/dashboard", label: "System Status", roles: ["admin", "manager"] },
+      { to: "/jarvis", label: "Brain", roles: ["admin", "manager"] },
+      { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
       { to: "/dashboard-builder", label: "Dashboard Builder", roles: ["admin", "manager"] },
-      { to: "/ha", label: "HA Integration", roles: ["admin"] },
+      { to: "/house-knowledge", label: "House Knowledge", roles: ["admin", "manager"] },
+      { to: "/setup", label: "Setup", roles: ["admin", "manager"] },
+      { to: "/discovery", label: "Discovery", roles: ["admin", "manager"] },
+      { to: "/rooms", label: "Rooms", roles: ["admin", "manager"] },
+      { to: "/users", label: "Users", roles: ["admin"] },
+      { to: "/permissions", label: "Permissions", roles: ["admin"] },
+      { to: "/entities", label: "Entities", roles: ["admin"] },
       { to: "/profiles", label: "Device Profiles", roles: ["admin"] },
+      { to: "/ha", label: "HA Integration", roles: ["admin"] },
       { to: "/tester", label: "Command Tester", roles: ["admin"] },
       { to: "/capabilities", label: "Capability Map", roles: ["admin"] },
-      { to: "/identity-debug", label: "Identity Debug", roles: ["admin", "manager", "resident", "kiosk", "guest"] },
+      { to: "/identity-debug", label: "Identity Debug", roles: ["admin", "manager"] },
     ],
   },
 ];
@@ -107,7 +106,7 @@ export default function App() {
   }, [role]);
 
   const canAccess = (path: string) => accessiblePaths.has(path);
-  const fallbackPath = canAccess("/") ? "/" : "/chat";
+  const fallbackPath = canAccess("/chat") ? "/chat" : "/home";
   return (
     <AppShell
       navGroups={navGroups}
@@ -122,12 +121,15 @@ export default function App() {
       onPreviewRoleChange={setPreviewRole}
     >
       <Routes>
-          <Route path="/" element={canAccess("/") ? <Dashboard /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/" element={<Navigate to={fallbackPath} replace />} />
           <Route path="/chat" element={canAccess("/chat") ? <Chat /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/home" element={canAccess("/home") ? <HouseBrain /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/notebook" element={<Navigate to="/chat" replace />} />
+          <Route path="/owner" element={canAccess("/owner") ? <OwnerConsole /> : <Navigate to={fallbackPath} replace />} />
+          <Route path="/dashboard" element={canAccess("/dashboard") ? <Dashboard /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/jarvis" element={canAccess("/jarvis") ? <Brain /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/setup" element={canAccess("/setup") ? <Setup /> : <Navigate to={fallbackPath} replace />} />
-          <Route path="/house-brain" element={<Navigate to="/jarvis" replace />} />
+          <Route path="/house-brain" element={<Navigate to="/home" replace />} />
           <Route path="/profiles" element={canAccess("/profiles") ? <DeviceProfiles /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/memory-center" element={canAccess("/memory-center") ? <MemoryCenter /> : <Navigate to={fallbackPath} replace />} />
           <Route path="/house-knowledge" element={canAccess("/house-knowledge") ? <HouseKnowledge /> : <Navigate to={fallbackPath} replace />} />

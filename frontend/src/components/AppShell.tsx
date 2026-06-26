@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import ChatFab from "./ChatFab";
 
 type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
 export type NavItemDef = { to: string; label: string; end?: boolean; roles: Role[] };
@@ -35,6 +36,7 @@ export default function AppShell({
   const navigate = useNavigate();
   const canGoBack = location.pathname !== "/";
   const isChatWorkspace = location.pathname === "/chat" || location.pathname === "/notebook";
+  const canUseChat = navGroups.some((group) => group.items.some((item) => item.to === "/chat" && item.roles.includes(role)));
 
   useEffect(() => setOpen(false), [location.pathname]);
 
@@ -48,7 +50,7 @@ export default function AppShell({
   }, [open]);
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden bg-[#0a0a0a] text-slate-100">
+    <div className="app-shell min-h-screen overflow-x-hidden bg-[#08090d] text-slate-100">
       <header className="compact-header sticky top-0 z-40 border-b border-white/10 bg-[#0f0f0f]/95 px-3 py-2 backdrop-blur xl:hidden">
         <div className="flex min-h-12 items-center justify-between gap-3">
           {canGoBack && (
@@ -82,7 +84,7 @@ export default function AppShell({
       </header>
 
       <div className="flex min-h-screen min-w-0">
-        <aside className="wide-sidebar hidden w-[16.5rem] shrink-0 border-r border-white/10 bg-[#0f0f0f]/95 p-3 backdrop-blur xl:block">
+        <aside className="wide-sidebar hidden w-[15.5rem] shrink-0 border-r border-white/10 bg-[#0d0f14]/95 p-3 backdrop-blur xl:block">
           <ShellNav
             navGroups={navGroups}
             role={role}
@@ -145,6 +147,7 @@ export default function AppShell({
           </div>
         </main>
       </div>
+      <ChatFab canUseChat={canUseChat} />
     </div>
   );
 }
@@ -177,7 +180,7 @@ function ShellNav({
     <div className="flex min-h-full flex-col">
       <div className="mb-5 hidden xl:block">
         <div className="text-base font-bold text-slate-100">TPG HomeAI</div>
-        <div className="text-xs text-slate-500">House intelligence</div>
+        <div className="text-xs text-slate-500">Jarvis command center</div>
       </div>
 
       {sessionUser && (
@@ -266,7 +269,7 @@ function ShellNav({
       </nav>
 
       <div className="mt-auto pt-8 text-[10px] leading-relaxed text-slate-500">
-        Native-feeling Home Assistant panel. HA remains the device backend.
+        Chat is the everyday surface. Owner Console holds setup and diagnostics.
       </div>
     </div>
   );
