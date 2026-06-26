@@ -876,6 +876,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add setup shortcuts for missing integrations once each provider has a stable install recipe.",
         },
         {
+            "id": "setup_capability_gaps",
+            "title": "Setup Capability Gaps",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page displays the operations capability gap scanner.",
+                "Open gaps are grouped by severity so critical and high issues are not buried.",
+                "Each gap includes a fix hint pointing to the likely management area.",
+            ],
+            "next": "Link each gap hint directly to the relevant in-app page once deep-link routing is settled.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

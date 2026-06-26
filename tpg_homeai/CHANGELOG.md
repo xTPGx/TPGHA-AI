@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.18
+
+- Added Jarvis phase 114 Setup capability gap panel.
+- Setup now shows the operations capability score, open readiness gaps grouped by severity, and owner fix hints for each gap.
+- Added `/brain/phase-114` and Jarvis Brain readiness evidence for the Setup capability gaps layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.17
 
 - Added Jarvis phase 113 Setup integration readiness matrix.

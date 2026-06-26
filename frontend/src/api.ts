@@ -224,6 +224,7 @@ export const api = {
   liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
   releaseChecklist: () => http<any>("/release/checklist"),
   releaseRunbook: () => http<any>("/release/runbook"),
+  capabilityGaps: () => http<any>("/ops/capability-gaps"),
   opsDiagnostics: () => http<any>("/ops/diagnostics"),
   backupReadiness: () => http<any>("/ops/backup-readiness"),
   integrationMatrix: () => http<any>("/ops/integration-matrix"),

@@ -620,6 +620,15 @@ def main() -> int:
     check("phase 113 endpoint is exposed",
           "/brain/phase-113" in backend_main,
           "Backend must expose the phase 113 setup integration matrix readiness marker.")
+    check("phase 114 setup capability gaps are wired",
+          "Capability gaps" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "api.capabilityGaps" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_capability_gaps" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_114" in experience_brain,
+          "Setup must surface operations capability gaps with severity and owner fix hints.")
+    check("phase 114 endpoint is exposed",
+          "/brain/phase-114" in backend_main,
+          "Backend must expose the phase 114 setup capability gaps readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1689,6 +1698,16 @@ def main() -> int:
           r.json().get("phase") == 113
           and r.json().get("setup_integration_matrix", {}).get("source_endpoint") == "/ops/integration-matrix"
           and r.json().get("setup_integration_matrix", {}).get("groups_configured_and_missing") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-114")
+    check("/brain/phase-114 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-114 has setup capability gaps marker",
+          r.json().get("phase") == 114
+          and r.json().get("setup_capability_gaps", {}).get("source_endpoint") == "/ops/capability-gaps"
+          and r.json().get("setup_capability_gaps", {}).get("groups_by_severity") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

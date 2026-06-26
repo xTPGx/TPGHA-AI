@@ -9,6 +9,7 @@ export default function Setup() {
   const [completion, setCompletion] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
   const [runbook, setRunbook] = useState<any>(null);
+  const [gaps, setGaps] = useState<any>(null);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [diagnosticsMessage, setDiagnosticsMessage] = useState("");
   const [backup, setBackup] = useState<any>(null);
@@ -28,6 +29,7 @@ export default function Setup() {
         done,
         releaseChecklist,
         releaseRunbook,
+        capabilityGaps,
         supportPack,
         backupReadiness,
         integrationReadiness,
@@ -40,6 +42,7 @@ export default function Setup() {
         api.completionStatus(),
         api.releaseChecklist(),
         api.releaseRunbook(),
+        api.capabilityGaps(),
         api.opsDiagnostics(),
         api.backupReadiness(),
         api.integrationMatrix(),
@@ -52,6 +55,7 @@ export default function Setup() {
       setCompletion(done);
       setRelease(releaseChecklist);
       setRunbook(releaseRunbook);
+      setGaps(capabilityGaps);
       setDiagnostics(supportPack);
       setBackup(backupReadiness);
       setIntegrations(integrationReadiness);
@@ -180,6 +184,7 @@ export default function Setup() {
       </div>
 
       <ReleaseBlockersPanel release={release} completion={completion} />
+      <CapabilityGapsPanel gaps={gaps} />
       <OperationalRunbookPanel runbook={runbook} />
       <DiagnosticsPanel diagnostics={diagnostics} message={diagnosticsMessage} onCopy={copyDiagnostics} />
       <BackupRecoveryPanel backup={backup} />
@@ -306,6 +311,72 @@ function IntegrationRow({ item, tone }: { item: any; tone: "ready" | "missing" }
       </div>
     </div>
   );
+}
+
+function CapabilityGapsPanel({ gaps }: { gaps: any }) {
+  if (!gaps) return null;
+  const open = gaps.open_gaps || [];
+  const grouped = {
+    critical: open.filter((gap: any) => gap.severity === "critical"),
+    high: open.filter((gap: any) => gap.severity === "high"),
+    normal: open.filter((gap: any) => gap.severity === "normal"),
+    low: open.filter((gap: any) => gap.severity === "low"),
+  };
+  return (
+    <div className={`card mb-6 ${open.length ? "border-amber-500/30" : "border-emerald-500/30"}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Capability gaps</div>
+          <div className="text-sm text-slate-400">
+            Open readiness gates that keep Jarvis from being fully deployed in this house.
+          </div>
+        </div>
+        <span className={`badge ${open.length ? "bg-amber-500/10 text-amber-200" : "bg-emerald-500/10 text-emerald-200"}`}>
+          score {gaps.score} · {open.length} open
+        </span>
+      </div>
+      {open.length ? (
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {(["critical", "high", "normal", "low"] as const).map((severity) => (
+            grouped[severity].length ? (
+              <div className="rounded border border-slate-800 bg-slate-950/30 p-3" key={severity}>
+                <div className="text-sm font-semibold uppercase tracking-wide text-slate-300">{severity}</div>
+                <div className="mt-2 space-y-2">
+                  {grouped[severity].map((gap: any) => (
+                    <div className="rounded border border-slate-800 bg-slate-950/40 p-3" key={gap.id}>
+                      <div className="font-semibold text-slate-100">{gap.title}</div>
+                      <div className="mt-1 text-sm text-slate-400">{gap.recommendation}</div>
+                      <div className="mt-2 text-xs text-brand">{gapFixHint(gap.id)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          ))}
+        </div>
+      ) : (
+        <div className="rounded border border-emerald-500/20 bg-emerald-950/10 p-3 text-sm text-emerald-100">
+          No open capability gaps detected.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function gapFixHint(id: string) {
+  const hints: Record<string, string> = {
+    home_assistant_connection: "Fix in add-on Configuration or HA Integration.",
+    openai_key: "Fix in add-on Configuration.",
+    security_pin: "Fix in add-on Configuration.",
+    voice_sources: "Fix in Assistants and voice source mapping.",
+    wake_words: "Fix in Assistants.",
+    rooms: "Fix in Rooms.",
+    pending_discovery: "Fix in Discovery.",
+    music_assistant: "Fix in Music.",
+    weather: "Add or expose a weather entity in Home Assistant.",
+    dashboard_assets: "Fix in house assets or Dashboard Builder.",
+  };
+  return hints[id] || "Review the matching Setup area.";
 }
 
 function DiagnosticsPanel({

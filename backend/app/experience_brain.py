@@ -828,6 +828,22 @@ async def build_jarvis_phase_113(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_114(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 114,
+        "setup_capability_gaps": {
+            "surface": "Setup page",
+            "source_endpoint": "/ops/capability-gaps",
+            "shows_score": True,
+            "groups_by_severity": True,
+            "includes_fix_hints": True,
+        },
+        "guardrail": "Phase 114 only surfaces readiness gaps and fix hints; it does not install integrations or change HA config.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
