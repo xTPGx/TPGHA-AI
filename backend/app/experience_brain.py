@@ -575,13 +575,38 @@ async def build_release_checklist(config: AppConfig, version: str) -> dict[str, 
         _release_check("device_acceptance", "Device acceptance broad enough", device["score"] >= 60, "Core domains detected for testing."),
         _release_check("interaction_quality", "Interaction quality healthy", interaction["score"] >= 80 or interaction["counts"]["sample_size"] == 0, "Recent commands are mostly successful."),
     ]
-    return {
+    checklist = {
         "status": "ready" if all(check["pass"] for check in checks) else "attention",
         "version": version,
         "checks": checks,
         "blockers": [check["title"] for check in checks if not check["pass"]],
         "ship_rule": "Ship only after tests pass, version metadata is aligned, and live-house blockers are understood.",
     }
+    checklist["markdown"] = _release_checklist_markdown(checklist)
+    return checklist
+
+
+def _release_checklist_markdown(checklist: dict[str, Any]) -> str:
+    lines = [
+        f"# TPG HomeAI Release Checklist {checklist.get('version', '')}".strip(),
+        "",
+        f"Status: {checklist.get('status', 'unknown')}",
+        "",
+        "## Gates",
+    ]
+    for check in checklist.get("checks", []):
+        mark = "PASS" if check.get("pass") else "NEEDS REVIEW"
+        lines.append(f"- {mark}: {check.get('title')} - {check.get('detail')}")
+    blockers = checklist.get("blockers", []) or []
+    lines.extend(["", "## Blockers"])
+    if blockers:
+        for blocker in blockers:
+            lines.append(f"- {blocker}")
+    else:
+        lines.append("- None reported.")
+    if checklist.get("ship_rule"):
+        lines.extend(["", f"Ship rule: {checklist.get('ship_rule')}"])
+    return "\n".join(lines).strip() + "\n"
 
 
 async def build_operational_runbook(config: AppConfig, version: str) -> dict[str, Any]:
@@ -1239,6 +1264,21 @@ async def build_jarvis_phase_132(version: str) -> dict[str, Any]:
             "includes_release_checklist": True,
         },
         "guardrail": "Phase 132 only exports operational guidance and release gates; it does not execute setup actions.",
+    }
+
+
+async def build_jarvis_phase_133(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 133,
+        "release_checklist_export_ui": {
+            "source_endpoint": "/release/checklist",
+            "formats": ["json", "markdown"],
+            "setup_page_actions": ["Copy checklist", "Download checklist"],
+            "shown_near_release_blockers": True,
+        },
+        "guardrail": "Phase 133 exports release gate evidence only; owners still decide when the house is ready.",
     }
 
 

@@ -819,6 +819,17 @@ def main() -> int:
     check("phase 132 endpoint is exposed",
           "/brain/phase-132" in backend_main,
           "Backend must expose the phase 132 runbook export UI marker.")
+    check("phase 133 release checklist export UI is wired",
+          "Copy checklist" in setup_frontend
+          and "Download checklist" in setup_frontend
+          and "downloadReleaseChecklist" in setup_frontend
+          and "_release_checklist_markdown" in experience_brain
+          and "release_checklist_export_ui" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_133" in experience_brain,
+          "Setup must expose copy/download actions for the release checklist.")
+    check("phase 133 endpoint is exposed",
+          "/brain/phase-133" in backend_main,
+          "Backend must expose the phase 133 release checklist export UI marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1641,6 +1652,10 @@ def main() -> int:
           and "ship_rule" in r.json()
           and "blockers" in r.json(),
           str(r.json()))
+    check("/release/checklist exposes markdown export",
+          "# TPG HomeAI Release Checklist" in r.json().get("markdown", "")
+          and "## Gates" in r.json().get("markdown", ""),
+          str(r.json()))
 
     r = client.get("/release/runbook")
     check("/release/runbook returns JSON", r.status_code == 200 and is_json(r),
@@ -2313,6 +2328,16 @@ def main() -> int:
           r.json().get("phase") == 132
           and "markdown" in r.json().get("runbook_export_ui", {}).get("formats", [])
           and "Copy runbook" in r.json().get("runbook_export_ui", {}).get("setup_page_actions", []),
+          str(r.json()))
+
+    r = client.get("/brain/phase-133")
+    check("/brain/phase-133 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-133 has release checklist export UI marker",
+          r.json().get("phase") == 133
+          and "markdown" in r.json().get("release_checklist_export_ui", {}).get("formats", [])
+          and "Copy checklist" in r.json().get("release_checklist_export_ui", {}).get("setup_page_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

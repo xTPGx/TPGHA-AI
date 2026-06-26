@@ -8,6 +8,7 @@ export default function Setup() {
   const [cfg, setCfg] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
+  const [releaseMessage, setReleaseMessage] = useState("");
   const [runbook, setRunbook] = useState<any>(null);
   const [runbookMessage, setRunbookMessage] = useState("");
   const [gaps, setGaps] = useState<any>(null);
@@ -232,6 +233,30 @@ export default function Setup() {
     setRunbookMessage(`Runbook downloaded as ${format.toUpperCase()}.`);
   };
 
+  const copyReleaseChecklist = async () => {
+    if (!release) return;
+    try {
+      await navigator.clipboard.writeText(release.markdown || JSON.stringify(release, null, 2));
+      setReleaseMessage("Release checklist copied.");
+    } catch {
+      setReleaseMessage("Clipboard unavailable.");
+    }
+  };
+
+  const downloadReleaseChecklist = (format: "md" | "json") => {
+    if (!release) return;
+    const isMarkdown = format === "md";
+    const body = isMarkdown ? release.markdown || "" : JSON.stringify(release, null, 2);
+    const blob = new Blob([body], { type: isMarkdown ? "text/markdown" : "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tpg-homeai-release-checklist-${release.version || "current"}.${format}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setReleaseMessage(`Release checklist downloaded as ${format.toUpperCase()}.`);
+  };
+
   return (
     <div>
       <PageHeader
@@ -249,7 +274,13 @@ export default function Setup() {
         <Stat label="Pending discovery" value={health?.discovery?.pending_count ?? "—"} />
       </div>
 
-      <ReleaseBlockersPanel release={release} completion={completion} />
+      <ReleaseBlockersPanel
+        release={release}
+        completion={completion}
+        message={releaseMessage}
+        onCopy={copyReleaseChecklist}
+        onDownload={downloadReleaseChecklist}
+      />
       <OwnerActionChecklistPanel actionPlan={actionPlan} release={release} gaps={gaps} onboarding={onboarding} />
       <SetupSupportPacketPanel
         packet={supportPacket}
@@ -828,7 +859,19 @@ function OperationalRunbookPanel({
   );
 }
 
-function ReleaseBlockersPanel({ release, completion }: { release: any; completion: any }) {
+function ReleaseBlockersPanel({
+  release,
+  completion,
+  message,
+  onCopy,
+  onDownload,
+}: {
+  release: any;
+  completion: any;
+  message: string;
+  onCopy: () => void;
+  onDownload: (format: "md" | "json") => void;
+}) {
   const failedChecks = (release?.checks || []).filter((check: any) => !check.pass);
   const liveBlockers = completion?.blockers || [];
   const ready = failedChecks.length === 0 && liveBlockers.length === 0;
@@ -863,10 +906,17 @@ function ReleaseBlockersPanel({ release, completion }: { release: any; completio
             Setup now mirrors the formal release checklist so owners can clear the exact gates blocking Jarvis.
           </div>
         </div>
-        <span className={`badge ${ready ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
-          {ready ? "ready" : `${failedChecks.length + liveBlockers.length} to clear`}
-        </span>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={onCopy}>Copy checklist</button>
+          <button className="btn-ghost" onClick={() => onDownload("md")}>Download checklist</button>
+          <button className="btn-ghost" onClick={() => onDownload("json")}>Download JSON</button>
+          <span className={`badge ${ready ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+            {ready ? "ready" : `${failedChecks.length + liveBlockers.length} to clear`}
+          </span>
+        </div>
       </div>
+
+      {message && <div className="mb-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
 
       {ready ? (
         <div className="rounded border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">

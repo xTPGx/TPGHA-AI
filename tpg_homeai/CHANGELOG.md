@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.37
+
+- Added Jarvis phase 133 release checklist export UI.
+- Added Markdown output to `/release/checklist` with release gates, blockers, and ship rule.
+- Added Setup-page Copy checklist and Download checklist actions beside Release blockers.
+- Added `/brain/phase-133` and Jarvis Brain readiness evidence for release checklist handoff.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.36
 
 - Added Jarvis phase 132 runbook export UI.

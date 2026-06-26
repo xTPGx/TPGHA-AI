@@ -1104,6 +1104,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release checklist export/copy actions near release blockers.",
         },
         {
+            "id": "release_checklist_export_ui",
+            "title": "Release Checklist Export UI",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/checklist returns a Markdown export of release gates and blockers.",
+                "Setup exposes Copy checklist and Download checklist actions near Release blockers.",
+                "The checklist export stays read-only and supports owner handoff before shipping.",
+            ],
+            "next": "Add dashboard-level release status export for owner at-a-glance operations.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
