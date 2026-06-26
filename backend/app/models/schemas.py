@@ -444,6 +444,15 @@ class ResearchSearchRequest(BaseModel):
     max_results: int = 5
 
 
+class AcceptanceResultRequest(BaseModel):
+    test_id: str
+    status: Literal["passed", "failed", "blocked", "skipped"] = "passed"
+    assistant: Optional[str] = None
+    user: Optional[str] = None
+    notes: str = ""
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
 class HAEntity(BaseModel):
     entity_id: str
     state: str

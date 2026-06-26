@@ -473,6 +473,19 @@ def main() -> int:
     check("Jarvis Brain includes live acceptance readiness layer",
           "live_acceptance_runner" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
           "Readiness UI must show the live HA acceptance runner layer.")
+    check("phase 98 acceptance evidence journal exists",
+          "class AcceptanceRun" in (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
+          and "AcceptanceResultRequest" in (repo_root / "backend" / "app" / "models" / "schemas.py").read_text(encoding="utf-8")
+          and "record_live_acceptance_result" in experience_brain
+          and "list_live_acceptance_results" in experience_brain,
+          "Live acceptance results must be persisted as evidence.")
+    check("phase 98 acceptance evidence endpoints are exposed",
+          "/experience/live-acceptance/results" in backend_main
+          and "record_live_acceptance_result" in backend_main,
+          "Backend must expose acceptance evidence record/list endpoints.")
+    check("Jarvis Brain includes acceptance evidence readiness layer",
+          "acceptance_evidence_journal" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Readiness UI must show whether real-house acceptance evidence exists.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1294,6 +1307,33 @@ def main() -> int:
           and "blockers" in live_acceptance
           and any(test.get("mode") == "dry_run_required" for test in live_acceptance.get("tests", [])),
           str(live_acceptance))
+
+    r = client.post("/experience/live-acceptance/results", json={
+        "test_id": "ha_health_probe",
+        "status": "passed",
+        "assistant": "atlas",
+        "user": "shawn",
+        "notes": "Verifier recorded read-only acceptance evidence.",
+        "evidence": {"source": "verify_addon", "mutating": False},
+    })
+    check("/experience/live-acceptance/results records evidence",
+          r.status_code == 200 and is_json(r) and r.json().get("recorded") is True,
+          f"status={r.status_code} payload={r.text}")
+
+    r = client.get("/experience/live-acceptance/results")
+    check("/experience/live-acceptance/results lists evidence",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("count", 0) >= 1
+          and "latest_by_test" in r.json(),
+          str(r.json()))
+
+    r = client.get("/experience/live-acceptance")
+    check("/experience/live-acceptance includes evidence summary",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("evidence", {}).get("count", 0) >= 1,
+          str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")
     check("/knowledge/physical-devices returns JSON", r.status_code == 200 and is_json(r),

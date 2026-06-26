@@ -11,7 +11,7 @@ from typing import Any
 from .ai.client import get_ai_client
 from .config_loader import config_error, get_config
 from .db.database import get_session
-from .db.models import CommandLog, ConversationState, HouseAsset, MemoryItem, Suggestion
+from .db.models import AcceptanceRun, CommandLog, ConversationState, HouseAsset, MemoryItem, Suggestion
 from .discovery import capabilities
 from .house_assets import build_spatial_brain
 from .house_state import build_mode_brain, build_wake_word_deployment
@@ -37,6 +37,12 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         draft_assets = session.query(HouseAsset).filter(
             HouseAsset.status == "draft"
         ).count()
+        acceptance_runs = session.query(AcceptanceRun).count()
+        accepted_tests = (
+            session.query(AcceptanceRun)
+            .filter(AcceptanceRun.status == "passed")
+            .count()
+        )
 
     settings = get_settings()
     ai = get_ai_client()
@@ -122,6 +128,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             1 for domain in ("light", "fan", "lock", "climate", "media_player", "camera")
             if _domain_count(graph, domain)
         ),
+        "acceptance_runs": acceptance_runs,
+        "accepted_tests": accepted_tests,
     }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
@@ -657,6 +665,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "The runner explicitly sets read_only=true and executes_actions=false so release checks never toggle real devices.",
             ],
             "next": "Run /experience/live-acceptance from the real house and work through its blockers before calling the deployment complete.",
+        },
+        {
+            "id": "acceptance_evidence_journal",
+            "title": "Acceptance Evidence Journal",
+            "status": "ready" if acceptance_counts["acceptance_runs"] else "partial",
+            "score": 100 if acceptance_counts["acceptance_runs"] else 76,
+            "evidence": [
+                f"{acceptance_counts['acceptance_runs']} acceptance result(s) recorded.",
+                f"{acceptance_counts['accepted_tests']} acceptance result(s) marked passed.",
+                "Evidence rows preserve test id, status, assistant, user, notes, structured evidence, and version.",
+            ],
+            "next": "Record pass/fail/blocked evidence for each live acceptance test after running it in the real house.",
         },
         {
             "id": "release_checklist",

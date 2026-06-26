@@ -42,6 +42,7 @@ from .homeassistant.websocket import HomeAssistantWebSocket
 from .models.results import CommandResponse
 from .models.schemas import (
     ApproveRequest,
+    AcceptanceResultRequest,
     ChatRequest,
     CommandRequest,
     ConfirmRequest,
@@ -143,8 +144,10 @@ from .experience_brain import (
     build_interaction_quality_report,
     build_jarvis_phase_92_96,
     build_jarvis_phase_97,
+    list_live_acceptance_results,
     build_live_acceptance_runner,
     build_operational_runbook,
+    record_live_acceptance_result,
     build_release_checklist,
     build_voice_acceptance_plan,
 )
@@ -153,7 +156,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1296,6 +1299,16 @@ async def experience_device_acceptance():
 @app.get("/experience/live-acceptance")
 async def experience_live_acceptance():
     return await build_live_acceptance_runner(get_config())
+
+
+@app.get("/experience/live-acceptance/results")
+async def experience_live_acceptance_results(limit: int = 100):
+    return list_live_acceptance_results(limit=limit)
+
+
+@app.post("/experience/live-acceptance/results")
+async def experience_record_live_acceptance_result(payload: AcceptanceResultRequest):
+    return record_live_acceptance_result(payload, APP_VERSION)
 
 
 @app.get("/release/checklist")

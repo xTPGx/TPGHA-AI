@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2
+
+- Added Jarvis phase 98 acceptance evidence journal.
+- Added persistent `acceptance_run` records for human-run live-house validation evidence.
+- Added `POST /experience/live-acceptance/results` and `GET /experience/live-acceptance/results`.
+- Live acceptance now returns recorded evidence summaries alongside the read-only test plan.
+- Expanded Jarvis Brain readiness with an Acceptance Evidence Journal layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.1
 
 - Added Jarvis phase 97 live Home Assistant acceptance runner.

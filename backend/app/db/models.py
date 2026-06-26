@@ -156,6 +156,27 @@ class ArchivedConversation(Base):
     archived_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+class AcceptanceRun(Base):
+    """Human-run live-house acceptance evidence.
+
+    The acceptance runner stays non-mutating. These rows record what a human
+    validated in the real house so release readiness can be based on evidence,
+    not memory or wishful thinking.
+    """
+
+    __tablename__ = "acceptance_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    test_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="passed")
+    assistant: Mapped[str] = mapped_column(String(64), default="")
+    user: Mapped[str] = mapped_column(String(64), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    evidence: Mapped[str] = mapped_column(Text, default="{}")
+    version: Mapped[str] = mapped_column(String(32), default="")
+
+
 class HouseAsset(Base):
     """Uploaded floor plans, room photos, blueprints, and house notes.
 

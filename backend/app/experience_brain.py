@@ -7,10 +7,10 @@ from collections import Counter
 from typing import Any
 
 from .db.database import get_session
-from .db.models import CommandLog, ConversationNote, ConversationState, Suggestion
+from .db.models import AcceptanceRun, CommandLog, ConversationNote, ConversationState, Suggestion
 from .homeassistant.services import safe_get_states
 from .knowledge import build_house_graph
-from .models.schemas import AppConfig
+from .models.schemas import AcceptanceResultRequest, AppConfig
 from .settings import get_settings
 from .voice import list_voice_source_readiness
 
@@ -225,6 +225,7 @@ async def build_live_acceptance_runner(config: AppConfig) -> dict[str, Any]:
             "Only owner/admin can draft or install dashboard/system UI changes.",
         ),
     ]
+    evidence = list_live_acceptance_results(limit=100)
     blocked = [test for test in tests if test["status"] == "blocked"]
     ready = [test for test in tests if test["status"] == "ready"]
     return {
@@ -248,8 +249,48 @@ async def build_live_acceptance_runner(config: AppConfig) -> dict[str, Any]:
         },
         "tests": tests,
         "blockers": [test["blocker"] for test in blocked],
+        "evidence": evidence,
         "graph_counts": graph.get("counts", {}),
         "next_action": _next_live_acceptance_action(tests),
+    }
+
+
+def record_live_acceptance_result(payload: AcceptanceResultRequest, version: str) -> dict[str, Any]:
+    with get_session() as session:
+        row = AcceptanceRun(
+            test_id=payload.test_id.strip(),
+            status=payload.status,
+            assistant=payload.assistant or "",
+            user=payload.user or "",
+            notes=payload.notes,
+            evidence=json.dumps(payload.evidence or {}, sort_keys=True),
+            version=version,
+        )
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+        return {"recorded": True, "result": _acceptance_run_card(row)}
+
+
+def list_live_acceptance_results(limit: int = 100) -> dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as session:
+        rows = (
+            session.query(AcceptanceRun)
+            .order_by(AcceptanceRun.created_at.desc())
+            .limit(safe_limit)
+            .all()
+        )
+    cards = [_acceptance_run_card(row) for row in rows]
+    latest_by_test: dict[str, dict[str, Any]] = {}
+    for card in cards:
+        latest_by_test.setdefault(card["test_id"], card)
+    status_counts = Counter(card["status"] for card in cards)
+    return {
+        "count": len(cards),
+        "status_counts": dict(status_counts),
+        "latest_by_test": latest_by_test,
+        "results": cards,
     }
 
 
@@ -358,6 +399,20 @@ def _safe_json(value: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _acceptance_run_card(row: AcceptanceRun) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "test_id": row.test_id,
+        "status": row.status,
+        "assistant": row.assistant,
+        "user": row.user,
+        "notes": row.notes,
+        "evidence": _safe_json(row.evidence),
+        "version": row.version,
+    }
 
 
 def _interaction_recommendations(total: int, failed: list[CommandLog], confusion: list[CommandLog]) -> list[str]:
