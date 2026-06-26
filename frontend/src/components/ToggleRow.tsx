@@ -10,7 +10,7 @@ export default function ToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-950/30 px-3 py-2 transition hover:border-sky-400/40">
+    <label className="tpg-panel-flat flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3 py-2 transition hover:border-sky-400/40">
       <span className="min-w-0">
         <span className="block text-sm font-medium text-slate-100">{label}</span>
         {description && <span className="block text-xs text-slate-500">{description}</span>}

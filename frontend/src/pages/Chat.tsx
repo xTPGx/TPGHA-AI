@@ -1099,22 +1099,22 @@ export default function Chat() {
   );
 
   return (
-    <div className="tpg-chat-layout relative flex h-full min-h-0 text-slate-100">
-      <aside className="hidden w-[21rem] shrink-0 border-r border-cyan-300/10 bg-[#050914]/95 lg:block">
+    <div className="tpg-chat-layout relative flex h-full min-h-0">
+      <aside className="tpg-sidebar hidden w-[21rem] shrink-0 border-r lg:block">
         {sidebar}
       </aside>
 
       {historyOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button className="absolute inset-0 bg-black/60" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" />
-          <aside className="relative h-full w-[min(22rem,88vw)] border-r border-cyan-300/10 bg-[#050914] shadow-2xl">
+          <aside className="tpg-sidebar relative h-full w-[min(22rem,88vw)] border-r shadow-2xl">
             {sidebar}
           </aside>
         </div>
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[4.5rem] shrink-0 items-center justify-between border-b border-cyan-300/10 bg-[#050914]/92 px-3 backdrop-blur sm:px-5">
+        <header className="tpg-chrome flex h-[4.5rem] shrink-0 items-center justify-between border-b px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <button className="chat-icon-btn lg:hidden" onClick={() => setHistoryOpen(true)} aria-label="Open chat history">
               <span className="block h-0.5 w-5 rounded bg-current" />
@@ -1128,7 +1128,7 @@ export default function Chat() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              className={`chat-pill ${activeTab === "notebook" ? "border-white/25 bg-white/10 text-white" : ""}`}
+              className={`chat-pill ${activeTab === "notebook" ? "tpg-segment-active" : ""}`}
               onClick={() => setActiveTab(activeTab === "notebook" ? "chat" : "notebook")}
             >
               {activeTab === "notebook" ? "Chat" : "Notes"}
@@ -1224,7 +1224,7 @@ export default function Chat() {
               </div>
               {!stuckToBottom && (
                 <button
-                  className="fixed bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border border-cyan-300/20 bg-[#081225] px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg transition hover:border-cyan-300/50 hover:bg-[#0d1b34]"
+                  className="tpg-ghost-button fixed bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full px-3 py-1.5 text-xs shadow-lg"
                   onClick={jumpToLatest}
                 >
                   Jump to latest
@@ -1232,7 +1232,7 @@ export default function Chat() {
               )}
             </section>
 
-            <div className="shrink-0 border-t border-cyan-300/10 bg-[#050914]/92 px-3 py-3 backdrop-blur sm:px-6">
+            <div className="tpg-chrome shrink-0 border-t px-3 py-3 sm:px-6">
               {followups.length > 0 && (
                 <ChatFollowups
                   followups={followups}
@@ -1249,7 +1249,7 @@ export default function Chat() {
                       : "Panel mode paused"}
                   </span>
                   <input
-                    className="ml-auto w-32 rounded-md border border-cyan-300/15 bg-black/30 px-2 py-1 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-300/45"
+                    className="input ml-auto min-h-8 w-32 rounded-md px-2 py-1 text-xs"
                     value={panelRoom}
                     onChange={(e) => setPanelRoom(e.target.value)}
                     placeholder="Room (optional)"
@@ -1355,7 +1355,7 @@ function VoiceSessionBar({
       ? "Transcribing"
       : "Last voice input";
   return (
-    <div className="mx-4 mt-4 rounded-lg border border-cyan-300/15 bg-[#0b1427]/80 p-3 text-sm text-slate-200">
+    <div className="tpg-panel-flat mx-4 mt-4 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-3">
         <span className={`h-2.5 w-2.5 rounded-full ${listening ? "animate-pulse bg-rose-400" : "bg-sky-400"}`} />
         <span className="font-semibold">{label}</span>
@@ -1540,7 +1540,7 @@ function EmptyState({ assistantName, prompts, onPrompt }: { assistantName: strin
         {promptList.map((prompt) => (
           <button
             key={prompt.id || prompt.text}
-            className="tpg-panel-flat p-4 text-left text-sm text-slate-300 transition hover:border-cyan-300/45 hover:bg-cyan-300/[0.05] hover:text-slate-100"
+            className="tpg-prompt-card p-4 text-left text-sm"
             onClick={() => onPrompt(quickPrompt(prompt.text || String(prompt)))}
           >
             <span className="block">{prompt.text || String(prompt)}</span>

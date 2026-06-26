@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.61
+
+- Added persistent Dark, OLED Black, Light, and White theme modes to the TPG shell.
+- Rebuilt the shared design tokens for stronger futuristic glass cards, cleaner page chrome, brighter action states, and readable light/white UI.
+- Updated Chat, Music, Assistants, buttons, badges, toggles, developer panels, page headers, and the draggable AI launcher to use the new product styling.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.60
 
 - Added a shared TPG console design system with neon/glass panels, sharper controls, and consistent cyan/violet product styling.

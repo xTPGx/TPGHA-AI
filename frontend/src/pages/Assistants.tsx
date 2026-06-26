@@ -185,7 +185,7 @@ export default function Assistants() {
         </div>
       )}
 
-      {message && <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+      {message && <div className="tpg-panel-flat p-3 text-sm">{message}</div>}
 
       {editor && (
         <div className="card">
@@ -226,7 +226,7 @@ export default function Assistants() {
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <div className="rounded border border-slate-800 bg-slate-950/30 p-4">
+            <div className="tpg-panel-flat p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-lg font-semibold">Voice Test</div>
@@ -261,13 +261,13 @@ export default function Assistants() {
               )}
             </div>
 
-            <div className="rounded border border-slate-800 bg-slate-950/30 p-4">
+            <div className="tpg-panel-flat p-4">
               <div className="mb-3 text-lg font-semibold">Voice Catalog</div>
               <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
                 {(voices.length ? voices : DEFAULT_VOICES.map((id) => ({ id, label: id }))).map((voice: any) => (
                   <button
                     key={voice.id}
-                    className={`block w-full rounded border px-3 py-2 text-left ${editor.voice === voice.id ? "border-brand bg-brand-dark/20" : "border-slate-800 bg-slate-950/40"}`}
+                    className={`tpg-panel-flat block w-full px-3 py-2 text-left ${editor.voice === voice.id ? "border-brand bg-brand-dark/20" : ""}`}
                     onClick={() => setEditor({ ...editor, voice: voice.id })}
                   >
                     <div className="font-semibold">{voice.label || voice.id}</div>

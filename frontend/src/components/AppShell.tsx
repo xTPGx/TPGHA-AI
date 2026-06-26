@@ -3,8 +3,27 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import ChatFab from "./ChatFab";
 
 type Role = "admin" | "manager" | "resident" | "kiosk" | "guest";
+type ThemeMode = "dark" | "black" | "light" | "white";
 export type NavItemDef = { to: string; label: string; end?: boolean; roles: Role[] };
 export type NavGroupDef = { label: string; items: NavItemDef[]; collapsible?: boolean };
+
+const THEME_KEY = "tpg.themeMode";
+const THEMES: { id: ThemeMode; label: string }[] = [
+  { id: "dark", label: "Dark" },
+  { id: "black", label: "Black" },
+  { id: "light", label: "Light" },
+  { id: "white", label: "White" },
+];
+
+function readTheme(): ThemeMode {
+  try {
+    const saved = localStorage.getItem(THEME_KEY) as ThemeMode | null;
+    if (saved && THEMES.some((theme) => theme.id === saved)) return saved;
+  } catch {
+    /* ignore */
+  }
+  return "dark";
+}
 
 export default function AppShell({
   children,
@@ -32,6 +51,7 @@ export default function AppShell({
   onPreviewRoleChange: (role: Role | "") => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(() => readTheme());
   const location = useLocation();
   const navigate = useNavigate();
   const canGoBack = location.pathname !== "/";
@@ -39,6 +59,14 @@ export default function AppShell({
   const canUseChat = navGroups.some((group) => group.items.some((item) => item.to === "/chat" && item.roles.includes(role)));
 
   useEffect(() => setOpen(false), [location.pathname]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* ignore */
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (!open) return;
@@ -50,12 +78,12 @@ export default function AppShell({
   }, [open]);
 
   return (
-    <div className="app-shell tpg-console min-h-screen overflow-x-hidden text-slate-100">
-      <header className="compact-header sticky top-0 z-40 border-b border-cyan-300/10 bg-[#050914]/92 px-3 py-2 backdrop-blur xl:hidden">
+    <div className="app-shell tpg-console min-h-screen overflow-x-hidden" data-theme={theme}>
+      <header className="compact-header tpg-chrome sticky top-0 z-40 border-b px-3 py-2 xl:hidden">
         <div className="flex min-h-12 items-center justify-between gap-3">
           {canGoBack && (
             <button
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-cyan-300/15 bg-[#091225] text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
+              className="tpg-shell-button"
               onClick={() => navigate(-1)}
               aria-label="Go back"
             >
@@ -63,7 +91,7 @@ export default function AppShell({
             </button>
           )}
           <button
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-cyan-300/15 bg-[#091225] text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
+            className="tpg-shell-button"
             onClick={() => setOpen(true)}
             aria-label="Open navigation"
           >
@@ -77,14 +105,18 @@ export default function AppShell({
             <div className="tpg-glow-text truncate text-sm font-bold">TPG HomeAI</div>
             <div className="truncate text-xs text-slate-500">{sessionUser?.name || "House"} · {roleLabel(role)}</div>
           </div>
-          <div className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-xs text-cyan-100">
+          <button
+            className="tpg-ai-chip h-9 px-3 text-xs"
+            onClick={() => setTheme(nextTheme(theme))}
+            title={`Theme: ${theme}. Tap to cycle.`}
+          >
             AI
-          </div>
+          </button>
         </div>
       </header>
 
       <div className="flex min-h-screen min-w-0">
-        <aside className="wide-sidebar hidden w-[16rem] shrink-0 border-r border-cyan-300/10 bg-[#050914]/92 p-3 backdrop-blur xl:block">
+        <aside className="wide-sidebar tpg-sidebar hidden w-[16rem] shrink-0 border-r p-3 xl:block">
           <ShellNav
             navGroups={navGroups}
             role={role}
@@ -96,6 +128,8 @@ export default function AppShell({
             previewRole={previewRole}
             canPreviewRoles={canPreviewRoles}
             onPreviewRoleChange={onPreviewRoleChange}
+            theme={theme}
+            onThemeChange={setTheme}
           />
         </aside>
 
@@ -106,7 +140,7 @@ export default function AppShell({
               onClick={() => setOpen(false)}
               aria-label="Close navigation"
             />
-            <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-cyan-300/10 bg-[#050914] p-4 shadow-2xl">
+            <aside className="tpg-sidebar relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r p-4 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <div className="tpg-glow-text text-lg font-bold">TPG HomeAI</div>
@@ -125,6 +159,8 @@ export default function AppShell({
                 previewRole={previewRole}
                 canPreviewRoles={canPreviewRoles}
                 onPreviewRoleChange={onPreviewRoleChange}
+                theme={theme}
+                onThemeChange={setTheme}
               />
             </aside>
           </div>
@@ -163,6 +199,8 @@ function ShellNav({
   previewRole,
   canPreviewRoles,
   onPreviewRoleChange,
+  theme,
+  onThemeChange,
 }: {
   navGroups: NavGroupDef[];
   role: Role;
@@ -174,6 +212,8 @@ function ShellNav({
   previewRole: Role | "";
   canPreviewRoles: boolean;
   onPreviewRoleChange: (role: Role | "") => void;
+  theme: ThemeMode;
+  onThemeChange: (theme: ThemeMode) => void;
 }) {
   const location = useLocation();
   return (
@@ -221,7 +261,30 @@ function ShellNav({
               </select>
             </div>
           )}
+          <div className="mt-3">
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Theme</label>
+            <div className="tpg-theme-switch">
+              {THEMES.map((option) => (
+                <button
+                  key={option.id}
+                  className={`tpg-theme-choice ${theme === option.id ? "tpg-theme-choice-active" : ""}`}
+                  onClick={() => onThemeChange(option.id)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+      )}
+
+      {!sessionUser && (
+        <ThemePicker
+          theme={theme}
+          onThemeChange={onThemeChange}
+          className="tpg-panel-flat mb-5 p-3"
+        />
       )}
 
       <nav className="flex flex-col gap-4">
@@ -275,8 +338,41 @@ function ShellNav({
   );
 }
 
+function ThemePicker({
+  theme,
+  onThemeChange,
+  className = "",
+}: {
+  theme: ThemeMode;
+  onThemeChange: (theme: ThemeMode) => void;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Theme</label>
+      <div className="tpg-theme-switch">
+        {THEMES.map((option) => (
+          <button
+            key={option.id}
+            className={`tpg-theme-choice ${theme === option.id ? "tpg-theme-choice-active" : ""}`}
+            onClick={() => onThemeChange(option.id)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function roleLabel(role: Role) {
   if (role === "admin") return "Owner";
   if (role === "kiosk") return "Kiosk / Shared";
   return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function nextTheme(theme: ThemeMode): ThemeMode {
+  const index = THEMES.findIndex((item) => item.id === theme);
+  return THEMES[(index + 1) % THEMES.length].id;
 }

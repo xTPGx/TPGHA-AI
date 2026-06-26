@@ -117,7 +117,7 @@ export default function Music() {
         actions={<div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => editSpeaker()}>Add Speaker</Button><Button onClick={() => editAccount()}>Add Account</Button></div>}
       />
 
-      {message && <div className="mb-4 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+      {message && <div className="tpg-panel-flat mb-4 p-3 text-sm">{message}</div>}
 
       {accountEditor && (
         <div className="card mb-6">
@@ -160,7 +160,7 @@ export default function Music() {
         <div className="mb-3 text-lg font-semibold text-slate-100">Music Assistant accounts</div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {Object.entries(accounts).map(([key, a]) => (
-            <div key={key} className="rounded-2xl border border-slate-700 bg-slate-950/40 p-4">
+            <div key={key} className="tpg-panel-flat p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-brand">{a.name}</div>
@@ -183,7 +183,7 @@ export default function Music() {
         <div className="mb-3 text-lg font-semibold text-slate-100">Speakers to rooms</div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
-            <thead className="border-b border-slate-700 text-slate-400">
+            <thead className="border-b text-slate-400">
               <tr>
                 <th className="py-2">Speaker</th>
                 <th className="py-2">Entity</th>
@@ -193,7 +193,7 @@ export default function Music() {
             </thead>
             <tbody>
               {speakers.map((s: any) => (
-                <tr key={s.id} className="border-b border-slate-800/70">
+                <tr key={s.id} className="border-b">
                   <td className="py-2">{s.name}</td>
                   <td className="break-all py-2 font-mono text-xs text-brand">{s.music_assistant_entity_id || s.entity_id}</td>
                   <td className="py-2 text-slate-400">{s.room ?? "none"}</td>
