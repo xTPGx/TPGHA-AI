@@ -995,6 +995,22 @@ async def build_jarvis_phase_118(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_119(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 119,
+        "sidebar_access_diagnostics": {
+            "source_endpoint": "/ops/sidebar-access",
+            "validates_supervisor_ingress": True,
+            "validates_panel_admin_false": True,
+            "documents_admin_and_non_admin_expectations": True,
+            "includes_mobile_cache_remediation": True,
+        },
+        "guardrail": "Phase 119 diagnoses HA sidebar access only; it does not change Home Assistant users or permissions.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

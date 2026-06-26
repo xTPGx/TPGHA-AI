@@ -6,6 +6,7 @@ into deployment guidance that is safe to show in the UI or hand to support.
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 from typing import Any
 
 from .actions.automation_installer import ha_config_root
@@ -226,6 +227,78 @@ async def build_integration_readiness_matrix(config: AppConfig) -> dict[str, Any
     }
 
 
+def build_sidebar_access_diagnostics(config: AppConfig) -> dict[str, Any]:
+    repo_root = Path(__file__).resolve().parents[2]
+    addon_config = repo_root / "tpg_homeai" / "config.yaml"
+    integration_init = repo_root / "custom_components" / "tpg_homeai" / "__init__.py"
+    addon_text = addon_config.read_text(encoding="utf-8") if addon_config.exists() else ""
+    integration_text = integration_init.read_text(encoding="utf-8") if integration_init.exists() else ""
+    checks = [
+        _sidebar_check(
+            "ingress_enabled",
+            "Supervisor ingress enabled",
+            "ingress: true" in addon_text,
+            "The add-on must use Supervisor ingress so Home Assistant owns authentication.",
+        ),
+        _sidebar_check(
+            "panel_admin_false",
+            "Visible to non-admin HA users",
+            "panel_admin: false" in addon_text,
+            "Set panel_admin: false so HA Users group logins can see the sidebar entry.",
+        ),
+        _sidebar_check(
+            "panel_title",
+            "Native panel title configured",
+            'panel_title: "TPG HomeAI"' in addon_text,
+            "Set panel_title so Supervisor publishes the sidebar entry.",
+        ),
+        _sidebar_check(
+            "wrapper_removed",
+            "Legacy wrapper panel removed",
+            "_remove_sidebar_panel" in integration_text and "Supervisor ingress" in integration_text and "panel remains" in integration_text,
+            "The custom integration should remove old iframe wrapper panels to avoid stale-user sessions.",
+        ),
+    ]
+    users = config.assistants.users
+    admins = [user for user in users if user.role == "admin"]
+    non_admins = [user for user in users if user.role != "admin"]
+    ready = all(check["ok"] for check in checks)
+    return {
+        "status": "ready" if ready else "attention",
+        "visible_to_ha_non_admins": ready,
+        "entry": {
+            "title": "TPG HomeAI",
+            "path": "/api/hassio_ingress/3e5a55d6_tpg_homeai",
+            "auth_source": "Home Assistant Supervisor ingress",
+            "raw_port": 8088,
+            "raw_port_requires_api_token_when_configured": True,
+        },
+        "checks": checks,
+        "role_expectations": [
+            {
+                "ha_group": "Owner/Administrators",
+                "tpg_role": "admin",
+                "expected_sidebar": True,
+                "expected_scope": "Full TPG HomeAI management.",
+                "configured_users": [user.name for user in admins],
+            },
+            {
+                "ha_group": "Users",
+                "tpg_role": "resident/kiosk/guest",
+                "expected_sidebar": ready,
+                "expected_scope": "Chat, own assistant/profile, memory/notebook, and allowed house controls.",
+                "configured_users": [user.name for user in non_admins],
+            },
+        ],
+        "remediation": [
+            "Update/reinstall the add-on after config.yaml changes so Supervisor rebuilds sidebar metadata.",
+            "Restart Home Assistant after installing/updating the custom integration so stale wrapper panels are removed.",
+            "For mobile/iPad, force-close the HA app after add-on update because the sidebar cache can persist per account.",
+            "Use Identity Debug inside TPG HomeAI to verify the resolved HA user after the panel opens.",
+        ],
+    }
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)
@@ -289,6 +362,10 @@ def _entity_card(entity: Any) -> dict[str, Any]:
 
 def _integration(integration_id: str, name: str, configured: bool, detail: str) -> dict[str, Any]:
     return {"id": integration_id, "name": name, "configured": bool(configured), "detail": detail}
+
+
+def _sidebar_check(check_id: str, title: str, ok: bool, detail: str) -> dict[str, Any]:
+    return {"id": check_id, "title": title, "ok": bool(ok), "detail": detail}
 
 
 def _has_music_assistant(config: AppConfig, entity_blob: str) -> bool:

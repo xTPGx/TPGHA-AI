@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.23
+
+- Added Jarvis phase 119 Home Assistant sidebar access diagnostics.
+- Added `/ops/sidebar-access` to validate Supervisor ingress, `panel_admin: false`, native panel metadata, and stale wrapper removal.
+- Setup now shows owner/non-admin sidebar expectations and mobile sidebar cache remediation steps.
+- Added `/brain/phase-119` and Jarvis Brain readiness evidence for sidebar access diagnostics.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.22
 
 - Added Jarvis phase 118 setup support packet export.

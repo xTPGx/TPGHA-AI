@@ -667,6 +667,16 @@ def main() -> int:
     check("phase 118 endpoint is exposed",
           "/brain/phase-118" in backend_main,
           "Backend must expose the phase 118 setup support packet readiness marker.")
+    check("phase 119 sidebar access diagnostics are wired",
+          "/ops/sidebar-access" in backend_main
+          and "api.sidebarAccess" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "sidebar_access_diagnostics" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_sidebar_access_diagnostics" in operations_brain
+          and "build_jarvis_phase_119" in experience_brain,
+          "Setup must diagnose HA sidebar access for owner and non-admin users.")
+    check("phase 119 endpoint is exposed",
+          "/brain/phase-119" in backend_main,
+          "Backend must expose the phase 119 sidebar access readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1378,6 +1388,15 @@ def main() -> int:
           and "integration_matrix" in r.json(),
           str(r.json()))
 
+    r = client.get("/ops/sidebar-access")
+    check("/ops/sidebar-access returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/sidebar-access validates non-admin visibility",
+          r.json().get("visible_to_ha_non_admins") is True
+          and any(check_item.get("id") == "panel_admin_false" and check_item.get("ok") for check_item in r.json().get("checks", []))
+          and any(role.get("ha_group") == "Users" for role in r.json().get("role_expectations", [])),
+          str(r.json()))
+
     r = client.get("/brain/phase-87-91")
     check("/brain/phase-87-91 returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -1806,6 +1825,16 @@ def main() -> int:
           r.json().get("phase") == 118
           and r.json().get("setup_support_packet", {}).get("source_endpoint") == "/ops/setup-support-packet"
           and "markdown" in r.json().get("setup_support_packet", {}).get("formats", []),
+          str(r.json()))
+
+    r = client.get("/brain/phase-119")
+    check("/brain/phase-119 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-119 has sidebar access marker",
+          r.json().get("phase") == 119
+          and r.json().get("sidebar_access_diagnostics", {}).get("source_endpoint") == "/ops/sidebar-access"
+          and r.json().get("sidebar_access_diagnostics", {}).get("validates_panel_admin_false") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

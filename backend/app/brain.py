@@ -936,6 +936,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add one-click support bundle download once browser download handling is polished across HA mobile clients.",
         },
         {
+            "id": "sidebar_access_diagnostics",
+            "title": "HA Sidebar Access Diagnostics",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/sidebar-access validates Supervisor ingress, panel_admin visibility, and stale wrapper removal.",
+                "The diagnostic documents owner/admin and HA Users group expectations.",
+                "Remediation steps cover add-on metadata refresh, HA restart, and mobile sidebar cache behavior.",
+            ],
+            "next": "Add live Supervisor metadata probing if HA exposes add-on panel visibility through the API.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

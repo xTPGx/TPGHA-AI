@@ -18,6 +18,7 @@ export default function Setup() {
   const [actionPlan, setActionPlan] = useState<any>(null);
   const [supportPacket, setSupportPacket] = useState<any>(null);
   const [supportPacketMessage, setSupportPacketMessage] = useState("");
+  const [sidebarAccess, setSidebarAccess] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -40,6 +41,7 @@ export default function Setup() {
         integrationReadiness,
         setupActionPlan,
         setupSupportPacket,
+        sidebarAccessReport,
         v,
         runtime,
         assets,
@@ -56,6 +58,7 @@ export default function Setup() {
         api.integrationMatrix(),
         api.setupActionPlan(),
         api.setupSupportPacket(),
+        api.sidebarAccess(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -72,6 +75,7 @@ export default function Setup() {
       setIntegrations(integrationReadiness);
       setActionPlan(setupActionPlan);
       setSupportPacket(setupSupportPacket);
+      setSidebarAccess(sidebarAccessReport);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -228,6 +232,7 @@ export default function Setup() {
         onCopy={copySupportPacket}
         onDownload={downloadSupportPacket}
       />
+      <SidebarAccessPanel report={sidebarAccess} />
       <CapabilityGapsPanel gaps={gaps} />
       <OnboardingPlanPanel onboarding={onboarding} />
       <OperationalRunbookPanel runbook={runbook} />
@@ -330,6 +335,54 @@ function SetupSupportPacketPanel({
         <button className="btn-ghost" onClick={() => onDownload("json")}>Download JSON</button>
       </div>
       {message && <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+    </div>
+  );
+}
+
+function SidebarAccessPanel({ report }: { report: any }) {
+  if (!report) return null;
+  return (
+    <div className="card mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">HA sidebar access</div>
+          <div className="mt-1 text-sm text-slate-400">
+            Confirms whether Supervisor ingress should expose TPG HomeAI to owner and non-admin HA users.
+          </div>
+        </div>
+        <span className={`badge ${report.visible_to_ha_non_admins ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {report.visible_to_ha_non_admins ? "all HA users" : "needs review"}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {(report.checks || []).map((check: any) => (
+          <div key={check.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-semibold text-slate-100">{check.title}</div>
+              <span className={`badge ${check.ok ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+                {check.ok ? "ok" : "fix"}
+              </span>
+            </div>
+            <div className="mt-1 text-sm text-slate-400">{check.detail}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {(report.role_expectations || []).map((role: any) => (
+          <div key={role.ha_group} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+            <div className="font-semibold text-slate-100">{role.ha_group}</div>
+            <div className="mt-1 text-sm text-slate-400">{role.expected_scope}</div>
+            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">Configured users</div>
+            <div className="mt-1 text-sm text-slate-300">{(role.configured_users || []).join(", ") || "none"}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded border border-slate-800 bg-slate-950/30 p-3">
+        <div className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">If mobile/non-admin users still do not see it</div>
+        <ul className="space-y-1 text-sm text-slate-300">
+          {(report.remediation || []).map((step: string) => <li key={step}>- {step}</li>)}
+        </ul>
+      </div>
     </div>
   );
 }
