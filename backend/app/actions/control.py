@@ -78,6 +78,7 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
         media_result = await _execute_media_player_plan(ctx, plan, friendly, intent)
         if media_result is not None:
             return media_result
+    service_strategy = _approved_generic_strategy(domain, str(data.get("entity_id") or ""))
     try:
         if domain == "fan" and service == "set_percentage":
             guarded = await _fan_percentage_guard(ctx, data, friendly, intent)
@@ -88,12 +89,14 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
         # Be honest: the service call failed, so do NOT claim execution.
         return ActionResult.fail(intent, f"{friendly}: {exc.message}",
                                  data={"service_call": {"domain": domain,
-                                                        "service": service, "data": data}})
+                                                        "service": service, "data": data},
+                                       "service_strategy": service_strategy or "native"})
     verification = await _verify(ctx, data.get("entity_id"))
     return ActionResult(
         success=True, intent=intent, executed=True,
         message=plan.get("success_message", f"Done ({domain}.{service})."),
         data={"service_call": {"domain": domain, "service": service, "data": data},
+              "service_strategy": service_strategy or "native",
               "verification": verification},
     )
 
@@ -244,6 +247,25 @@ def _approved_media_strategy(entity_id: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         parsed = {"strategy": raw}
     return parsed if isinstance(parsed, dict) else {"strategy": str(parsed or "")}
+
+
+def _approved_generic_strategy(domain: str, entity_id: str) -> str:
+    key = {
+        "cover": "preferred_cover_control",
+        "climate": "preferred_climate_control",
+    }.get(domain)
+    if not key or not entity_id:
+        return ""
+    raw = approved_memory_value("device", entity_id, key)
+    if not raw:
+        return ""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if isinstance(parsed, dict):
+        return str(parsed.get("strategy") or "")
+    return str(parsed or "")
 
 
 async def _fan_percentage_guard(ctx: ActionContext, data: dict[str, Any],

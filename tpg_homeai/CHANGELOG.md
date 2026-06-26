@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.2
+
+- Added phases 56-60 reliability expansion for covers and climate devices.
+- Added cover open/close state verification, cover recovery guidance, and approved `preferred_cover_control` device memory.
+- Added climate HVAC-mode verification, climate recovery guidance, and approved `preferred_climate_control` device memory.
+- Updated direct climate actions to record mode/temperature service attempts and honor approved temperature-only strategy memory.
+- Added Device Adapter hints for cover position/state feedback and thermostat HVAC mode/temperature control.
+- Expanded Jarvis Brain readiness evidence and verifier coverage for cover/climate strategy learning.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.1
 
 - Added phases 51-55 media/TV self-healing: generic media-player controls now honor approved `preferred_media_control` device memory.

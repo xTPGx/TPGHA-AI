@@ -216,6 +216,10 @@ def _expected_state(result: ActionResult) -> str | None:
         return "playing"
     if service == "media_stop":
         return "idle"
+    if service == "open_cover":
+        return "open"
+    if service == "close_cover":
+        return "closed"
     if service == "lock":
         return "locked"
     if service == "unlock":
@@ -249,7 +253,16 @@ def _expected_attribute(result: ActionResult) -> dict[str, Any] | None:
         return _numeric_expectation("volume_level", data.get("volume_level"), tolerance=0.04)
     if service == "set_temperature":
         return _numeric_expectation("temperature", data.get("temperature"), tolerance=1)
+    if service == "set_hvac_mode":
+        return _string_expectation("hvac_mode", data.get("hvac_mode"))
     return None
+
+
+def _string_expectation(attribute: str, value: Any) -> dict[str, Any] | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return {"attribute": attribute, "value": text, "tolerance": 0}
 
 
 def _numeric_expectation(attribute: str, value: Any, *, tolerance: float) -> dict[str, Any] | None:
@@ -384,6 +397,10 @@ def _suggested_next_action(result: ActionResult, domain: str, issue: str) -> str
         return "Inspect fan attributes and map speed levels to preset modes if percentage is unsupported."
     if domain == "media_player":
         return "Check supported features and prefer play_media/volume paths when power services are unsupported."
+    if domain == "cover":
+        return "Check cover device_class, position feedback, and whether this cover reports open/closed state reliably."
+    if domain == "climate":
+        return "Check supported HVAC modes and whether this thermostat accepts mode and temperature as separate calls."
     if domain == "lock":
         return "Verify lock battery/connectivity; keep unlock confirmation enabled."
     return "Review the Home Assistant entity attributes and update the device profile if this behavior is expected."
@@ -395,6 +412,7 @@ def _interesting_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
         "volume_level", "media_content_id", "media_title", "source",
         "temperature", "target_temp_low", "target_temp_high", "hvac_mode",
         "brightness", "supported_features", "device_class", "battery_level",
+        "current_position", "current_tilt_position", "supported_color_modes",
     ]
     return {key: attrs.get(key) for key in keys if key in attrs}
 
@@ -457,6 +475,18 @@ def _recovery_steps(result: ActionResult, outcome: dict[str, Any]) -> list[str]:
             "If native power control failed, teach the device to use media_play/media_stop wake or sleep fallback.",
             "If the TV needs an alternate integration, mark that in the device profile so future commands use the correct service.",
         ])
+    elif domain == "cover":
+        steps.extend([
+            "Check whether this cover reports open/closed state or only position.",
+            "If position feedback exists, verify current_position after open/close commands.",
+            "Approve a device memory if this cover needs position-based verification instead of simple state verification.",
+        ])
+    elif domain == "climate":
+        steps.extend([
+            "Check the thermostat's hvac_modes and whether the requested mode is supported.",
+            "Some thermostats require setting HVAC mode and temperature as separate service calls.",
+            "Approve a device memory if this climate device should use temperature-only or mode-then-temperature control.",
+        ])
     elif domain in {"light", "switch"}:
         steps.extend([
             "Check if the entity is unavailable or delayed by the integration.",
@@ -514,6 +544,34 @@ def _proposed_device_memory(result: ActionResult, outcome: dict[str, Any]) -> di
                 "strategy": strategy,
                 "reason": "Reliability verification found media player state did not match expected state.",
                 "last_service": service,
+            },
+        }
+    if domain == "cover" and result.intent == "control_device":
+        service_call = (result.data or {}).get("service_call") or {}
+        service = str(service_call.get("service") or "")
+        return {
+            "scope": "device",
+            "subject": entity_id,
+            "key": "preferred_cover_control",
+            "value": {
+                "strategy": "position_or_state_verify",
+                "reason": "Reliability verification found cover state did not match expected state.",
+                "last_service": service,
+                "last_position": first_attrs.get("current_position"),
+            },
+        }
+    if domain == "climate" and result.intent in {"set_climate", "control_device"}:
+        service_call = (result.data or {}).get("service_call") or {}
+        service = str(service_call.get("service") or "")
+        return {
+            "scope": "device",
+            "subject": entity_id,
+            "key": "preferred_climate_control",
+            "value": {
+                "strategy": "mode_then_temperature" if service == "set_temperature" else "verify_hvac_mode",
+                "reason": "Reliability verification found climate state or attributes did not match expected values.",
+                "last_service": service,
+                "hvac_mode": (service_call.get("data") or {}).get("hvac_mode"),
             },
         }
     return {}
@@ -637,6 +695,20 @@ def _service_strategy(device: dict[str, Any]) -> dict[str, Any]:
                 "media_strategy": "play_media_with_source_account",
                 **learned,
             }
+        elif domain == "cover":
+            strategies[entity_id] = {
+                "preferred_control": "cover_service",
+                "device_class": attrs.get("device_class"),
+                "supports_position_feedback": "current_position" in attrs,
+                **learned,
+            }
+        elif domain == "climate":
+            strategies[entity_id] = {
+                "preferred_control": "mode_then_temperature",
+                "hvac_modes": attrs.get("hvac_modes") or [],
+                "supports_current_temperature": "current_temperature" in attrs,
+                **learned,
+            }
         elif domain == "light":
             strategies[entity_id] = {
                 "preferred_control": "light_service",
@@ -649,6 +721,8 @@ def _learned_device_strategy(entity_id: str, domain: str | None) -> dict[str, An
     key = {
         "fan": "preferred_fan_speed_control",
         "media_player": "preferred_media_control",
+        "cover": "preferred_cover_control",
+        "climate": "preferred_climate_control",
     }.get(str(domain or ""))
     if not key:
         return {}

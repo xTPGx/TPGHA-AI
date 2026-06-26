@@ -4,9 +4,11 @@ If no climate entity is mapped (devices.yaml -> climate is empty / room has no
 climate), we ask the user for a target room instead of guessing."""
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 from ..homeassistant.rest import HAError
+from ..memory import approved_memory_value
 from ..models.results import ActionResult
 from . import ActionContext
 
@@ -66,12 +68,50 @@ async def set_climate(ctx: ActionContext, params: dict[str, Any]) -> ActionResul
     if temperature is None:
         return ActionResult.fail(intent, "What temperature should I set?", resolved=resolved)
 
+    attempts: list[dict[str, Any]] = []
+    strategy = _approved_climate_strategy(entity_id)
+    strategy_name = str(strategy.get("strategy") or "mode_then_temperature")
     try:
-        await ctx.ha.set_climate_temperature(entity_id, float(temperature),
-                                             hvac_mode=mode or None)
+        if mode and strategy_name != "temperature_only":
+            mode_call = {
+                "domain": "climate",
+                "service": "set_hvac_mode",
+                "data": {"entity_id": entity_id, "hvac_mode": mode},
+            }
+            try:
+                await ctx.ha.call_service(mode_call["domain"], mode_call["service"], mode_call["data"])
+                attempts.append({**mode_call, "success": True})
+            except HAError as exc:
+                attempts.append({**mode_call, "success": False, "error": exc.message, "status": exc.status})
+                if strategy_name != "temperature_only":
+                    raise
+        temp_call = {
+            "domain": "climate",
+            "service": "set_temperature",
+            "data": {"entity_id": entity_id, "temperature": float(temperature)},
+        }
+        await ctx.ha.call_service(temp_call["domain"], temp_call["service"], temp_call["data"])
+        attempts.append({**temp_call, "success": True})
         msg = f"Set {label} to {mode or 'its current mode'} {int(float(temperature))}\u00b0."
         return ActionResult(success=True, intent=intent, executed=True,
-                            message=msg, resolved=resolved)
+                            message=msg, resolved=resolved,
+                            data={
+                                "service_call": temp_call,
+                                "service_attempts": attempts,
+                                "service_strategy": strategy_name,
+                            })
     except HAError as exc:
         return ActionResult.fail(intent, f"Couldn't set {label}: {exc.message}",
-                                 resolved=resolved)
+                                 resolved=resolved,
+                                 data={"service_attempts": attempts, "service_strategy": strategy_name})
+
+
+def _approved_climate_strategy(entity_id: str) -> dict[str, Any]:
+    raw = approved_memory_value("device", entity_id, "preferred_climate_control")
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {"strategy": raw}
+    return parsed if isinstance(parsed, dict) else {"strategy": str(parsed or "")}

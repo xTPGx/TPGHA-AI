@@ -102,6 +102,8 @@ def main() -> int:
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     control_actions = (repo_root / "backend" / "app" / "actions" / "control.py").read_text(encoding="utf-8")
+    climate_actions = (repo_root / "backend" / "app" / "actions" / "climate.py").read_text(encoding="utf-8")
+    device_adapters = (repo_root / "backend" / "app" / "device_adapters.py").read_text(encoding="utf-8")
     outcomes_source = (repo_root / "backend" / "app" / "outcomes.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
     docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
@@ -215,6 +217,27 @@ def main() -> int:
           and "outcome for {target_label}" in outcomes_source
           and "_repair_target_label" in outcomes_source,
           "One generic repair title must not suppress repairs for other devices.")
+    check("cover and climate reliability strategies are wired",
+          "preferred_cover_control" in outcomes_source
+          and "preferred_climate_control" in outcomes_source
+          and "open_cover" in outcomes_source
+          and "close_cover" in outcomes_source
+          and "set_hvac_mode" in outcomes_source,
+          "Reliability brain should verify and learn cover/climate behavior.")
+    check("generic controls surface cover/climate learned strategy",
+          "preferred_cover_control" in control_actions
+          and "preferred_climate_control" in control_actions
+          and "_approved_generic_strategy" in control_actions,
+          "Generic cover/climate controls should report approved device strategy.")
+    check("direct climate action records attempts and learned strategy",
+          "preferred_climate_control" in climate_actions
+          and "service_attempts" in climate_actions
+          and "temperature_only" in climate_actions,
+          "Thermostat commands should expose mode/temperature service attempts.")
+    check("device adapters include cover and climate hints",
+          "cover_state_or_position" in device_adapters
+          and "climate_mode_temperature" in device_adapters,
+          "Device Profiles should explain cover/climate capabilities and recovery hints.")
     check("house knowledge assets are first-class API + UI",
           "/house/assets" in backend_main
           and "houseAssets" in api_frontend
@@ -1035,6 +1058,65 @@ def main() -> int:
     check("media repair approval creates media strategy memory",
           r.status_code == 200 and learned_media is not None and "media_play_wake" in learned_media.value,
           r.text)
+
+    with get_session() as session:
+        cover_suggestion = Suggestion(
+            title="Teach patio shade cover strategy",
+            message="Approve this to teach TPG HomeAI the preferred service strategy for this device.",
+            category="repair",
+            priority="high",
+            action_type="device_profile_fix",
+            payload=json.dumps({
+                "proposed_memory": {
+                    "scope": "device",
+                    "subject": "cover.patio_shade",
+                    "key": "preferred_cover_control",
+                    "value": {"strategy": "position_or_state_verify", "last_service": "close_cover"},
+                }
+            }),
+            status="suggested",
+        )
+        climate_suggestion = Suggestion(
+            title="Teach office thermostat strategy",
+            message="Approve this to teach TPG HomeAI the preferred service strategy for this device.",
+            category="repair",
+            priority="high",
+            action_type="device_profile_fix",
+            payload=json.dumps({
+                "proposed_memory": {
+                    "scope": "device",
+                    "subject": "climate.office",
+                    "key": "preferred_climate_control",
+                    "value": {"strategy": "mode_then_temperature", "last_service": "set_temperature"},
+                }
+            }),
+            status="suggested",
+        )
+        session.add_all([cover_suggestion, climate_suggestion])
+        session.commit()
+        cover_suggestion_id = cover_suggestion.id
+        climate_suggestion_id = climate_suggestion.id
+    r_cover = client.post(f"/suggestions/proactive/{cover_suggestion_id}/approve")
+    r_climate = client.post(f"/suggestions/proactive/{climate_suggestion_id}/approve")
+    with get_session() as session:
+        learned_cover = session.query(MemoryItem).filter(
+            MemoryItem.scope == "device",
+            MemoryItem.subject == "cover.patio_shade",
+            MemoryItem.key == "preferred_cover_control",
+            MemoryItem.status == "approved",
+        ).first()
+        learned_climate = session.query(MemoryItem).filter(
+            MemoryItem.scope == "device",
+            MemoryItem.subject == "climate.office",
+            MemoryItem.key == "preferred_climate_control",
+            MemoryItem.status == "approved",
+        ).first()
+    check("cover repair approval creates cover strategy memory",
+          r_cover.status_code == 200 and learned_cover is not None and "position_or_state_verify" in learned_cover.value,
+          r_cover.text)
+    check("climate repair approval creates climate strategy memory",
+          r_climate.status_code == 200 and learned_climate is not None and "mode_then_temperature" in learned_climate.value,
+          r_climate.text)
 
     r = client.post("/suggestions/generate")
     check("/suggestions/generate returns JSON", r.status_code == 200 and is_json(r),

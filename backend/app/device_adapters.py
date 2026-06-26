@@ -81,6 +81,36 @@ def _hint_for_entity(entity: dict[str, Any]) -> dict[str, Any] | None:
             "quirks": ["state_may_lag"] if entity.get("state") in {"unknown", "unavailable"} else [],
         }
 
+    if domain == "cover":
+        has_position = "current_position" in attrs
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "cover_state_or_position",
+            "services": ["cover.open_cover", "cover.close_cover", "cover.stop_cover"],
+            "capabilities": {
+                "device_class": attrs.get("device_class"),
+                "position_feedback": has_position,
+                "current_position": attrs.get("current_position"),
+            },
+            "quirks": [] if has_position else ["state_only_cover_feedback"],
+        }
+
+    if domain == "climate":
+        modes = attrs.get("hvac_modes") or []
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "climate_mode_temperature",
+            "services": ["climate.set_hvac_mode", "climate.set_temperature"],
+            "capabilities": {
+                "hvac_modes": modes,
+                "current_temperature": "current_temperature" in attrs,
+                "target_temperature": "temperature" in attrs,
+            },
+            "quirks": [] if modes else ["hvac_modes_unknown"],
+        }
+
     if domain in {"light", "switch"}:
         return {
             "entity_id": entity_id,
@@ -128,6 +158,10 @@ def _recovery_for_hints(hints: list[dict[str, Any]]) -> list[str]:
             recovery.append("If percentage speed fails, retry with fan.set_preset_mode.")
         if hint.get("domain") == "media_player":
             recovery.append("If power state does not change, verify media_player support and try turn_on/turn_off service directly.")
+        if hint.get("domain") == "cover":
+            recovery.append("If cover state does not change, compare open/closed state with current_position feedback.")
+        if hint.get("domain") == "climate":
+            recovery.append("If thermostat changes fail, verify hvac_modes and try mode then temperature as separate calls.")
         if "group_diagnostics" in hint.get("quirks", []):
             recovery.append("Group mobile diagnostic entities into one personal device profile.")
     return sorted(set(recovery))
