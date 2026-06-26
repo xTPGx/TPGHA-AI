@@ -402,6 +402,7 @@ export default function Chat() {
   const [safePreview] = useState(true);
   const [actionPolicy, setActionPolicy] = useState<any>(null);
   const [suggestedPrompts, setSuggestedPrompts] = useState<any[]>([]);
+  const [followups, setFollowups] = useState<any[]>([]);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [lastTranscript, setLastTranscript] = useState("");
@@ -579,6 +580,22 @@ export default function Chat() {
       cancelled = true;
     };
   }, [session?.role]);
+
+  useEffect(() => {
+    if (!messages.length || busy) return;
+    const role = session?.role || "guest";
+    let cancelled = false;
+    api.chatFollowups(role, user, assistant)
+      .then((response) => {
+        if (!cancelled) setFollowups(response?.followups || []);
+      })
+      .catch(() => {
+        if (!cancelled) setFollowups([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [messages.length, busy, session?.role, user, assistant]);
 
   useEffect(() => {
     if (activeTab !== "notebook" || !conversationId) return;
@@ -1185,6 +1202,9 @@ export default function Chat() {
             </section>
 
             <div className="shrink-0 border-t border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:px-6">
+              {followups.length > 0 && (
+                <ChatFollowups followups={followups} onPrompt={(prompt) => void send(prompt)} />
+              )}
               {panelMode && (
                 <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-xs">
                   <span className={`inline-flex h-2.5 w-2.5 rounded-full ${panelListening ? "animate-pulse bg-emerald-400" : "bg-slate-600"}`} />
@@ -1233,6 +1253,23 @@ export default function Chat() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function ChatFollowups({ followups, onPrompt }: { followups: any[]; onPrompt: (prompt: string) => void }) {
+  return (
+    <div className="mx-auto mb-2 flex max-w-3xl gap-2 overflow-x-auto pb-1">
+      {followups.slice(0, 4).map((followup) => (
+        <button
+          key={followup.id || followup.text}
+          className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
+          onClick={() => onPrompt(followup.text || String(followup))}
+          title={followup.source_intent ? `Based on ${followup.source_intent}` : "Suggested follow-up"}
+        >
+          {followup.text || String(followup)}
+        </button>
+      ))}
     </div>
   );
 }

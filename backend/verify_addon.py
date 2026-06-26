@@ -750,6 +750,17 @@ def main() -> int:
     check("phase 126 endpoint is exposed",
           "/brain/phase-126" in backend_main,
           "Backend must expose the phase 126 prompt outcome insights marker.")
+    check("phase 127 contextual chat followups are wired",
+          "/ops/chat-followups" in backend_main
+          and "build_chat_followups" in operations_brain
+          and "chatFollowups" in api_frontend
+          and "ChatFollowups" in (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+          and "contextual_chat_followups" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_127" in experience_brain,
+          "Chat must surface contextual next-step prompts from recent command history.")
+    check("phase 127 endpoint is exposed",
+          "/brain/phase-127" in backend_main,
+          "Backend must expose the phase 127 contextual followups marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2077,6 +2088,25 @@ def main() -> int:
           r.json().get("phase") == 126
           and r.json().get("prompt_outcome_insights", {}).get("source_endpoint") == "/ops/role-prompt-insights"
           and r.json().get("prompt_outcome_insights", {}).get("adds_no_new_private_storage") is True,
+          str(r.json()))
+
+    r = client.get("/ops/chat-followups?role=resident&user=shawn&assistant=atlas")
+    check("/ops/chat-followups returns contextual prompts",
+          r.status_code == 200
+          and is_json(r)
+          and isinstance(r.json().get("followups"), list)
+          and len(r.json().get("followups", [])) >= 1
+          and r.json().get("source") == "CommandLog",
+          str(r.json()))
+
+    r = client.get("/brain/phase-127")
+    check("/brain/phase-127 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-127 has contextual followups marker",
+          r.json().get("phase") == 127
+          and r.json().get("contextual_chat_followups", {}).get("source_endpoint") == "/ops/chat-followups"
+          and r.json().get("contextual_chat_followups", {}).get("role_aware") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

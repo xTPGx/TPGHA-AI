@@ -1032,6 +1032,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Use prompt outcomes to suggest follow-up actions after successful scheduled tasks or dashboard drafts.",
         },
         {
+            "id": "contextual_chat_followups",
+            "title": "Contextual Chat Follow-Ups",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/chat-followups reads recent CommandLog rows and returns role-aware next-step prompts.",
+                "Scheduled task and dashboard conversations get specific follow-ups while preserving owner-only boundaries.",
+                "Chat renders follow-up chips near the composer so the next useful action is one tap away.",
+            ],
+            "next": "Allow users to dismiss or pin useful follow-up patterns per assistant profile.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

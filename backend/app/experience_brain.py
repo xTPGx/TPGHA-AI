@@ -1124,6 +1124,21 @@ async def build_jarvis_phase_126(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_127(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 127,
+        "contextual_chat_followups": {
+            "source_endpoint": "/ops/chat-followups",
+            "source_data": "CommandLog",
+            "role_aware": True,
+            "action_safe": True,
+        },
+        "guardrail": "Phase 127 suggests next-step prompts only; execution still flows through policy and confirmations.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

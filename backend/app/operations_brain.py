@@ -471,6 +471,51 @@ def build_role_prompt_insights(role: str = "guest") -> dict[str, Any]:
     }
 
 
+def build_chat_followups(role: str = "guest", user: str = "", assistant: str = "") -> dict[str, Any]:
+    policy = build_role_action_policy(role)
+    can_manage = any(c.get("id") == "dashboard_authoring" and c.get("allowed") for c in policy.get("capabilities", []))
+    can_schedule = any(c.get("id") == "scheduled_tasks" and c.get("allowed") for c in policy.get("capabilities", []))
+    rows: list[CommandLog] = []
+    with get_session() as session:
+        query = session.query(CommandLog)
+        if user:
+            query = query.filter(CommandLog.user == user)
+        if assistant:
+            query = query.filter(CommandLog.assistant == assistant)
+        rows = query.order_by(CommandLog.created_at.desc(), CommandLog.id.desc()).limit(20).all()
+    followups: list[dict[str, str]] = []
+    latest = rows[0] if rows else None
+    if latest:
+        intent = (latest.intent or "").lower()
+        message = (latest.message or "").lower()
+        if can_schedule and ("automation" in intent or "routine" in intent or "scheduled task" in message or "schedule" in message):
+            followups.append(_followup("review_drafts", "Show me the automation draft before it runs.", intent))
+            followups.append(_followup("another_schedule", "Create another scheduled task for bedtime.", intent))
+        if "dashboard" in intent or "dashboard" in message:
+            if can_manage:
+                followups.append(_followup("refine_dashboard", "Refine that dashboard for a wall tablet.", intent))
+                followups.append(_followup("install_dashboard", "Install the dashboard draft in Home Assistant.", intent))
+            else:
+                followups.append(_followup("dashboard_owner_review", "Explain what an owner needs to approve for that dashboard.", intent))
+        if latest.executed:
+            followups.append(_followup("verify_action", "Check whether Home Assistant shows that action worked.", intent))
+        if latest.success and latest.intent and latest.intent != "conversation":
+            followups.append(_followup("save_preference", "Remember this preference for next time.", intent))
+    if not followups and can_schedule:
+        followups.append(_followup("safe_schedule", "Create scheduled task. Turn off all lights at 10PM.", "starter"))
+    if not followups:
+        followups.append(_followup("brainstorm", "Help me brainstorm what to automate next.", "starter"))
+    return {
+        "status": "ready",
+        "role": policy["role"],
+        "user": user,
+        "assistant": assistant,
+        "followups": _dedupe_followups(followups)[:4],
+        "source": "CommandLog",
+        "guardrail": "Follow-ups are suggestions only; any action still goes through preview, policy, and confirmation.",
+    }
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)
@@ -551,6 +596,22 @@ def _role_prompt(prompt_id: str, text: str) -> dict[str, str]:
 
 def _prompt_key(text: str) -> str:
     return " ".join(str(text or "").strip().lower().split())
+
+
+def _followup(followup_id: str, text: str, source_intent: str) -> dict[str, str]:
+    return {"id": followup_id, "text": text, "source_intent": source_intent or "conversation"}
+
+
+def _dedupe_followups(followups: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[str] = set()
+    out: list[dict[str, str]] = []
+    for followup in followups:
+        key = _prompt_key(followup.get("text", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(followup)
+    return out
 
 
 def _role_policy_highlights(role: str, capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:

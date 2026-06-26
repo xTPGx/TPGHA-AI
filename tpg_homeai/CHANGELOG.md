@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.31
+
+- Added Jarvis phase 127 contextual Chat follow-ups.
+- Added `/ops/chat-followups` to suggest next-step prompts from recent command history and the active role policy.
+- Chat now renders follow-up chips near the composer after useful conversations/actions.
+- Scheduled-task and dashboard conversations now get specific next-step suggestions while preserving owner-only boundaries.
+- Added `/brain/phase-127` and Jarvis Brain readiness evidence for contextual follow-ups.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.30
 
 - Added Jarvis phase 126 prompt outcome insights.

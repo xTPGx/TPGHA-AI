@@ -243,6 +243,12 @@ export const api = {
     http<any>(`/ops/role-suggested-prompts?role=${encodeURIComponent(role || "guest")}`),
   rolePromptInsights: (role: string) =>
     http<any>(`/ops/role-prompt-insights?role=${encodeURIComponent(role || "guest")}`),
+  chatFollowups: (role: string, user?: string, assistant?: string) => {
+    const params = new URLSearchParams({ role: role || "guest" });
+    if (user) params.set("user", user);
+    if (assistant) params.set("assistant", assistant);
+    return http<any>(`/ops/chat-followups?${params.toString()}`);
+  },
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",
