@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.28
+
+- Added Jarvis phase 124 Chat role policy guidance.
+- Chat now loads `/ops/role-action-policy` for the resolved HA/TPG role.
+- The Chat rail now shows allowed actions and owner-only boundaries for the current login.
+- Role-denied owner/admin actions now render a clear owner-only explanation inside the conversation.
+- Added `/brain/phase-124` and Jarvis Brain readiness evidence for Chat role policy visibility.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.27
 
 - Added Jarvis phase 123 role action policy API.

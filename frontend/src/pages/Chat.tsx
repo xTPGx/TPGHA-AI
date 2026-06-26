@@ -400,6 +400,7 @@ export default function Chat() {
   const [micState, setMicState] = useState<MicState>("idle");
   const [speakResponses, setSpeakResponses] = useState(false);
   const [safePreview] = useState(true);
+  const [actionPolicy, setActionPolicy] = useState<any>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [lastTranscript, setLastTranscript] = useState("");
@@ -553,6 +554,21 @@ export default function Chat() {
       stopBridge();
     };
   }, []);
+
+  useEffect(() => {
+    const role = session?.role || "guest";
+    let cancelled = false;
+    api.roleActionPolicy(role)
+      .then((policy) => {
+        if (!cancelled) setActionPolicy(policy);
+      })
+      .catch(() => {
+        if (!cancelled) setActionPolicy(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.role]);
 
   useEffect(() => {
     if (activeTab !== "notebook" || !conversationId) return;
@@ -1014,6 +1030,7 @@ export default function Chat() {
       selectedAssistant={selectedAssistant}
       selectedUser={selectedUser}
       sessionRole={session?.role || "profile"}
+      actionPolicy={actionPolicy}
       speakResponses={speakResponses}
       setSpeakResponses={setSpeakResponses}
       newChat={newChat}
@@ -1266,6 +1283,7 @@ function ConversationRail({
   selectedAssistant,
   selectedUser,
   sessionRole,
+  actionPolicy,
   speakResponses,
   setSpeakResponses,
   newChat,
@@ -1280,6 +1298,7 @@ function ConversationRail({
   selectedAssistant: any;
   selectedUser: any;
   sessionRole: string;
+  actionPolicy: any;
   speakResponses: boolean;
   setSpeakResponses: (value: boolean) => void;
   newChat: () => void;
@@ -1324,6 +1343,7 @@ function ConversationRail({
           {speakResponses ? "Voice replies on" : "Voice replies off"}
         </button>
       </div>
+      <RolePolicyMini policy={actionPolicy} />
       <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recent chats</div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
         {conversations.map((item) => (
@@ -1354,6 +1374,26 @@ function ConversationRail({
           </div>
         ))}
         {conversations.length === 0 && <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-500">No saved chats yet.</div>}
+      </div>
+    </div>
+  );
+}
+
+function RolePolicyMini({ policy }: { policy: any }) {
+  if (!policy?.highlights?.length) return null;
+  return (
+    <div className="mb-4 rounded-xl border border-white/10 bg-black/20 p-3">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">This login can</div>
+      <div className="space-y-2">
+        {policy.highlights.slice(0, 4).map((item: any) => (
+          <div key={item.id || item.title} className="flex items-start gap-2 text-xs">
+            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${item.allowed ? "bg-emerald-400" : "bg-amber-400"}`} />
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-slate-200">{item.title}</div>
+              <div className="line-clamp-2 text-slate-500">{item.allowed ? item.detail : "Owner/admin only"}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1418,6 +1458,10 @@ function MessageBubble({
           <Markdown text={message.text} />
         )}
 
+        {message.command?.error === "role_not_allowed" && (
+          <RoleDeniedCard policy={message.command.data?.policy} />
+        )}
+
         {message.command && (
           <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-300">
             <div className="flex flex-wrap gap-2">
@@ -1473,6 +1517,20 @@ function MessageBubble({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function RoleDeniedCard({ policy }: { policy: any }) {
+  const role = String(policy?.actual_role || "this login").replace(/_/g, " ");
+  const required = String(policy?.required_role || "owner/admin").replace(/_/g, " ");
+  return (
+    <div className="mt-3 rounded-xl border border-amber-400/35 bg-amber-500/10 p-3 text-xs text-amber-50">
+      <div className="font-semibold">Owner-only change blocked</div>
+      <div className="mt-1 text-amber-100/80">
+        This session is {role}; this action needs {required}. I can still help brainstorm it, but I will not change dashboards,
+        discovery, users, permissions, or system setup from a resident/shared login.
       </div>
     </div>
   );

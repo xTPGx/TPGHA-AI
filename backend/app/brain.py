@@ -996,6 +996,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Display role policy denials inside Chat when a user asks for a protected owner-only change.",
         },
         {
+            "id": "chat_role_policy_guidance",
+            "title": "Chat Role Policy Guidance",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Chat loads /ops/role-action-policy for the resolved HA/TPG role.",
+                "The conversation rail summarizes allowed actions and owner-only boundaries for the active login.",
+                "Role-denied command responses render an owner-only explanation without exposing setup controls.",
+            ],
+            "next": "Add lightweight role-aware suggested prompts so residents see safe examples and owners see management examples.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

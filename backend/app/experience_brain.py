@@ -1077,6 +1077,22 @@ async def build_jarvis_phase_123(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_124(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 124,
+        "chat_role_policy_guidance": {
+            "surface": "Chat",
+            "uses_endpoint": "/ops/role-action-policy",
+            "shows_allowed_actions": True,
+            "shows_owner_only_denials": True,
+            "resident_can_continue_conversation": True,
+        },
+        "guardrail": "Phase 124 makes role limits visible in Chat while keeping action enforcement server-side.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

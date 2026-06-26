@@ -718,6 +718,16 @@ def main() -> int:
     check("phase 123 endpoint is exposed",
           "/brain/phase-123" in backend_main,
           "Backend must expose the phase 123 role action policy marker.")
+    check("phase 124 chat role policy guidance is wired",
+          "RolePolicyMini" in (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+          and "RoleDeniedCard" in (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+          and "api.roleActionPolicy" in (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+          and "chat_role_policy_guidance" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_124" in experience_brain,
+          "Chat must show role policy guidance and owner-only denials for protected actions.")
+    check("phase 124 endpoint is exposed",
+          "/brain/phase-124" in backend_main,
+          "Backend must expose the phase 124 Chat role policy marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1987,6 +1997,16 @@ def main() -> int:
           and r.json().get("role_action_policy", {}).get("source_endpoint") == "/ops/role-action-policy"
           and r.json().get("role_action_policy", {}).get("resident_can_create_scheduled_tasks") is True
           and r.json().get("role_action_policy", {}).get("resident_cannot_manage_dashboards") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-124")
+    check("/brain/phase-124 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-124 has Chat role policy marker",
+          r.json().get("phase") == 124
+          and r.json().get("chat_role_policy_guidance", {}).get("uses_endpoint") == "/ops/role-action-policy"
+          and r.json().get("chat_role_policy_guidance", {}).get("shows_owner_only_denials") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
