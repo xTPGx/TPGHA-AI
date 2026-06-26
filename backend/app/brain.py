@@ -1320,6 +1320,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release packet integrity fingerprints so owners can compare exports across systems.",
         },
         {
+            "id": "release_packet_fingerprint",
+            "title": "Release Packet Fingerprint",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/packet manifest includes a SHA-256 fingerprint over release evidence.",
+                "The full release packet Markdown includes the fingerprint line.",
+                "Owner Dashboard surfaces the release packet fingerprint in the manifest card.",
+            ],
+            "next": "Add signed release packet verification when a signing key is introduced.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

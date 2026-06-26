@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 from collections import Counter
 from typing import Any
@@ -983,6 +984,14 @@ async def build_release_packet(config: AppConfig, version: str, limit: int = 50)
             _release_packet_section("runbook", runbook.get("status"), bool(runbook), len(runbook.get("runbook", []) or [])),
         ],
     }
+    manifest["fingerprint"] = _release_packet_fingerprint({
+        "version": version,
+        "checklist": checklist,
+        "decisions": decisions,
+        "metrics": metrics,
+        "recommendations": recommendations,
+        "runbook": runbook,
+    })
     markdown = "\n".join([
         f"# TPG HomeAI Full Release Packet {version}",
         "",
@@ -1032,6 +1041,7 @@ def _release_packet_manifest_lines(manifest: dict[str, Any]) -> list[str]:
     lines = [
         f"Generated: {manifest.get('generated_at')}",
         f"Version: {manifest.get('version')}",
+        f"Fingerprint: {manifest.get('fingerprint')}",
         "",
     ]
     for section in manifest.get("sections", []) or []:
@@ -1040,6 +1050,11 @@ def _release_packet_manifest_lines(manifest: dict[str, Any]) -> list[str]:
             f"- {section.get('id')}: {present}, {section.get('status')}, {section.get('item_count', 0)} item(s)"
         )
     return lines
+
+
+def _release_packet_fingerprint(payload: dict[str, Any]) -> str:
+    body = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(body).hexdigest()
 
 
 def save_release_recommendation_state(recommendation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -2320,6 +2335,21 @@ async def build_jarvis_phase_150(version: str) -> dict[str, Any]:
             "dashboard_surface": "Release packet manifest",
         },
         "guardrail": "Phase 150 adds release packet metadata only; it does not alter release evidence or live-house state.",
+    }
+
+
+async def build_jarvis_phase_151(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 151,
+        "release_packet_fingerprint": {
+            "endpoint": "/release/packet",
+            "manifest_field": "fingerprint",
+            "algorithm": "sha256",
+            "dashboard_surface": "Release packet fingerprint",
+        },
+        "guardrail": "Phase 151 fingerprints release packet evidence only; it does not sign, mutate, or publish release data.",
     }
 
 

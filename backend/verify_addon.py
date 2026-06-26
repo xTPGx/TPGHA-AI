@@ -1036,6 +1036,16 @@ def main() -> int:
     check("phase 150 endpoint is exposed",
           "/brain/phase-150" in backend_main,
           "Backend must expose the phase 150 packet manifest marker.")
+    check("phase 151 release packet fingerprint is wired",
+          "hashlib.sha256" in experience_brain
+          and "_release_packet_fingerprint" in experience_brain
+          and "Fingerprint:" in dashboard_frontend
+          and "release_packet_fingerprint" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_151" in experience_brain,
+          "Owners need a fingerprint to compare release packet exports.")
+    check("phase 151 endpoint is exposed",
+          "/brain/phase-151" in backend_main,
+          "Backend must expose the phase 151 packet fingerprint marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2909,6 +2919,25 @@ def main() -> int:
     check("/brain/phase-150 has release packet manifest marker",
           r.json().get("phase") == 150
           and "sections" in r.json().get("release_packet_manifest", {}).get("manifest_fields", []),
+          str(r.json()))
+
+    r = client.get("/release/packet")
+    packet = r.json()
+    fingerprint = packet.get("manifest", {}).get("fingerprint", "")
+    check("/release/packet includes fingerprint metadata",
+          r.status_code == 200
+          and is_json(r)
+          and len(fingerprint) == 64
+          and all(ch in "0123456789abcdef" for ch in fingerprint)
+          and "Fingerprint:" in packet.get("markdown", ""),
+          str(packet))
+    r = client.get("/brain/phase-151")
+    check("/brain/phase-151 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-151 has release packet fingerprint marker",
+          r.json().get("phase") == 151
+          and r.json().get("release_packet_fingerprint", {}).get("algorithm") == "sha256",
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.55
+
+- Added Jarvis phase 151 release packet fingerprint.
+- Added SHA-256 fingerprint metadata to `/release/packet` manifests and Markdown.
+- Added owner Dashboard release packet fingerprint surface.
+- Added `/brain/phase-151` readiness marker.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.54
 
 - Added Jarvis phase 150 release packet manifest metadata.

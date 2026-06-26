@@ -867,6 +867,11 @@ function DashboardReleaseStatus({
       {!!manifestSections.length && (
         <div className="mt-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
           <div className="font-semibold text-slate-200">Release packet manifest</div>
+          {releasePacket?.manifest?.fingerprint && (
+            <div className="mt-1 font-mono text-xs text-slate-500">
+              Fingerprint: {String(releasePacket.manifest.fingerprint).slice(0, 24)}
+            </div>
+          )}
           <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
             {manifestSections.map((section: any) => (
               <div key={section.id} className="rounded border border-slate-800 bg-slate-950/40 p-2">
