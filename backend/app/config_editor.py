@@ -291,6 +291,7 @@ def _default_assistant_for_synced_user(user: dict[str, Any]) -> dict[str, Any]:
         "owner": user_id,
         "aliases": [assistant_id],
         "wake_words": [assistant_id],
+        "conversation_wake_phrases": _default_conversation_wake_phrases(assistant_id),
         "listen_enabled": True,
         "tone": tone,
         "personality": f"{name} is {user.get('name') or user_id}'s personal home AI profile.",
@@ -320,7 +321,23 @@ def _unique_assistant(assistant: dict[str, Any], assistants: list[Any]) -> dict[
     assistant["id"] = f"{base}_{index}"
     assistant["aliases"] = sorted({*assistant.get("aliases", []), assistant["id"]})
     assistant["wake_words"] = sorted({*assistant.get("wake_words", []), assistant["id"]})
+    assistant["conversation_wake_phrases"] = sorted({
+        *assistant.get("conversation_wake_phrases", []),
+        *_default_conversation_wake_phrases(assistant["id"]),
+    })
     return assistant
+
+
+def _default_conversation_wake_phrases(assistant_id: str) -> list[str]:
+    base = " ".join(part for part in str(assistant_id or "").lower().replace("_", " ").split() if part)
+    if not base:
+        return []
+    return [
+        f"{base} let's chat",
+        f"{base} lets chat",
+        f"hey {base} let's chat",
+        f"{base} chat with me",
+    ]
 
 
 def _assistant_for_owner(assistants: list[Any], owner: str) -> dict[str, Any] | None:

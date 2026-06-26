@@ -190,6 +190,7 @@ def resolve_voice_profile(
         "name": assistant.name if assistant else assistant_id.title(),
         "tone": assistant.tone if assistant else "neutral",
         "wake_words": assistant.wake_words if assistant else [],
+        "conversation_wake_phrases": assistant.conversation_wake_phrases if assistant else [],
         "listen_enabled": assistant.listen_enabled if assistant else False,
     }
     data["backend"] = {

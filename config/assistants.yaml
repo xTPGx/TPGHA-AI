@@ -48,6 +48,7 @@ assistants:
     owner: shawn
     aliases: ["atlas"]
     wake_words: ["atlas", "hey atlas"]
+    conversation_wake_phrases: ["atlas let's chat", "hey atlas let's chat", "atlas chat with me"]
     listen_enabled: true
     personality: >
       Atlas is Shawn's assistant. Calm, precise, and confident with a touch of
@@ -70,6 +71,7 @@ assistants:
     owner: jordie
     aliases: ["chatty", "chat"]
     wake_words: ["chatty", "hey chatty"]
+    conversation_wake_phrases: ["chatty let's chat", "hey chatty let's chat", "chatty chat with me"]
     listen_enabled: true
     personality: >
       Chatty is Jordie's assistant. Warm, upbeat, and friendly. Conversational
@@ -92,6 +94,7 @@ assistants:
     owner: house_remote
     aliases: ["jarvis", "house", "home"]
     wake_words: ["jarvis", "hey jarvis"]
+    conversation_wake_phrases: ["jarvis let's chat", "hey jarvis let's chat", "jarvis chat with me"]
     listen_enabled: true
     personality: >
       Jarvis is the shared house assistant for wall panels, iPads, room remotes,

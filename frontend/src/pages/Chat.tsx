@@ -113,6 +113,41 @@ function readPanelMode(): boolean {
   }
 }
 
+function normalizeWakeText(value: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function defaultConversationWakePhrases(assistant: any, wakeWords: string[]): string[] {
+  const candidates = [
+    assistant?.name,
+    assistant?.id,
+    ...(assistant?.aliases || []),
+    ...wakeWords,
+  ]
+    .map((value) => normalizeWakeText(String(value || "")))
+    .filter(Boolean);
+  const bases = Array.from(new Set(candidates)).slice(0, 4);
+  return bases.flatMap((base) => [
+    `${base} lets chat`,
+    `hey ${base} lets chat`,
+    `${base} chat with me`,
+  ]);
+}
+
+function matchesConversationWakePhrase(heard: string, phrases: string[]): boolean {
+  const normalized = normalizeWakeText(heard);
+  if (!normalized) return false;
+  return phrases
+    .map(normalizeWakeText)
+    .filter(Boolean)
+    .some((phrase) => normalized === phrase || normalized.startsWith(`${phrase} `));
+}
+
 // Returns the command text following a wake word, or "" if no wake word was
 // heard. "Jarvis, turn off the office light" -> "turn off the office light".
 function extractCommandAfterWakeWord(heard: string, wakeWords: string[]): string {
@@ -519,6 +554,11 @@ export default function Chat() {
     const base = configured.length ? configured : ["jarvis", "atlas", "chatty", "hey jarvis", "computer"];
     return base.map((w) => String(w || "").trim().toLowerCase()).filter(Boolean);
   }, [selectedAssistant]);
+  const conversationWakePhrases = useMemo(() => {
+    const configured = (selectedAssistant?.conversation_wake_phrases || []) as string[];
+    const base = configured.length ? configured : defaultConversationWakePhrases(selectedAssistant, wakeWords);
+    return Array.from(new Set(base.map((phrase) => String(phrase || "").trim()).filter(Boolean)));
+  }, [selectedAssistant, wakeWords.join("|")]);
 
   const speechRateForProfile = (profile?: any) => {
     const raw = Number(profile?.speed ?? selectedAssistant?.voice?.speed);
@@ -1190,8 +1230,28 @@ export default function Chat() {
     localStorage.setItem("tpg.panelRoom", panelRoom);
   }, [panelRoom]);
 
+  async function startVoiceConversationFromWakePhrase() {
+    if (voiceConversationActiveRef.current) return;
+    setVoiceError(null);
+    voiceConversationActiveRef.current = true;
+    setVoiceConversationActive(true);
+    setSpeakResponses(true);
+    clearResumeVoiceTimer();
+    window.setTimeout(() => {
+      if (!voiceConversationActiveRef.current) return;
+      if (speechSupported && startSpeechRecognition()) return;
+      void startRecorder({ autoStop: true }).then((recordingStarted) => {
+        if (recordingStarted) return;
+        voiceConversationActiveRef.current = false;
+        setVoiceConversationActive(false);
+        setVoiceError(microphoneUnavailableMessage());
+      });
+    }, 220);
+  }
+
   // Always-listening panel mode: a continuous recognizer listens for the
-  // assistant's wake word and forwards the rest of the phrase as a command.
+  // assistant's command wake word and forwards the rest of the phrase as a
+  // command. Dedicated conversation phrases switch into live voice chat.
   // Works on Chrome/Android; iOS Safari can't keep the mic open in the
   // background, so it stays on tap-to-talk (push-to-talk) instead.
   useEffect(() => {
@@ -1219,6 +1279,18 @@ export default function Chat() {
         const heard = String(event.results[i][0].transcript || "").trim();
         if (!heard) continue;
         setPanelHeard(heard);
+        if (matchesConversationWakePhrase(heard, conversationWakePhrases)) {
+          stopped = true;
+          setPanelMode(false);
+          setPanelListening(false);
+          try {
+            recognition.stop();
+          } catch {
+            /* ignore */
+          }
+          void startVoiceConversationFromWakePhrase();
+          continue;
+        }
         const command = extractCommandAfterWakeWord(heard, wakeWords);
         if (command) sendRef.current(command, panelRoom);
       }
@@ -1252,7 +1324,7 @@ export default function Chat() {
         /* ignore */
       }
     };
-  }, [panelMode, wakeWords.join("|"), panelRoom]);
+  }, [panelMode, wakeWords.join("|"), conversationWakePhrases.join("|"), panelRoom]);
 
   const executePreview = async (msg: Msg) => {
     if (!msg.originalText) return;
@@ -1845,7 +1917,7 @@ export default function Chat() {
                   <span className={`inline-flex h-2.5 w-2.5 rounded-full ${panelListening ? "animate-pulse bg-emerald-400" : "bg-slate-600"}`} />
                   <span className="text-slate-400">
                     {panelListening
-                      ? `Listening for "${wakeWords[0] || "the wake word"}"…`
+                      ? `Say "${conversationWakePhrases[0] || "atlas let's chat"}" for live chat, or "${wakeWords[0] || "atlas"}" plus a command.`
                       : "Panel mode paused"}
                   </span>
                   <input

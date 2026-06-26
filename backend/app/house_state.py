@@ -151,6 +151,7 @@ def build_assistant_intelligence(config: AppConfig) -> dict[str, Any]:
                 "personality": assistant.personality,
                 "tone": assistant.tone,
                 "wake_words": assistant.wake_words,
+                "conversation_wake_phrases": assistant.conversation_wake_phrases,
                 "listen_enabled": assistant.listen_enabled,
                 "voice": assistant.voice.model_dump() if hasattr(assistant.voice, "model_dump") else assistant.voice,
                 "approved_memories": [
@@ -311,6 +312,7 @@ def build_wake_word_deployment(config: AppConfig) -> dict[str, Any]:
             "owner": assistant.owner,
             "listen_enabled": assistant.listen_enabled,
             "wake_words": assistant.wake_words,
+            "conversation_wake_phrases": assistant.conversation_wake_phrases,
             "sources": [{"id": s.get("id"), "name": s.get("name"), "room": s.get("room"), "setup_status": s.get("setup_status")} for s in linked_sources],
             "ready": assistant.listen_enabled and bool(assistant.wake_words) and bool(linked_sources),
             "missing": assistant_missing,
@@ -378,6 +380,7 @@ def build_voice_runtime(config: AppConfig) -> dict[str, Any]:
             "assistant_name": assistant.get("name"),
             "owner": assistant.get("owner"),
             "wake_words": assistant.get("wake_words") or [],
+            "conversation_wake_phrases": assistant.get("conversation_wake_phrases") or [],
             "listen_enabled": bool(assistant.get("listen_enabled")),
             "linked_source_count": len(sources),
             "ready": bool(assistant.get("ready")),

@@ -243,7 +243,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.67"
+APP_VERSION = "1.2.68"
 MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_CHAT_IMAGE_TYPES = {
     "image/jpeg",

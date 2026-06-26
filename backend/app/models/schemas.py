@@ -98,6 +98,7 @@ class Assistant(_CfgBase):
     owner: str
     aliases: list[str] = Field(default_factory=list)
     wake_words: list[str] = Field(default_factory=list)
+    conversation_wake_phrases: list[str] = Field(default_factory=list)
     listen_enabled: bool = True
     personality: str = ""
     tone: str = "neutral"

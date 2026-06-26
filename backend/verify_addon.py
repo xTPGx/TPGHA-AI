@@ -1235,8 +1235,10 @@ def main() -> int:
     check("frontend ships always-listening panel mode + wake word loop",
           "panelMode" in chat_frontend
           and "extractCommandAfterWakeWord" in chat_frontend
+          and "matchesConversationWakePhrase" in chat_frontend
+          and "conversationWakePhrases" in chat_frontend
           and "getSpeechRecognition" in chat_frontend,
-          "Tablets/old phones need a browser wake-word panel mode.")
+          "Tablets/old phones need a browser wake-word panel mode with separate command and live-chat phrases.")
     check("frontend renders markdown for assistant replies",
           "function Markdown" in chat_frontend,
           "Assistant messages should render lightweight markdown.")
@@ -1291,6 +1293,7 @@ def main() -> int:
         "owner": "shawn",
         "aliases": ["test assistant"],
         "wake_words": ["test assistant", "hey test"],
+        "conversation_wake_phrases": ["test assistant let's chat", "hey test let's chat"],
         "listen_enabled": True,
         "personality": "A concise test assistant.",
         "tone": "calm",
@@ -1304,6 +1307,9 @@ def main() -> int:
                            if a.get("id") == "test_assistant"), {})
     check("/config/assistants saves wake words",
           test_assistant.get("wake_words") == ["test assistant", "hey test"],
+          str(test_assistant))
+    check("/config/assistants saves conversation wake phrases",
+          test_assistant.get("conversation_wake_phrases") == ["test assistant let's chat", "hey test let's chat"],
           str(test_assistant))
 
     r = client.post("/config/users", json={
@@ -3273,6 +3279,9 @@ def main() -> int:
     check("/voice/profiles atlas uses OpenAI Cedar",
           atlas_profile.get("provider") == "openai" and atlas_profile.get("voice") == "cedar",
           str(atlas_profile))
+    check("/voice/profiles exposes conversation wake phrases",
+          "conversation_wake_phrases" in atlas_profile.get("assistant", {}),
+          str(atlas_profile))
     check("/voice/profiles chatty uses OpenAI Coral",
           chatty_profile.get("provider") == "openai" and chatty_profile.get("voice") == "coral",
           str(chatty_profile))
@@ -3622,6 +3631,10 @@ def main() -> int:
           and routed_voice_command.arguments.get("target") == "office fan"
           and routed_voice_command.arguments.get("percentage") == 80,
           f"cleaned={cleaned_voice_command!r} routed={routed_voice_command}")
+    cleaned_chat_phrase_command = _strip_assistant_address("Atlas let's chat turn on the office light", "atlas")
+    check("conversation wake phrase strips before command routing if it reaches backend",
+          cleaned_chat_phrase_command == "turn on the office light",
+          f"cleaned={cleaned_chat_phrase_command!r}")
 
     r = client.post("/chat", json={
         "assistant": "atlas",

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.68
+
+- Split assistant wake behavior into command wake words and conversation wake phrases.
+- Added editable Assistant controls for phrases like "Atlas let's chat" while keeping "Atlas, turn on..." on the local command path.
+- Updated panel-mode listening so conversation phrases open live voice conversation instead of being misrouted as commands.
+- Surfaced conversation wake phrases in voice profiles, house intelligence, runtime maps, and profile exports.
+- Added verification coverage for saving conversation phrases and stripping them safely if they reach backend command routing.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.67
 
 - Grounded conversational replies in persistent Notebook and approved Memory context so Atlas no longer claims it cannot retain conversation history.

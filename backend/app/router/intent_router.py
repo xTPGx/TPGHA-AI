@@ -154,6 +154,13 @@ def _strip_assistant_address(message: str, assistant_name: Optional[str]) -> str
                 assistant.name,
                 *(assistant.aliases or []),
                 *(assistant.wake_words or []),
+                *(getattr(assistant, "conversation_wake_phrases", []) or []),
+                *_default_conversation_wake_phrases([
+                    assistant.id,
+                    assistant.name,
+                    *(assistant.aliases or []),
+                    *(assistant.wake_words or []),
+                ]),
             ]
             names.update(str(value).strip().lower() for value in values if str(value).strip())
     except Exception:  # pragma: no cover - config fallback only
@@ -164,6 +171,23 @@ def _strip_assistant_address(message: str, assistant_name: Optional[str]) -> str
     pattern = rf"^\s*(?:hey|ok|okay)?\s*(?:{'|'.join(escaped)})\s*[,.:;!?-]*\s+"
     cleaned = re.sub(pattern, "", original, flags=re.I).strip()
     return cleaned or original
+
+
+def _default_conversation_wake_phrases(values: list[Any]) -> list[str]:
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        base = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+        if not base or base in seen:
+            continue
+        seen.add(base)
+        phrases.extend([
+            f"{base} let's chat",
+            f"{base} lets chat",
+            f"hey {base} let's chat",
+            f"{base} chat with me",
+        ])
+    return phrases
 
 
 async def build_context(

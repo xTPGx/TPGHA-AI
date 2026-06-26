@@ -644,6 +644,7 @@ def build_profile_tuning_export(config: AppConfig, user: str = "", assistant: st
                 "owner": item.owner,
                 "tone": item.tone,
                 "wake_words": item.wake_words,
+                "conversation_wake_phrases": item.conversation_wake_phrases,
                 "voice": item.voice.voice if item.voice else "",
             }
             for item in assistants

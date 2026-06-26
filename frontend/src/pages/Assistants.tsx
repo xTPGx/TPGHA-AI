@@ -14,6 +14,7 @@ const emptyAssistant = {
   owner: "",
   aliases: "",
   wake_words: "",
+  conversation_wake_phrases: "",
   listen_enabled: true,
   tone: "confident",
   personality: "",
@@ -84,6 +85,7 @@ export default function Assistants() {
       ...assistant,
       aliases: (assistant.aliases ?? []).join(", "),
       wake_words: (assistant.wake_words ?? defaultWakeWords(assistant.id, assistant.name)).join(", "),
+      conversation_wake_phrases: (assistant.conversation_wake_phrases ?? defaultConversationWakePhrases(assistant.id, assistant.name)).join(", "),
       listen_enabled: assistant.listen_enabled !== false,
       voice_provider: effectiveVoice.provider || voice.provider || "openai",
       voice_model: voice.model || defaultModelForProvider(effectiveVoice.provider || voice.provider || "openai"),
@@ -170,6 +172,7 @@ export default function Assistants() {
         owner: canManageAll ? editor.owner : activeUserId,
         aliases: csv(editor.aliases),
         wake_words: csv(editor.wake_words),
+        conversation_wake_phrases: csv(editor.conversation_wake_phrases),
         listen_enabled: Boolean(editor.listen_enabled),
         tone: editor.tone,
         personality: editor.personality,
@@ -219,7 +222,8 @@ export default function Assistants() {
             </label>
             <Field label="Tone" value={editor.tone} onChange={(v) => setEditor({ ...editor, tone: v })} placeholder="confident" />
             <Field label="Aliases" value={editor.aliases} onChange={(v) => setEditor({ ...editor, aliases: v })} placeholder="atlas, house" />
-            <Field label="Wake Words" value={editor.wake_words} onChange={(v) => setEditor({ ...editor, wake_words: v })} placeholder="atlas, hey atlas" />
+            <Field label="Command Wake Words" value={editor.wake_words} onChange={(v) => setEditor({ ...editor, wake_words: v })} placeholder="atlas, hey atlas" />
+            <Field label="Conversation Phrases" value={editor.conversation_wake_phrases} onChange={(v) => setEditor({ ...editor, conversation_wake_phrases: v })} placeholder="atlas let's chat, atlas chat with me" />
             <label>
               <div className="mb-1 text-xs uppercase text-slate-500">Voice provider</div>
               <select
@@ -391,6 +395,7 @@ export default function Assistants() {
           const voice = resolvedVoice(a);
           const sources = voiceSources.filter((source: any) => source.assistant === a.id || (!source.assistant && source.user === a.owner));
           const wakeWords = a.wake_words?.length ? a.wake_words : defaultWakeWords(a.id, a.name);
+          const chatPhrases = a.conversation_wake_phrases?.length ? a.conversation_wake_phrases : defaultConversationWakePhrases(a.id, a.name);
           return (
             <div key={a.id} className="card">
               <div className="flex items-center justify-between gap-3">
@@ -404,7 +409,8 @@ export default function Assistants() {
               <dl className="mt-4 space-y-1 text-sm">
                 <Row label="Owner" value={owner ? owner.name : a.owner} />
                 <Row label="Voice" value={`${voice.provider} / ${voice.voice}`} />
-                <Row label="Wake words" value={wakeWords.join(", ")} />
+                <Row label="Command wake" value={wakeWords.join(", ")} />
+                <Row label="Conversation wake" value={chatPhrases.join(", ")} />
                 <Row label="Wake deployment" value={`${sources.length} linked source${sources.length === 1 ? "" : "s"}`} />
                 <Row label="Music account" value={acct ? acct.name : owner?.music_account} />
                 <Row label="Aliases" value={(a.aliases ?? []).join(", ")} />
@@ -518,6 +524,12 @@ function providerLabel(provider: string, providers: any[]) {
 function defaultWakeWords(id: string, name: string) {
   const base = String(id || name || "").trim().toLowerCase();
   return base ? [base] : [];
+}
+
+function defaultConversationWakePhrases(id: string, name: string) {
+  const raw = String(name || id || "").trim().toLowerCase().replace(/[_-]+/g, " ");
+  const base = raw.replace(/\s+/g, " ").trim();
+  return base ? [`${base} let's chat`, `${base} chat with me`] : [];
 }
 
 function resolvedVoice(assistant: any) {
