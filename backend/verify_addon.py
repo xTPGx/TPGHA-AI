@@ -111,6 +111,7 @@ def main() -> int:
     operations_brain = (repo_root / "backend" / "app" / "operations_brain.py").read_text(encoding="utf-8")
     governance_brain = (repo_root / "backend" / "app" / "governance_brain.py").read_text(encoding="utf-8")
     experience_brain = (repo_root / "backend" / "app" / "experience_brain.py").read_text(encoding="utf-8")
+    proactive_source = (repo_root / "backend" / "app" / "proactive.py").read_text(encoding="utf-8")
     house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
     security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -521,6 +522,17 @@ def main() -> int:
           "/experience/role-acceptance" in backend_main
           and "/brain/phase-103" in backend_main,
           "Backend must expose role acceptance and phase 103 summary endpoints.")
+    check("phase 104 acceptance repair loop exists",
+          "build_acceptance_repair_queue" in experience_brain
+          and "build_jarvis_phase_104" in experience_brain
+          and "acceptance_repair" in proactive_source
+          and "latest_by_test" in proactive_source
+          and "acceptance_repair_loop" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Failed/blocked live acceptance evidence must create owner-visible repair suggestions.")
+    check("phase 104 endpoints are exposed",
+          "/experience/acceptance-repairs" in backend_main
+          and "/brain/phase-104" in backend_main,
+          "Backend must expose acceptance repair queue and phase 104 summary endpoints.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1414,6 +1426,52 @@ def main() -> int:
           r.json().get("phase") == 103
           and "role_acceptance" in r.json()
           and "checks" in r.json().get("role_acceptance", {}),
+          str(r.json()))
+
+    r = client.post("/experience/live-acceptance/results", json={
+        "test_id": "verifier_failed_acceptance",
+        "status": "failed",
+        "assistant": "atlas",
+        "user": "shawn",
+        "notes": "Verifier seeded a failure to prove acceptance repair suggestions are generated.",
+        "evidence": {"source": "verify_addon", "mutating": False, "reason": "phase_104"},
+    })
+    check("/experience/live-acceptance/results records failed evidence",
+          r.status_code == 200 and is_json(r) and r.json().get("recorded") is True,
+          f"status={r.status_code} payload={r.text}")
+
+    r = client.post("/monitor/scan")
+    check("/monitor/scan creates acceptance repair findings",
+          r.status_code == 200
+          and is_json(r)
+          and any(
+              finding.get("type") == "acceptance_failure"
+              and finding.get("test_id") == "verifier_failed_acceptance"
+              for finding in r.json().get("proactive", {}).get("findings", [])
+          ),
+          str(r.json()))
+
+    r = client.get("/experience/acceptance-repairs")
+    check("/experience/acceptance-repairs returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/experience/acceptance-repairs exposes active repair queue",
+          r.json().get("summary", {}).get("failed_or_blocked", 0) >= 1
+          and any(
+              repair.get("action_type") == "acceptance_repair"
+              and repair.get("payload", {}).get("test_id") == "verifier_failed_acceptance"
+              for repair in r.json().get("active_repairs", [])
+          ),
+          str(r.json()))
+
+    r = client.get("/brain/phase-104")
+    check("/brain/phase-104 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-104 has acceptance repair section",
+          r.json().get("phase") == 104
+          and "acceptance_repairs" in r.json()
+          and "active_repairs" in r.json().get("acceptance_repairs", {}),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -174,6 +174,52 @@ def build_role_acceptance_matrix(config: AppConfig) -> dict[str, Any]:
     }
 
 
+def build_acceptance_repair_queue() -> dict[str, Any]:
+    with get_session() as session:
+        rows = session.query(AcceptanceRun).order_by(
+            AcceptanceRun.created_at.desc()
+        ).limit(100).all()
+        suggestions = session.query(Suggestion).filter(
+            Suggestion.category == "acceptance",
+            Suggestion.action_type == "acceptance_repair",
+            Suggestion.status.in_(["suggested", "draft", "edited"]),
+        ).order_by(Suggestion.created_at.desc()).limit(50).all()
+
+    latest_by_test: dict[str, AcceptanceRun] = {}
+    for row in rows:
+        if row.test_id and row.test_id not in latest_by_test:
+            latest_by_test[row.test_id] = row
+    failures = [
+        _acceptance_run_card(row)
+        for row in latest_by_test.values()
+        if row.status in {"failed", "blocked"}
+    ]
+    active_repairs = [_suggestion_card(row) for row in suggestions]
+    failure_ids = {row["test_id"] for row in failures}
+    repair_test_ids = {
+        (row.get("payload") or {}).get("test_id")
+        for row in active_repairs
+        if isinstance(row.get("payload"), dict)
+    }
+    unrepaired = sorted(test_id for test_id in failure_ids if test_id not in repair_test_ids)
+    return {
+        "status": "ready" if not failures or not unrepaired else "attention",
+        "summary": {
+            "failed_or_blocked": len(failures),
+            "active_repairs": len(active_repairs),
+            "unrepaired": len(unrepaired),
+        },
+        "failures": failures,
+        "active_repairs": active_repairs,
+        "unrepaired_test_ids": unrepaired,
+        "guidance": [
+            "Run Monitor Scan after recording failed or blocked acceptance evidence.",
+            "Review or resolve the generated acceptance_repair suggestion.",
+            "Rerun the live-house test and record a passed result when the issue is fixed.",
+        ],
+    }
+
+
 async def build_device_acceptance_matrix(config: AppConfig) -> dict[str, Any]:
     states = await safe_get_states()
     graph = await build_house_graph(include_registries=False)
@@ -556,6 +602,17 @@ async def build_jarvis_phase_103(config: AppConfig, version: str) -> dict[str, A
     }
 
 
+async def build_jarvis_phase_104(version: str) -> dict[str, Any]:
+    repairs = build_acceptance_repair_queue()
+    return {
+        "status": repairs["status"],
+        "version": version,
+        "phase": 104,
+        "acceptance_repairs": repairs,
+        "guardrail": "Phase 104 creates owner-visible repair suggestions for failed acceptance evidence; it never auto-fixes devices.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -589,6 +646,20 @@ def _acceptance_run_card(row: AcceptanceRun) -> dict[str, Any]:
         "notes": row.notes,
         "evidence": _safe_json(row.evidence),
         "version": row.version,
+    }
+
+
+def _suggestion_card(row: Suggestion) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "title": row.title,
+        "message": row.message,
+        "category": row.category,
+        "priority": row.priority,
+        "action_type": row.action_type,
+        "payload": _safe_json(row.payload),
+        "status": row.status,
     }
 
 

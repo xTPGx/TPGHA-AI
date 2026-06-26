@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from .db.database import get_session
-from .db.models import CommandLog, Suggestion
+from .db.models import AcceptanceRun, CommandLog, Suggestion
 from .homeassistant.services import safe_get_states
 
 
@@ -131,6 +131,9 @@ async def scan_proactive() -> dict[str, Any]:
         mined = _mine_command_patterns(session)
         created += mined["created"]
         findings.extend(mined["findings"])
+        acceptance_repairs = _mine_acceptance_repairs(session)
+        created += acceptance_repairs["created"]
+        findings.extend(acceptance_repairs["findings"])
         session.commit()
     return {"created": created, "findings": findings}
 
@@ -185,3 +188,75 @@ def _mine_command_patterns(session) -> dict[str, Any]:
             created += 1
         findings.append({"type": "repeated_command", "intent": intent, "target": target, "count": len(matches)})
     return {"created": created, "findings": findings}
+
+
+def _mine_acceptance_repairs(session) -> dict[str, Any]:
+    rows = session.query(AcceptanceRun).order_by(
+        AcceptanceRun.created_at.desc()
+    ).limit(100).all()
+    latest_by_test: dict[str, AcceptanceRun] = {}
+    for row in rows:
+        if row.test_id and row.test_id not in latest_by_test:
+            latest_by_test[row.test_id] = row
+
+    created = 0
+    findings: list[dict[str, Any]] = []
+    for row in latest_by_test.values():
+        if row.status not in {"failed", "blocked"}:
+            continue
+        test_id = row.test_id or "unknown_acceptance_test"
+        title = f"Resolve acceptance {row.status}: {test_id}"
+        try:
+            evidence = json.loads(row.evidence or "{}")
+        except (TypeError, ValueError):
+            evidence = {}
+        payload = {
+            "test_id": test_id,
+            "status": row.status,
+            "assistant": row.assistant,
+            "user": row.user,
+            "notes": row.notes,
+            "evidence": evidence,
+            "version": row.version,
+            "recorded_at": row.created_at.isoformat() if row.created_at else None,
+            "repair_steps": _acceptance_repair_steps(test_id, row.status, row.notes),
+        }
+        if _add(
+            session,
+            title=title,
+            message=(
+                f"Live acceptance check {test_id} is marked {row.status}. "
+                "Review the evidence, fix the blocker, rerun the check, and record a passed result."
+            ),
+            category="acceptance",
+            priority="high",
+            action_type="acceptance_repair",
+            payload=payload,
+        ):
+            created += 1
+        findings.append({
+            "type": "acceptance_failure",
+            "test_id": test_id,
+            "status": row.status,
+            "suggestion_title": title,
+        })
+    return {"created": created, "findings": findings}
+
+
+def _acceptance_repair_steps(test_id: str, status: str, notes: str) -> list[str]:
+    lowered = f"{test_id} {notes}".lower()
+    steps = [
+        "Open the live acceptance report and read the latest evidence for this test.",
+        "Fix the device mapping, role policy, voice source, or integration issue that caused the failure.",
+        "Rerun the same acceptance check from the real Home Assistant login/device.",
+        "Record a passed acceptance result once the behavior is confirmed.",
+    ]
+    if "voice" in lowered or "mic" in lowered or "wake" in lowered:
+        steps.insert(1, "Verify HTTPS/Tailscale/Nabu Casa access, browser mic permission, and voice source room mapping.")
+    elif "role" in lowered or "resident" in lowered or "kiosk" in lowered:
+        steps.insert(1, "Verify the HA user is synced and mapped to the expected TPG role/profile.")
+    elif "media" in lowered or "music" in lowered:
+        steps.insert(1, "Verify speaker routing, Music Assistant player mapping, and the user's music account.")
+    elif "security" in lowered or "lock" in lowered:
+        steps.insert(1, "Verify confirmation/PIN policy before testing any security-disabling action.")
+    return steps

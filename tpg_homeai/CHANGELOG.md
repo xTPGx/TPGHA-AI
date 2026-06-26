@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.8
+
+- Added Jarvis phase 104 acceptance repair loop.
+- Added `/experience/acceptance-repairs` and `/brain/phase-104`.
+- Monitor Scan now converts latest failed or blocked live acceptance evidence into high-priority repair suggestions.
+- Acceptance repair queue evaluates the newest result per test so later passes clear the failure state.
+- Added verifier coverage for repair-suggestion generation and phase 104 endpoints.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.7
 
 - Added Jarvis phase 103 role acceptance matrix.

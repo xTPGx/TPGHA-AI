@@ -43,9 +43,21 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             .filter(AcceptanceRun.status == "passed")
             .count()
         )
-        failed_acceptance = (
+        historical_failed_acceptance = (
             session.query(AcceptanceRun)
             .filter(AcceptanceRun.status.in_(["failed", "blocked"]))
+            .count()
+        )
+        latest_acceptance_rows = session.query(AcceptanceRun).order_by(
+            AcceptanceRun.created_at.desc()
+        ).limit(100).all()
+        acceptance_repairs = (
+            session.query(Suggestion)
+            .filter(
+                Suggestion.category == "acceptance",
+                Suggestion.action_type == "acceptance_repair",
+                Suggestion.status.in_(["suggested", "draft", "edited"]),
+            )
             .count()
         )
 
@@ -120,6 +132,14 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "assistants": len(config.assistants.assistants),
         "approved_memories": approved_memories,
     }
+    latest_acceptance_by_test: dict[str, AcceptanceRun] = {}
+    for row in latest_acceptance_rows:
+        if row.test_id and row.test_id not in latest_acceptance_by_test:
+            latest_acceptance_by_test[row.test_id] = row
+    failed_acceptance = sum(
+        1 for row in latest_acceptance_by_test.values()
+        if row.status in {"failed", "blocked"}
+    )
     acceptance_counts = {
         "command_count": command_count,
         "conversation_count": conversation_count,
@@ -136,6 +156,8 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "acceptance_runs": acceptance_runs,
         "accepted_tests": accepted_tests,
         "failed_acceptance": failed_acceptance,
+        "historical_failed_acceptance": historical_failed_acceptance,
+        "acceptance_repairs": acceptance_repairs,
     }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
@@ -708,6 +730,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 f"{acceptance_counts['accepted_tests']} passed and {acceptance_counts['failed_acceptance']} failed/blocked result(s) recorded.",
             ],
             "next": "Use the report as the owner-facing proof that the live house is or is not deployment-complete.",
+        },
+        {
+            "id": "acceptance_repair_loop",
+            "title": "Acceptance Repair Loop",
+            "status": "ready" if not acceptance_counts["failed_acceptance"] or acceptance_counts["acceptance_repairs"] else "partial",
+            "score": 100 if not acceptance_counts["failed_acceptance"] else (90 if acceptance_counts["acceptance_repairs"] else 72),
+            "evidence": [
+                f"{acceptance_counts['failed_acceptance']} failed or blocked acceptance result(s) recorded.",
+                f"{acceptance_counts['acceptance_repairs']} active acceptance repair suggestion(s).",
+                "Monitor Scan drafts high-priority repair suggestions for latest failed or blocked acceptance checks.",
+                "Later passed evidence clears the failure state because the queue evaluates the newest result per test.",
+            ],
+            "next": "Resolve repair suggestions, rerun the real-house test, and record a passed acceptance result.",
         },
         {
             "id": "release_checklist",
