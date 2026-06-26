@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.51
+
+- Added Jarvis phase 147 release recommendation history.
+- Added append-only recommendation state-change events for acknowledge, snooze, and reactivate actions.
+- Added `/release/status-history/recommendations/history` with Markdown export.
+- Added owner Dashboard recent recommendation history surface.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.50
 
 - Added Jarvis phase 146 release recommendation notes.

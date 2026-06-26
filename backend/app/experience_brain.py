@@ -12,6 +12,7 @@ from .db.models import (
     CommandLog,
     ConversationNote,
     ConversationState,
+    ReleaseRecommendationEvent,
     ReleaseRecommendationState,
     ReleaseStatusSnapshot,
     Suggestion,
@@ -925,6 +926,24 @@ def list_release_recommendation_states() -> dict[str, Any]:
     }
 
 
+def list_release_recommendation_history(limit: int = 50) -> dict[str, Any]:
+    limit = max(1, min(int(limit or 50), 200))
+    with get_session() as session:
+        rows = (
+            session.query(ReleaseRecommendationEvent)
+            .order_by(ReleaseRecommendationEvent.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+    return {
+        "status": "ready",
+        "limit": limit,
+        "count": len(rows),
+        "events": [_release_recommendation_event_card(row) for row in rows],
+        "markdown": _release_recommendation_history_markdown(rows),
+    }
+
+
 def save_release_recommendation_state(recommendation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     recommendation_id = str(recommendation_id or "")[:128]
     if not recommendation_id:
@@ -940,12 +959,19 @@ def save_release_recommendation_state(recommendation_id: str, payload: dict[str,
             .filter(ReleaseRecommendationState.recommendation_id == recommendation_id)
             .one_or_none()
         )
+        from_state = row.state if row else ""
         if not row:
             row = ReleaseRecommendationState(recommendation_id=recommendation_id)
             session.add(row)
         row.state = state
         row.notes = notes
         row.updated_at = now
+        session.add(ReleaseRecommendationEvent(
+            recommendation_id=recommendation_id,
+            from_state=from_state or "new",
+            to_state=state,
+            notes=notes,
+        ))
         session.commit()
         session.refresh(row)
         item = _release_recommendation_state_card(row)
@@ -1157,6 +1183,30 @@ def _release_recommendation_state_card(row: ReleaseRecommendationState) -> dict[
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+def _release_recommendation_event_card(row: ReleaseRecommendationEvent) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "recommendation_id": row.recommendation_id,
+        "from_state": row.from_state or "",
+        "to_state": row.to_state or "",
+        "notes": row.notes or "",
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def _release_recommendation_history_markdown(rows: list[ReleaseRecommendationEvent]) -> str:
+    lines = ["# TPG HomeAI Release Recommendation History", ""]
+    if rows:
+        for row in rows:
+            lines.append(
+                f"- {row.recommendation_id}: {row.from_state or 'new'} -> {row.to_state or 'active'}"
+                + (f" ({row.notes})" if row.notes else "")
+            )
+    else:
+        lines.append("- No recommendation state changes recorded.")
+    return "\n".join(lines).strip() + "\n"
 
 
 def _release_snapshot_delta(latest: dict[str, Any] | None, previous: dict[str, Any] | None) -> dict[str, Any]:
@@ -2113,6 +2163,20 @@ async def build_jarvis_phase_146(version: str) -> dict[str, Any]:
             "dashboard_surface": "Owner note on recommended next action",
         },
         "guardrail": "Phase 146 stores owner notes on recommendation state only; it does not alter release snapshots or checklist evidence.",
+    }
+
+
+async def build_jarvis_phase_147(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 147,
+        "release_recommendation_history": {
+            "endpoint": "/release/status-history/recommendations/history",
+            "event_fields": ["recommendation_id", "from_state", "to_state", "notes", "created_at"],
+            "dashboard_surface": "Recent recommendation history",
+        },
+        "guardrail": "Phase 147 records recommendation state-change history without modifying release snapshots or command audit logs.",
     }
 
 

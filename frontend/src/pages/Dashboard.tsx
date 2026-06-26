@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [releaseMetrics, setReleaseMetrics] = useState<any>(null);
   const [releaseHealth, setReleaseHealth] = useState<any>(null);
   const [releaseRecommendations, setReleaseRecommendations] = useState<any>(null);
+  const [releaseRecommendationHistory, setReleaseRecommendationHistory] = useState<any>(null);
   const [releaseRecommendationNote, setReleaseRecommendationNote] = useState("");
   const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
   const [releaseSearchTerm, setReleaseSearchTerm] = useState("");
@@ -63,7 +64,7 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
-          const [releaseChecklist, history, comparison, digest, metrics, health, recommendations] = await Promise.all([
+          const [releaseChecklist, history, comparison, digest, metrics, health, recommendations, recommendationHistory] = await Promise.all([
             api.releaseChecklist(),
             api.releaseStatusFilter(releaseDecisionFilter),
             api.releaseHistoryComparison(),
@@ -71,6 +72,7 @@ export default function Dashboard() {
             api.releaseStatusMetrics(),
             api.releaseStatusHealth(),
             api.releaseRecommendations(),
+            api.releaseRecommendationHistory(),
           ]);
           setRelease(releaseChecklist);
           setReleaseHistory(history);
@@ -79,6 +81,7 @@ export default function Dashboard() {
           setReleaseMetrics(metrics);
           setReleaseHealth(health);
           setReleaseRecommendations(recommendations);
+          setReleaseRecommendationHistory(recommendationHistory);
         } else {
           setActionPlan(null);
           setRelease(null);
@@ -88,6 +91,7 @@ export default function Dashboard() {
           setReleaseMetrics(null);
           setReleaseHealth(null);
           setReleaseRecommendations(null);
+          setReleaseRecommendationHistory(null);
         }
       } catch {
         setSession(null);
@@ -100,6 +104,7 @@ export default function Dashboard() {
         setReleaseMetrics(null);
         setReleaseHealth(null);
         setReleaseRecommendations(null);
+        setReleaseRecommendationHistory(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -161,13 +166,14 @@ export default function Dashboard() {
     try {
       const saved = await api.saveReleaseStatusSnapshot();
       if (saved?.checklist) setRelease(saved.checklist);
-      const [history, comparison, digest, metrics, health, recommendations] = await Promise.all([
+      const [history, comparison, digest, metrics, health, recommendations, recommendationHistory] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
         api.releaseStatusMetrics(),
         api.releaseStatusHealth(),
         api.releaseRecommendations(),
+        api.releaseRecommendationHistory(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
@@ -175,6 +181,7 @@ export default function Dashboard() {
       setReleaseMetrics(metrics);
       setReleaseHealth(health);
       setReleaseRecommendations(recommendations);
+      setReleaseRecommendationHistory(recommendationHistory);
       setReleaseMessage("Release snapshot saved.");
     } catch (e: any) {
       setReleaseMessage(`Snapshot failed: ${e?.message || String(e)}`);
@@ -220,13 +227,14 @@ export default function Dashboard() {
   const pruneReleaseHistory = async () => {
     try {
       const result = await api.pruneReleaseHistory(20, false);
-      const [history, comparison, digest, metrics, health, recommendations] = await Promise.all([
+      const [history, comparison, digest, metrics, health, recommendations, recommendationHistory] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
         api.releaseStatusMetrics(),
         api.releaseStatusHealth(),
         api.releaseRecommendations(),
+        api.releaseRecommendationHistory(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
@@ -234,6 +242,7 @@ export default function Dashboard() {
       setReleaseMetrics(metrics);
       setReleaseHealth(health);
       setReleaseRecommendations(recommendations);
+      setReleaseRecommendationHistory(recommendationHistory);
       setReleaseMessage(`${result.pruned || 0} old release snapshot${result.pruned === 1 ? "" : "s"} pruned.`);
     } catch (e: any) {
       setReleaseMessage(`Prune failed: ${e?.message || String(e)}`);
@@ -249,13 +258,14 @@ export default function Dashboard() {
           ? "Owner marked this release snapshot as shipped."
           : "Owner marked this release snapshot as held for follow-up.",
       });
-      const [history, comparison, digest, metrics, health, recommendations] = await Promise.all([
+      const [history, comparison, digest, metrics, health, recommendations, recommendationHistory] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
         api.releaseStatusMetrics(),
         api.releaseStatusHealth(),
         api.releaseRecommendations(),
+        api.releaseRecommendationHistory(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
@@ -263,6 +273,7 @@ export default function Dashboard() {
       setReleaseMetrics(metrics);
       setReleaseHealth(health);
       setReleaseRecommendations(recommendations);
+      setReleaseRecommendationHistory(recommendationHistory);
       setReleaseMessage(`Release snapshot marked ${decision}.`);
     } catch (e: any) {
       setReleaseMessage(`Snapshot annotation failed: ${e?.message || String(e)}`);
@@ -276,7 +287,12 @@ export default function Dashboard() {
   ) => {
     try {
       await api.updateReleaseRecommendationState(recommendationId, { state, notes });
-      setReleaseRecommendations(await api.releaseRecommendations());
+      const [recommendations, recommendationHistory] = await Promise.all([
+        api.releaseRecommendations(),
+        api.releaseRecommendationHistory(),
+      ]);
+      setReleaseRecommendations(recommendations);
+      setReleaseRecommendationHistory(recommendationHistory);
       setReleaseMessage(
         state === "active"
           ? "Release recommendation reactivated."
@@ -412,6 +428,7 @@ export default function Dashboard() {
             metrics={releaseMetrics}
             health={releaseHealth}
             recommendations={releaseRecommendations}
+            recommendationHistory={releaseRecommendationHistory}
             recommendationNote={releaseRecommendationNote}
             decisionFilter={releaseDecisionFilter}
             searchTerm={releaseSearchTerm}
@@ -605,6 +622,7 @@ function DashboardReleaseStatus({
   metrics,
   health,
   recommendations,
+  recommendationHistory,
   recommendationNote,
   decisionFilter,
   searchTerm,
@@ -633,6 +651,7 @@ function DashboardReleaseStatus({
   metrics: any;
   health: any;
   recommendations: any;
+  recommendationHistory: any;
   recommendationNote: string;
   decisionFilter: ReleaseDecisionFilter;
   searchTerm: string;
@@ -661,6 +680,7 @@ function DashboardReleaseStatus({
   const hiddenRecommendations = (recommendations?.all_recommendations || []).filter(
     (item: any) => item.state === "acknowledged" || item.state === "snoozed"
   );
+  const recommendationEvents = recommendationHistory?.events || [];
   return (
     <div className={`card ${failed.length ? "border-amber-500/30" : "border-emerald-500/30"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -738,6 +758,21 @@ function DashboardReleaseStatus({
               <Button key={item.id} variant="ghost" onClick={() => onRecommendationState(item.id, "active", item.state_notes || "")}>
                 Reactivate
               </Button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!!recommendationEvents.length && (
+        <div className="mt-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
+          <div className="font-semibold text-slate-200">Recent recommendation history</div>
+          <div className="mt-2 space-y-2">
+            {recommendationEvents.slice(0, 3).map((event: any) => (
+              <div key={event.id} className="rounded border border-slate-800 bg-slate-950/40 p-2">
+                <div className="text-slate-200">
+                  {event.recommendation_id}: {event.from_state || "new"}{" -> "}{event.to_state || "active"}
+                </div>
+                {event.notes && <div className="mt-1 text-xs text-slate-500">{event.notes}</div>}
+              </div>
             ))}
           </div>
         </div>

@@ -192,6 +192,19 @@ class ReleaseRecommendationState(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
 
 
+class ReleaseRecommendationEvent(Base):
+    """Append-only history of owner recommendation state changes."""
+
+    __tablename__ = "release_recommendation_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)
+    recommendation_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    from_state: Mapped[str] = mapped_column(String(32), default="")
+    to_state: Mapped[str] = mapped_column(String(32), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+
 class FollowupPreference(Base):
     """Per-profile follow-up prompt preference.
 

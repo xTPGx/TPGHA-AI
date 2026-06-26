@@ -233,6 +233,7 @@ export const api = {
   releaseStatusHealth: () => http<any>("/release/status-history/health"),
   releaseRecommendations: () => http<any>("/release/status-history/recommendations"),
   releaseRecommendationStates: () => http<any>("/release/status-history/recommendations/states"),
+  releaseRecommendationHistory: () => http<any>("/release/status-history/recommendations/history"),
   updateReleaseRecommendationState: (id: string, body: Record<string, any>) =>
     http<any>(`/release/status-history/recommendations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
   saveReleaseStatusSnapshot: () =>

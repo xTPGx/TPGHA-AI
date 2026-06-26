@@ -1272,6 +1272,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add recommendation history so owners can see when actions changed state over time.",
         },
         {
+            "id": "release_recommendation_history",
+            "title": "Release Recommendation History",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Recommendation state changes append immutable history events.",
+                "/release/status-history/recommendations/history returns recent owner state changes and Markdown.",
+                "Owner Dashboard surfaces recent recommendation history under the release recommendation card.",
+            ],
+            "next": "Add release recommendation export actions for owner handoff packets.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
