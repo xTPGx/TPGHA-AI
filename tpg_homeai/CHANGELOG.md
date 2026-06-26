@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.3
+
+- Added phases 61-65 reliability expansion for vacuums, helper entities, humidifiers, water heaters, and valves.
+- Added vacuum start/stop/return-to-base state-family verification and approved `preferred_vacuum_control` device memory.
+- Added `number` and `select` helper verification with approved `preferred_number_control` and `preferred_select_control` device memory.
+- Added humidifier target-humidity verification and approved `preferred_humidifier_control` device memory.
+- Added water-heater operation-mode/temperature verification and approved `preferred_water_heater_control` device memory.
+- Added valve open/close verification and approved `preferred_valve_control` device memory.
+- Expanded Device Adapter hints, Device Profile strategies, Jarvis Brain readiness evidence, and verifier coverage for phases 61-65.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.2
 
 - Added phases 56-60 reliability expansion for covers and climate devices.

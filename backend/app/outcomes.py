@@ -224,6 +224,22 @@ def _expected_state(result: ActionResult) -> str | None:
         return "locked"
     if service == "unlock":
         return "unlocked"
+    if service == "start" and call.get("domain") == "vacuum":
+        return "cleaning"
+    if service == "stop" and call.get("domain") == "vacuum":
+        return "idle"
+    if service == "return_to_base" and call.get("domain") == "vacuum":
+        return "docked"
+    if service == "turn_on" and call.get("domain") == "humidifier":
+        return "on"
+    if service == "turn_off" and call.get("domain") == "humidifier":
+        return "off"
+    if service == "open_valve":
+        return "open"
+    if service == "close_valve":
+        return "closed"
+    if service == "select_option":
+        return str(data.get("option") or "")
     return None
 
 
@@ -255,6 +271,12 @@ def _expected_attribute(result: ActionResult) -> dict[str, Any] | None:
         return _numeric_expectation("temperature", data.get("temperature"), tolerance=1)
     if service == "set_hvac_mode":
         return _string_expectation("hvac_mode", data.get("hvac_mode"))
+    if service == "set_value":
+        return _numeric_expectation("value", data.get("value"), tolerance=0.01)
+    if service == "set_humidity":
+        return _numeric_expectation("humidity", data.get("humidity"), tolerance=2)
+    if service == "set_operation_mode":
+        return _string_expectation("operation_mode", data.get("operation_mode"))
     return None
 
 
@@ -288,6 +310,8 @@ def _reading_matches(
     if expected_attr:
         attr = expected_attr["attribute"]
         if attr not in attrs:
+            if attr in {"value", "current_option", "operation_mode"}:
+                return str(state).lower() == str(expected_attr["value"]).lower()
             return False
         try:
             actual = float(attrs.get(attr))
@@ -309,6 +333,16 @@ def _state_matches(intent: str, state: str, expected: str) -> bool:
     if expected == "on" and normalized in {"on", "playing", "idle", "paused"}:
         return True
     if expected == "off" and normalized in {"off", "standby"}:
+        return True
+    if expected == "cleaning" and normalized in {"cleaning", "on"}:
+        return True
+    if expected == "idle" and normalized in {"idle", "paused", "off", "docked"}:
+        return True
+    if expected == "docked" and normalized in {"docked", "returning", "idle"}:
+        return True
+    if expected == "open" and normalized in {"open", "opening", "on"}:
+        return True
+    if expected == "closed" and normalized in {"closed", "closing", "off"}:
         return True
     return normalized == expected
 
@@ -401,6 +435,16 @@ def _suggested_next_action(result: ActionResult, domain: str, issue: str) -> str
         return "Check cover device_class, position feedback, and whether this cover reports open/closed state reliably."
     if domain == "climate":
         return "Check supported HVAC modes and whether this thermostat accepts mode and temperature as separate calls."
+    if domain == "vacuum":
+        return "Check vacuum supported features and whether this model reports cleaning, paused, returning, or docked states."
+    if domain in {"number", "select"}:
+        return "Check helper min/max/options and whether this entity echoes the selected value after service calls."
+    if domain == "humidifier":
+        return "Check supported humidity range and whether the humidifier reports target humidity after service calls."
+    if domain == "water_heater":
+        return "Check supported operation modes and whether temperature/mode are accepted as separate water-heater calls."
+    if domain == "valve":
+        return "Check valve device class, open/closed feedback, and whether open actions should require confirmation."
     if domain == "lock":
         return "Verify lock battery/connectivity; keep unlock confirmation enabled."
     return "Review the Home Assistant entity attributes and update the device profile if this behavior is expected."
@@ -413,6 +457,11 @@ def _interesting_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
         "temperature", "target_temp_low", "target_temp_high", "hvac_mode",
         "brightness", "supported_features", "device_class", "battery_level",
         "current_position", "current_tilt_position", "supported_color_modes",
+        "value", "min", "max", "step", "options", "current_option",
+        "humidity", "min_humidity", "max_humidity", "operation_mode",
+        "operation_list", "target_temp_high", "target_temp_low",
+        "battery", "battery_level", "cleaning_area", "fan_speed",
+        "fan_speed_list",
     ]
     return {key: attrs.get(key) for key in keys if key in attrs}
 
@@ -486,6 +535,35 @@ def _recovery_steps(result: ActionResult, outcome: dict[str, Any]) -> list[str]:
             "Check the thermostat's hvac_modes and whether the requested mode is supported.",
             "Some thermostats require setting HVAC mode and temperature as separate service calls.",
             "Approve a device memory if this climate device should use temperature-only or mode-then-temperature control.",
+        ])
+    elif domain == "vacuum":
+        steps.extend([
+            "Check whether this vacuum reports cleaning, returning, docked, paused, or idle after commands.",
+            "If return-to-base or start fails verification, inspect supported_features and integration status.",
+            "Approve a device memory if this vacuum needs state-family verification instead of one exact state.",
+        ])
+    elif domain in {"number", "select"}:
+        steps.extend([
+            "Check whether this helper exposes min/max/options and echoes the requested value as state or attribute.",
+            "If the value is accepted but verification mismatches, approve a helper memory for attribute-based verification.",
+        ])
+    elif domain == "humidifier":
+        steps.extend([
+            "Check humidity min/max range and target humidity feedback.",
+            "Some humidifiers require turning on before setting target humidity.",
+            "Approve a device memory if this humidifier needs turn-on-then-humidity control.",
+        ])
+    elif domain == "water_heater":
+        steps.extend([
+            "Check operation_list and supported target temperature range.",
+            "Some water heaters require setting operation mode and temperature separately.",
+            "Approve a device memory if this water heater needs mode-then-temperature control.",
+        ])
+    elif domain == "valve":
+        steps.extend([
+            "Check whether this valve reports open/closed state after service calls.",
+            "For water, gas, or irrigation valves, keep open actions confirmation-gated if risk is high.",
+            "Approve a device memory if this valve needs delayed state verification.",
         ])
     elif domain in {"light", "switch"}:
         steps.extend([
@@ -574,6 +652,36 @@ def _proposed_device_memory(result: ActionResult, outcome: dict[str, Any]) -> di
                 "hvac_mode": (service_call.get("data") or {}).get("hvac_mode"),
             },
         }
+    if domain in {"vacuum", "number", "select", "humidifier", "water_heater", "valve"}:
+        service_call = (result.data or {}).get("service_call") or {}
+        service = str(service_call.get("service") or "")
+        key = {
+            "vacuum": "preferred_vacuum_control",
+            "number": "preferred_number_control",
+            "select": "preferred_select_control",
+            "humidifier": "preferred_humidifier_control",
+            "water_heater": "preferred_water_heater_control",
+            "valve": "preferred_valve_control",
+        }[domain]
+        strategy = {
+            "vacuum": "state_family_verify",
+            "number": "value_attribute_verify",
+            "select": "state_or_option_verify",
+            "humidifier": "turn_on_then_humidity",
+            "water_heater": "mode_then_temperature",
+            "valve": "delayed_state_verify",
+        }[domain]
+        return {
+            "scope": "device",
+            "subject": entity_id,
+            "key": key,
+            "value": {
+                "strategy": strategy,
+                "reason": f"Reliability verification found {domain} state or attributes did not match expected values.",
+                "last_service": service,
+                "observed_attributes": first_attrs,
+            },
+        }
     return {}
 
 
@@ -647,6 +755,12 @@ def _entity_capabilities(entity: dict[str, Any]) -> list[str]:
         "lock": ["lock", "unlock_sensitive"],
         "cover": ["open_sensitive", "close"],
         "climate": ["temperature", "hvac_mode"],
+        "vacuum": ["start", "stop", "return_to_base"],
+        "number": ["set_value"],
+        "select": ["select_option"],
+        "humidifier": ["turn_on", "turn_off", "humidity"],
+        "water_heater": ["temperature", "operation_mode"],
+        "valve": ["open_sensitive", "close"],
         "camera": ["view"],
         "switch": ["turn_on", "turn_off"],
     }.get(str(domain), ["status"])
@@ -669,6 +783,16 @@ def _profile_quirks(device: dict[str, Any]) -> list[str]:
             quirks.append("fan_uses_presets_not_percentage")
         if entity.get("domain") == "media_player" and not attrs.get("supported_features"):
             quirks.append("media_player_supported_features_unknown")
+        if entity.get("domain") == "vacuum" and not attrs.get("supported_features"):
+            quirks.append("vacuum_supported_features_unknown")
+        if entity.get("domain") == "select" and not attrs.get("options"):
+            quirks.append("select_options_unknown")
+        if entity.get("domain") == "number" and attrs.get("min") is None:
+            quirks.append("number_range_unknown")
+        if entity.get("domain") == "humidifier" and attrs.get("humidity") is None:
+            quirks.append("humidifier_target_feedback_unknown")
+        if entity.get("domain") == "water_heater" and not attrs.get("operation_list"):
+            quirks.append("water_heater_operation_modes_unknown")
     return sorted(set(quirks))
 
 
@@ -709,6 +833,51 @@ def _service_strategy(device: dict[str, Any]) -> dict[str, Any]:
                 "supports_current_temperature": "current_temperature" in attrs,
                 **learned,
             }
+        elif domain == "vacuum":
+            strategies[entity_id] = {
+                "preferred_control": "start_stop_return_to_base",
+                "supports_feature_mask": attrs.get("supported_features"),
+                "fan_speed_list": attrs.get("fan_speed_list") or [],
+                "state_family_verification": ["cleaning", "returning", "docked", "idle", "paused"],
+                **learned,
+            }
+        elif domain == "number":
+            strategies[entity_id] = {
+                "preferred_control": "number.set_value",
+                "min": attrs.get("min"),
+                "max": attrs.get("max"),
+                "step": attrs.get("step"),
+                "verify_attribute": "value",
+                **learned,
+            }
+        elif domain == "select":
+            strategies[entity_id] = {
+                "preferred_control": "select.select_option",
+                "options": attrs.get("options") or [],
+                "verify_state_or_attribute": "current_option",
+                **learned,
+            }
+        elif domain == "humidifier":
+            strategies[entity_id] = {
+                "preferred_control": "turn_on_then_humidity",
+                "min_humidity": attrs.get("min_humidity"),
+                "max_humidity": attrs.get("max_humidity"),
+                "supports_target_humidity": "humidity" in attrs,
+                **learned,
+            }
+        elif domain == "water_heater":
+            strategies[entity_id] = {
+                "preferred_control": "mode_then_temperature",
+                "operation_list": attrs.get("operation_list") or [],
+                "supports_temperature": "temperature" in attrs,
+                **learned,
+            }
+        elif domain == "valve":
+            strategies[entity_id] = {
+                "preferred_control": "open_close_state_verify",
+                "device_class": attrs.get("device_class"),
+                **learned,
+            }
         elif domain == "light":
             strategies[entity_id] = {
                 "preferred_control": "light_service",
@@ -723,6 +892,12 @@ def _learned_device_strategy(entity_id: str, domain: str | None) -> dict[str, An
         "media_player": "preferred_media_control",
         "cover": "preferred_cover_control",
         "climate": "preferred_climate_control",
+        "vacuum": "preferred_vacuum_control",
+        "number": "preferred_number_control",
+        "select": "preferred_select_control",
+        "humidifier": "preferred_humidifier_control",
+        "water_heater": "preferred_water_heater_control",
+        "valve": "preferred_valve_control",
     }.get(str(domain or ""))
     if not key:
         return {}

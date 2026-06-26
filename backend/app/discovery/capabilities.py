@@ -94,8 +94,12 @@ _ACTION_ALIASES = {
     "arm": "arm_away", "arm home": "arm_home", "arm away": "arm_away",
     "arm night": "arm_night", "disarm": "disarm",
     "activate": "activate", "run": "run", "start": "start",
+    "clean": "start", "dock": "return_to_base", "return": "return_to_base",
+    "return home": "return_to_base", "return to base": "return_to_base",
     "press": "press", "status": "status", "query": "status",
     "brightness": "set_brightness", "dim": "set_brightness",
+    "humidity": "set_humidity", "set humidity": "set_humidity",
+    "operation mode": "set_operation_mode", "water heater mode": "set_operation_mode",
 }
 
 
@@ -275,6 +279,30 @@ def plan_for(
             return ServicePlan(True, "vacuum", "stop", eid, risk="medium")
         if a == "return_to_base":
             return ServicePlan(True, "vacuum", "return_to_base", eid, risk="medium")
+
+    # ---- humidifier ----
+    if domain == "humidifier":
+        if a == "turn_on":
+            return ServicePlan(True, "humidifier", "turn_on", eid, risk="medium")
+        if a == "turn_off":
+            return ServicePlan(True, "humidifier", "turn_off", eid, risk="medium")
+        if a == "set_humidity":
+            pct = _as_pct(value)
+            return ServicePlan(True, "humidifier", "set_humidity",
+                               {**eid, "humidity": pct}, risk="medium")
+
+    # ---- water_heater ----
+    if domain == "water_heater":
+        if a == "set_temperature":
+            try:
+                temp = float(value)
+            except (TypeError, ValueError):
+                return ServicePlan(False, reason="Water-heater temperature value required.")
+            return ServicePlan(True, "water_heater", "set_temperature",
+                               {**eid, "temperature": temp}, risk="medium")
+        if a == "set_operation_mode":
+            return ServicePlan(True, "water_heater", "set_operation_mode",
+                               {**eid, "operation_mode": str(value)}, risk="medium")
 
     # ---- scene / script / button ----
     if domain == "scene" and a in ("activate", "turn_on"):

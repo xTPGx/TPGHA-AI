@@ -121,14 +121,14 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "score": int(round(float(reliability.get("score", 1.0)) * 100)),
             "evidence": [
                 "Executed actions are followed by Home Assistant state/attribute verification.",
-                "Fan speed, media playback, volume, climate temperature, locks, lights, switches, and generic service plans have grounded outcome checks.",
+                "Fan speed, media playback, volume, climate temperature, vacuums, helpers, humidifiers, water heaters, valves, locks, lights, switches, and generic service plans have grounded outcome checks.",
                 "Device profiles include reliability score, last outcome, service strategy, and common failure hints.",
-                "Approved repair suggestions can teach device-specific fan, media-player, cover, and climate service strategies.",
+                "Approved repair suggestions can teach device-specific fan, media-player, cover, climate, vacuum, helper, humidifier, water-heater, and valve service strategies.",
                 "Generic media-player control can use learned media_play/media_stop wake or sleep fallbacks when native power services fail.",
                 f"{reliability.get('checked_commands', 0)} recent command outcomes checked.",
                 f"{reliability.get('open_repair_suggestions', 0)} open repair suggestions from failed verification.",
             ],
-            "next": "Expand learned strategies to vendor-specific media integrations, vacuums, and advanced sensors.",
+            "next": "Add vendor-specific deep integrations for Music Assistant, Frigate/Nest cameras, Apple/iCloud, and robot-vacuum maps.",
         },
         {
             "id": "conversation_memory",

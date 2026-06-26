@@ -111,6 +111,87 @@ def _hint_for_entity(entity: dict[str, Any]) -> dict[str, Any] | None:
             "quirks": [] if modes else ["hvac_modes_unknown"],
         }
 
+    if domain == "vacuum":
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "vacuum_state_family",
+            "services": ["vacuum.start", "vacuum.stop", "vacuum.return_to_base"],
+            "capabilities": {
+                "supported_features": attrs.get("supported_features"),
+                "fan_speed_list": attrs.get("fan_speed_list") or [],
+                "battery_level": attrs.get("battery_level"),
+            },
+            "quirks": ["state_family_feedback"],
+        }
+
+    if domain == "number":
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "number_range_value",
+            "services": ["number.set_value"],
+            "capabilities": {
+                "min": attrs.get("min"),
+                "max": attrs.get("max"),
+                "step": attrs.get("step"),
+                "mode": attrs.get("mode"),
+            },
+            "quirks": [] if attrs.get("min") is not None and attrs.get("max") is not None else ["range_unknown"],
+        }
+
+    if domain == "select":
+        options = attrs.get("options") or []
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "select_option_state",
+            "services": ["select.select_option"],
+            "capabilities": {"options": options},
+            "quirks": [] if options else ["options_unknown"],
+        }
+
+    if domain == "humidifier":
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "humidifier_power_humidity",
+            "services": ["humidifier.turn_on", "humidifier.turn_off", "humidifier.set_humidity"],
+            "capabilities": {
+                "humidity": "humidity" in attrs,
+                "min_humidity": attrs.get("min_humidity"),
+                "max_humidity": attrs.get("max_humidity"),
+            },
+            "quirks": [] if "humidity" in attrs else ["humidity_feedback_unknown"],
+        }
+
+    if domain == "water_heater":
+        modes = attrs.get("operation_list") or []
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "water_heater_mode_temperature",
+            "services": ["water_heater.set_operation_mode", "water_heater.set_temperature"],
+            "capabilities": {
+                "operation_list": modes,
+                "temperature": "temperature" in attrs,
+            },
+            "quirks": [] if modes else ["operation_modes_unknown"],
+        }
+
+    if domain == "valve":
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "adapter": "valve_open_close",
+            "services": ["valve.open_valve", "valve.close_valve"],
+            "capabilities": {
+                "device_class": attrs.get("device_class"),
+                "state_feedback": True,
+            },
+            "quirks": ["open_may_be_sensitive"],
+        }
+
     if domain in {"light", "switch"}:
         return {
             "entity_id": entity_id,
@@ -162,6 +243,16 @@ def _recovery_for_hints(hints: list[dict[str, Any]]) -> list[str]:
             recovery.append("If cover state does not change, compare open/closed state with current_position feedback.")
         if hint.get("domain") == "climate":
             recovery.append("If thermostat changes fail, verify hvac_modes and try mode then temperature as separate calls.")
+        if hint.get("domain") == "vacuum":
+            recovery.append("If vacuum verification fails, compare cleaning/returning/docked/idle state families instead of one exact state.")
+        if hint.get("domain") in {"number", "select"}:
+            recovery.append("If helper verification fails, inspect allowed ranges/options and whether state or attributes echo the requested value.")
+        if hint.get("domain") == "humidifier":
+            recovery.append("If humidity changes fail, turn the humidifier on first and verify target humidity feedback.")
+        if hint.get("domain") == "water_heater":
+            recovery.append("If water-heater changes fail, verify operation_list and split mode and temperature service calls.")
+        if hint.get("domain") == "valve":
+            recovery.append("If valve state does not change, add delayed verification and keep risky open actions gated.")
         if "group_diagnostics" in hint.get("quirks", []):
             recovery.append("Group mobile diagnostic entities into one personal device profile.")
     return sorted(set(recovery))

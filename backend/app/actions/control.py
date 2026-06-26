@@ -28,6 +28,7 @@ _PERM_BY_DOMAIN = {
     "fan": "can_control_fans",
     "climate": "can_control_climate",
     "water_heater": "can_control_climate",
+    "humidifier": "can_control_climate",
     "media_player": "can_control_music",
     "cover": "can_control_covers",
     "valve": "can_control_covers",
@@ -253,6 +254,12 @@ def _approved_generic_strategy(domain: str, entity_id: str) -> str:
     key = {
         "cover": "preferred_cover_control",
         "climate": "preferred_climate_control",
+        "vacuum": "preferred_vacuum_control",
+        "number": "preferred_number_control",
+        "select": "preferred_select_control",
+        "humidifier": "preferred_humidifier_control",
+        "water_heater": "preferred_water_heater_control",
+        "valve": "preferred_valve_control",
     }.get(domain)
     if not key or not entity_id:
         return ""

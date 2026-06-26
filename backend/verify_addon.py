@@ -238,6 +238,35 @@ def main() -> int:
           "cover_state_or_position" in device_adapters
           and "climate_mode_temperature" in device_adapters,
           "Device Profiles should explain cover/climate capabilities and recovery hints.")
+    check("vacuum/helper/appliance reliability strategies are wired",
+          "preferred_vacuum_control" in outcomes_source
+          and "preferred_number_control" in outcomes_source
+          and "preferred_select_control" in outcomes_source
+          and "preferred_humidifier_control" in outcomes_source
+          and "preferred_water_heater_control" in outcomes_source
+          and "preferred_valve_control" in outcomes_source,
+          "Reliability brain should verify and learn vacuum/helper/appliance behavior.")
+    check("generic controls surface vacuum/helper/appliance learned strategy",
+          "preferred_vacuum_control" in control_actions
+          and "preferred_number_control" in control_actions
+          and "preferred_select_control" in control_actions
+          and "preferred_humidifier_control" in control_actions
+          and "preferred_water_heater_control" in control_actions
+          and "preferred_valve_control" in control_actions,
+          "Generic controls should report approved device strategy for phases 61-65 domains.")
+    check("device adapters include vacuum/helper/appliance hints",
+          "vacuum_state_family" in device_adapters
+          and "number_range_value" in device_adapters
+          and "select_option_state" in device_adapters
+          and "humidifier_power_humidity" in device_adapters
+          and "water_heater_mode_temperature" in device_adapters
+          and "valve_open_close" in device_adapters,
+          "Device Profiles should explain phases 61-65 capabilities and recovery hints.")
+    check("capability planner supports phases 61-65 services",
+          "dock" in (repo_root / "backend" / "app" / "discovery" / "capabilities.py").read_text(encoding="utf-8")
+          and "set_humidity" in (repo_root / "backend" / "app" / "discovery" / "capabilities.py").read_text(encoding="utf-8")
+          and "set_operation_mode" in (repo_root / "backend" / "app" / "discovery" / "capabilities.py").read_text(encoding="utf-8"),
+          "Natural language aliases and service plans should cover vacuums, humidifiers, and water heaters.")
     check("house knowledge assets are first-class API + UI",
           "/house/assets" in backend_main
           and "houseAssets" in api_frontend
@@ -1117,6 +1146,56 @@ def main() -> int:
     check("climate repair approval creates climate strategy memory",
           r_climate.status_code == 200 and learned_climate is not None and "mode_then_temperature" in learned_climate.value,
           r_climate.text)
+
+    phase_61_65_memories = [
+        ("vacuum.living_room", "preferred_vacuum_control", "state_family_verify"),
+        ("number.office_airflow", "preferred_number_control", "value_attribute_verify"),
+        ("select.office_mode", "preferred_select_control", "state_or_option_verify"),
+        ("humidifier.bedroom", "preferred_humidifier_control", "turn_on_then_humidity"),
+        ("water_heater.main", "preferred_water_heater_control", "mode_then_temperature"),
+        ("valve.irrigation", "preferred_valve_control", "delayed_state_verify"),
+    ]
+    phase_61_65_ids: list[int] = []
+    with get_session() as session:
+        for subject, key, strategy in phase_61_65_memories:
+            row = Suggestion(
+                title=f"Teach {subject} {strategy}",
+                message="Approve this to teach TPG HomeAI the preferred service strategy for this device.",
+                category="repair",
+                priority="high",
+                action_type="device_profile_fix",
+                payload=json.dumps({
+                    "proposed_memory": {
+                        "scope": "device",
+                        "subject": subject,
+                        "key": key,
+                        "value": {"strategy": strategy, "last_service": "verify"},
+                    }
+                }),
+                status="suggested",
+            )
+            session.add(row)
+            session.flush()
+            phase_61_65_ids.append(row.id)
+        session.commit()
+    phase_61_65_responses = [
+        client.post(f"/suggestions/proactive/{suggestion_id}/approve")
+        for suggestion_id in phase_61_65_ids
+    ]
+    with get_session() as session:
+        learned_61_65 = [
+            session.query(MemoryItem).filter(
+                MemoryItem.scope == "device",
+                MemoryItem.subject == subject,
+                MemoryItem.key == key,
+                MemoryItem.status == "approved",
+            ).first()
+            for subject, key, _strategy in phase_61_65_memories
+        ]
+    check("phases 61-65 repair approvals create learned strategy memories",
+          all(resp.status_code == 200 for resp in phase_61_65_responses)
+          and all(row is not None and strategy in row.value for row, (_subject, _key, strategy) in zip(learned_61_65, phase_61_65_memories)),
+          str([resp.text for resp in phase_61_65_responses]))
 
     r = client.post("/suggestions/generate")
     check("/suggestions/generate returns JSON", r.status_code == 200 and is_json(r),
