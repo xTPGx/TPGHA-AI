@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [releaseMetrics, setReleaseMetrics] = useState<any>(null);
   const [releaseHealth, setReleaseHealth] = useState<any>(null);
   const [releaseRecommendations, setReleaseRecommendations] = useState<any>(null);
+  const [releaseRecommendationNote, setReleaseRecommendationNote] = useState("");
   const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
   const [releaseSearchTerm, setReleaseSearchTerm] = useState("");
   const [releaseMessage, setReleaseMessage] = useState("");
@@ -115,6 +116,10 @@ export default function Dashboard() {
       if (timer.current) window.clearInterval(timer.current);
     };
   }, [releaseDecisionFilter]);
+
+  useEffect(() => {
+    setReleaseRecommendationNote(releaseRecommendations?.recommendations?.[0]?.state_notes || "");
+  }, [releaseRecommendations]);
 
   const runScan = async () => {
     setScanning(true);
@@ -264,9 +269,13 @@ export default function Dashboard() {
     }
   };
 
-  const updateReleaseRecommendation = async (recommendationId: string, state: "active" | "acknowledged" | "snoozed") => {
+  const updateReleaseRecommendation = async (
+    recommendationId: string,
+    state: "active" | "acknowledged" | "snoozed",
+    notes = releaseRecommendationNote
+  ) => {
     try {
-      await api.updateReleaseRecommendationState(recommendationId, { state });
+      await api.updateReleaseRecommendationState(recommendationId, { state, notes });
       setReleaseRecommendations(await api.releaseRecommendations());
       setReleaseMessage(
         state === "active"
@@ -403,6 +412,7 @@ export default function Dashboard() {
             metrics={releaseMetrics}
             health={releaseHealth}
             recommendations={releaseRecommendations}
+            recommendationNote={releaseRecommendationNote}
             decisionFilter={releaseDecisionFilter}
             searchTerm={releaseSearchTerm}
             message={releaseMessage}
@@ -420,6 +430,7 @@ export default function Dashboard() {
             onSearchTermChange={setReleaseSearchTerm}
             onSearch={searchReleaseHistory}
             onClearSearch={clearReleaseSearch}
+            onRecommendationNoteChange={setReleaseRecommendationNote}
             onRecommendationState={updateReleaseRecommendation}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
@@ -594,6 +605,7 @@ function DashboardReleaseStatus({
   metrics,
   health,
   recommendations,
+  recommendationNote,
   decisionFilter,
   searchTerm,
   message,
@@ -611,6 +623,7 @@ function DashboardReleaseStatus({
   onSearchTermChange,
   onSearch,
   onClearSearch,
+  onRecommendationNoteChange,
   onRecommendationState,
 }: {
   release: any;
@@ -620,6 +633,7 @@ function DashboardReleaseStatus({
   metrics: any;
   health: any;
   recommendations: any;
+  recommendationNote: string;
   decisionFilter: ReleaseDecisionFilter;
   searchTerm: string;
   message: string;
@@ -637,7 +651,8 @@ function DashboardReleaseStatus({
   onSearchTermChange: (value: string) => void;
   onSearch: () => void;
   onClearSearch: () => void;
-  onRecommendationState: (recommendationId: string, state: "active" | "acknowledged" | "snoozed") => void;
+  onRecommendationNoteChange: (value: string) => void;
+  onRecommendationState: (recommendationId: string, state: "active" | "acknowledged" | "snoozed", notes?: string) => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -686,16 +701,22 @@ function DashboardReleaseStatus({
               <div className="font-semibold">Recommended next action</div>
               <div className="mt-1 font-medium text-slate-100">{topRecommendation.title}</div>
               <div className="mt-1 text-sky-100/80">{topRecommendation.detail}</div>
+              <textarea
+                className="mt-3 min-h-20 w-full rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
+                value={recommendationNote}
+                onChange={(event) => onRecommendationNoteChange(event.target.value)}
+                placeholder="Owner note..."
+              />
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   variant="ghost"
-                  onClick={() => onRecommendationState(topRecommendation.id, "acknowledged")}
+                  onClick={() => onRecommendationState(topRecommendation.id, "acknowledged", recommendationNote)}
                 >
                   Acknowledge
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => onRecommendationState(topRecommendation.id, "snoozed")}
+                  onClick={() => onRecommendationState(topRecommendation.id, "snoozed", recommendationNote)}
                 >
                   Snooze
                 </Button>
@@ -714,7 +735,7 @@ function DashboardReleaseStatus({
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {hiddenRecommendations.slice(0, 2).map((item: any) => (
-              <Button key={item.id} variant="ghost" onClick={() => onRecommendationState(item.id, "active")}>
+              <Button key={item.id} variant="ghost" onClick={() => onRecommendationState(item.id, "active", item.state_notes || "")}>
                 Reactivate
               </Button>
             ))}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.50
+
+- Added Jarvis phase 146 release recommendation notes.
+- Added owner note capture for acknowledged, snoozed, or reactivated release recommendations.
+- Added release recommendation notes to Markdown summaries.
+- Added `/brain/phase-146` readiness marker.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.49
 
 - Added Jarvis phase 145 release recommendation state.

@@ -980,6 +980,16 @@ def main() -> int:
     check("phase 145 endpoint is exposed",
           "/brain/phase-145" in backend_main,
           "Backend must expose the phase 145 release recommendation state marker.")
+    check("phase 146 release recommendation notes are wired",
+          "state_notes" in experience_brain
+          and "Owner note" in dashboard_frontend
+          and "releaseRecommendationNote" in dashboard_frontend
+          and "release_recommendation_notes" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_146" in experience_brain,
+          "Owners need notes on acknowledged and snoozed release recommendations.")
+    check("phase 146 endpoint is exposed",
+          "/brain/phase-146" in backend_main,
+          "Backend must expose the phase 146 recommendation notes marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2755,6 +2765,31 @@ def main() -> int:
           r.json().get("phase") == 145
           and r.json().get("release_recommendation_state", {}).get("states_endpoint") == "/release/status-history/recommendations/states"
           and "snoozed" in r.json().get("release_recommendation_state", {}).get("states", []),
+          str(r.json()))
+
+    note_text = "Waiting on owner review before shipping."
+    r = client.patch(
+        "/release/status-history/recommendations/resolve_release_blockers",
+        json={"state": "acknowledged", "notes": note_text},
+    )
+    check("/release/status-history/recommendations/{id} stores owner notes",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("state", {}).get("notes") == note_text,
+          str(r.json()))
+    r = client.get("/release/status-history/recommendations")
+    check("/release/status-history/recommendations exposes note state",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("states", {}).get("resolve_release_blockers", {}).get("notes") == note_text,
+          str(r.json()))
+    r = client.get("/brain/phase-146")
+    check("/brain/phase-146 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-146 has release recommendation notes marker",
+          r.json().get("phase") == 146
+          and r.json().get("release_recommendation_notes", {}).get("field") == "notes",
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

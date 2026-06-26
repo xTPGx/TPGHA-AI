@@ -1135,6 +1135,8 @@ def _release_owner_recommendations_markdown(result: dict[str, Any]) -> str:
             f"- {str(item.get('priority') or 'normal').upper()}: "
             f"{item.get('title')} - {item.get('detail')}"
         )
+        if item.get("state_notes"):
+            lines.append(f"  Note: {item.get('state_notes')}")
     hidden_count = int(result.get("hidden_count") or 0)
     if hidden_count:
         lines.extend(["", f"Hidden by owner state: {hidden_count}"])
@@ -2096,6 +2098,21 @@ async def build_jarvis_phase_145(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Acknowledge", "Snooze", "Reactivate"],
         },
         "guardrail": "Phase 145 stores owner handling state for generated recommendations without deleting release evidence.",
+    }
+
+
+async def build_jarvis_phase_146(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 146,
+        "release_recommendation_notes": {
+            "endpoint": "/release/status-history/recommendations/{recommendation_id}",
+            "field": "notes",
+            "markdown_surface": "Release recommendation note lines",
+            "dashboard_surface": "Owner note on recommended next action",
+        },
+        "guardrail": "Phase 146 stores owner notes on recommendation state only; it does not alter release snapshots or checklist evidence.",
     }
 
 

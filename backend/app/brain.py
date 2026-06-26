@@ -1260,6 +1260,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release recommendation notes so owners can explain why an action was snoozed or acknowledged.",
         },
         {
+            "id": "release_recommendation_notes",
+            "title": "Release Recommendation Notes",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Recommendation state updates accept an owner notes field.",
+                "Release recommendation Markdown includes saved notes for handoff context.",
+                "Owner Dashboard exposes a note field on the recommended next action card.",
+            ],
+            "next": "Add recommendation history so owners can see when actions changed state over time.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
