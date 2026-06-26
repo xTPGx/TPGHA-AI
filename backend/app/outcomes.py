@@ -8,7 +8,7 @@ from typing import Any
 
 from .actions import ActionContext
 from .db.database import get_session
-from .db.models import CommandLog, Suggestion
+from .db.models import CommandLog, MemoryItem, Suggestion
 from .homeassistant.rest import HAError
 from .models.results import ActionResult
 
@@ -212,6 +212,10 @@ def _expected_state(result: ActionResult) -> str | None:
         return "on"
     if service == "turn_off":
         return "off"
+    if service in {"media_play", "play_media"}:
+        return "playing"
+    if service == "media_stop":
+        return "idle"
     if service == "lock":
         return "locked"
     if service == "unlock":
@@ -396,11 +400,13 @@ def _interesting_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _draft_repair_suggestion(result: ActionResult, outcome: dict[str, Any]) -> None:
-    title = f"Verify {result.intent.replace('_', ' ')} outcome"
+    target_label = _repair_target_label(result, outcome)
+    title = f"Verify {result.intent.replace('_', ' ')} outcome for {target_label}"
     recovery = _recovery_steps(result, outcome)
     proposed_memory = _proposed_device_memory(result, outcome)
     payload = {
         "intent": result.intent,
+        "target_label": target_label,
         "resolved": result.resolved,
         "outcome": outcome,
         "recovery_steps": recovery,
@@ -448,8 +454,8 @@ def _recovery_steps(result: ActionResult, outcome: dict[str, Any]) -> list[str]:
     elif domain == "media_player":
         steps.extend([
             "Verify the media player supports turn_on/turn_off in Home Assistant.",
-            "Try a direct media_player.turn_on or media_player.turn_off service call.",
-            "If the TV needs an alternate integration, mark that in the device profile.",
+            "If native power control failed, teach the device to use media_play/media_stop wake or sleep fallback.",
+            "If the TV needs an alternate integration, mark that in the device profile so future commands use the correct service.",
         ])
     elif domain in {"light", "switch"}:
         steps.extend([
@@ -491,16 +497,35 @@ def _proposed_device_memory(result: ActionResult, outcome: dict[str, Any]) -> di
             },
         }
     if domain == "media_player" and result.intent in {"play_music", "turn_on_media", "control_device"}:
+        service_call = (result.data or {}).get("service_call") or {}
+        service = str(service_call.get("service") or "")
+        strategy = "verify_playback_state"
+        if service == "turn_on":
+            strategy = "media_play_wake"
+        elif service == "turn_off":
+            strategy = "media_stop_sleep"
+        elif service in {"play_media", "media_play"}:
+            strategy = "verify_playback_state"
         return {
             "scope": "device",
             "subject": entity_id,
             "key": "preferred_media_control",
             "value": {
-                "strategy": "verify_playback_state",
+                "strategy": strategy,
                 "reason": "Reliability verification found media player state did not match expected state.",
+                "last_service": service,
             },
         }
     return {}
+
+
+def _repair_target_label(result: ActionResult, outcome: dict[str, Any]) -> str:
+    resolved = result.resolved or {}
+    label = resolved.get("label") or resolved.get("target") or resolved.get("entity_id")
+    if not label:
+        readings = outcome.get("readings") or []
+        label = (readings[0] or {}).get("entity_id") if readings else ""
+    return str(label or result.intent.replace("_", " ")).strip()[:96]
 
 
 def build_reliability_summary(limit: int = 100) -> dict[str, Any]:
@@ -597,17 +622,20 @@ def _service_strategy(device: dict[str, Any]) -> dict[str, Any]:
             continue
         domain = entity.get("domain")
         attrs = entity.get("attributes") or {}
+        learned = _learned_device_strategy(entity_id, domain)
         if domain == "fan":
             strategies[entity_id] = {
                 "preferred_speed_control": "preset_mode" if attrs.get("preset_modes") and "percentage" not in attrs else "percentage",
                 "preset_modes": attrs.get("preset_modes") or [],
                 "supports_percentage_feedback": "percentage" in attrs,
+                **learned,
             }
         elif domain == "media_player":
             strategies[entity_id] = {
                 "preferred_power_control": "turn_on_service_then_verify",
                 "supports_feature_mask": attrs.get("supported_features"),
                 "media_strategy": "play_media_with_source_account",
+                **learned,
             }
         elif domain == "light":
             strategies[entity_id] = {
@@ -615,6 +643,33 @@ def _service_strategy(device: dict[str, Any]) -> dict[str, Any]:
                 "supports_brightness_feedback": "brightness" in attrs,
             }
     return strategies
+
+
+def _learned_device_strategy(entity_id: str, domain: str | None) -> dict[str, Any]:
+    key = {
+        "fan": "preferred_fan_speed_control",
+        "media_player": "preferred_media_control",
+    }.get(str(domain or ""))
+    if not key:
+        return {}
+    with get_session() as session:
+        row = session.query(MemoryItem).filter(
+            MemoryItem.scope == "device",
+            MemoryItem.subject == entity_id,
+            MemoryItem.key == key,
+            MemoryItem.status == "approved",
+        ).order_by(MemoryItem.updated_at.desc(), MemoryItem.id.desc()).first()
+    if not row:
+        return {}
+    try:
+        value = json.loads(row.value or "{}")
+    except json.JSONDecodeError:
+        value = {"strategy": row.value}
+    return {
+        "learned_key": key,
+        "learned_strategy": value,
+        "learned_source": row.source,
+    }
 
 
 def _entity_ids_from_json(value: str | None) -> set[str]:

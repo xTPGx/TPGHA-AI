@@ -139,9 +139,20 @@ function serviceStrategyItems(strategy: Record<string, any>) {
   return Object.entries(strategy || {}).map(([entityId, value]) => {
     const bits = Object.entries(value || {})
       .filter(([, v]) => v !== undefined && v !== null && v !== "" && (!Array.isArray(v) || v.length > 0))
-      .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join("|") : String(v)}`);
+      .map(([k, v]) => `${k}=${formatStrategyValue(v)}`);
     return `${entityId}: ${bits.join(", ")}`;
   });
+}
+
+function formatStrategyValue(value: any) {
+  if (Array.isArray(value)) return value.join("|");
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => `${k}:${Array.isArray(v) ? v.join("|") : String(v)}`)
+      .join(";");
+  }
+  return String(value);
 }
 
 function Stat({ label, value }: { label: string; value: any }) {

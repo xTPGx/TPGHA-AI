@@ -98,8 +98,11 @@ def main() -> int:
     setup_frontend = (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
     dashboard_builder_frontend = (repo_root / "frontend" / "src" / "pages" / "DashboardBuilder.tsx").read_text(encoding="utf-8")
     suggestions_frontend = (repo_root / "frontend" / "src" / "pages" / "Suggestions.tsx").read_text(encoding="utf-8")
+    device_profiles_frontend = (repo_root / "frontend" / "src" / "pages" / "DeviceProfiles.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    control_actions = (repo_root / "backend" / "app" / "actions" / "control.py").read_text(encoding="utf-8")
+    outcomes_source = (repo_root / "backend" / "app" / "outcomes.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
     docker_version = re.search(r'io\.hass\.version="([^"]+)"', dockerfile)
     manifest_version = re.search(r'"version":\s*"([^"]+)"', manifest)
@@ -192,6 +195,26 @@ def main() -> int:
           "Draft preview" in suggestions_frontend
           and "ready_to_install" in suggestions_frontend,
           "Automation suggestions should show triggers/actions/warnings before approval.")
+    check("Suggestions surfaces device strategy learning approvals",
+          "Device learning approval" in suggestions_frontend
+          and "proposed_memory" in suggestions_frontend,
+          "Repair suggestions should make learned device strategy obvious before approval.")
+    check("Device Profiles renders learned nested strategies cleanly",
+          "formatStrategyValue" in device_profiles_frontend
+          and 'typeof value === "object"' in device_profiles_frontend,
+          "Learned service strategy objects must not render as [object Object].")
+    check("generic media actions honor approved strategy memory",
+          "preferred_media_control" in control_actions
+          and "approved_memory_value" in control_actions
+          and "media_play_wake" in control_actions
+          and "media_stop_sleep" in control_actions
+          and "service_attempts" in control_actions,
+          "TV/media commands must learn and retry safe fallback services.")
+    check("repair suggestions are scoped by target device",
+          "target_label" in outcomes_source
+          and "outcome for {target_label}" in outcomes_source
+          and "_repair_target_label" in outcomes_source,
+          "One generic repair title must not suppress repairs for other devices.")
     check("house knowledge assets are first-class API + UI",
           "/house/assets" in backend_main
           and "houseAssets" in api_frontend
@@ -979,6 +1002,38 @@ def main() -> int:
         ).first()
     check("repair suggestion approval creates device strategy memory",
           r.status_code == 200 and learned is not None and "preset_mode" in learned.value,
+          r.text)
+
+    with get_session() as session:
+        media_suggestion = Suggestion(
+            title="Teach office TV media wake strategy",
+            message="Approve this to teach TPG HomeAI the preferred service strategy for this device.",
+            category="repair",
+            priority="high",
+            action_type="device_profile_fix",
+            payload=json.dumps({
+                "proposed_memory": {
+                    "scope": "device",
+                    "subject": "media_player.office_tv",
+                    "key": "preferred_media_control",
+                    "value": {"strategy": "media_play_wake", "last_service": "turn_on"},
+                }
+            }),
+            status="suggested",
+        )
+        session.add(media_suggestion)
+        session.commit()
+        media_suggestion_id = media_suggestion.id
+    r = client.post(f"/suggestions/proactive/{media_suggestion_id}/approve")
+    with get_session() as session:
+        learned_media = session.query(MemoryItem).filter(
+            MemoryItem.scope == "device",
+            MemoryItem.subject == "media_player.office_tv",
+            MemoryItem.key == "preferred_media_control",
+            MemoryItem.status == "approved",
+        ).first()
+    check("media repair approval creates media strategy memory",
+          r.status_code == 200 and learned_media is not None and "media_play_wake" in learned_media.value,
           r.text)
 
     r = client.post("/suggestions/generate")

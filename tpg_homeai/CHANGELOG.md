@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1
+
+- Added phases 51-55 media/TV self-healing: generic media-player controls now honor approved `preferred_media_control` device memory.
+- Added safe media fallback attempts for TVs/media players so failed native power calls can retry `media_play`/`media_stop` and record service attempts.
+- Scoped reliability repair suggestions by target device so one failing device no longer suppresses repairs for another device.
+- Surfaced device-strategy learning approvals in Suggestions and rendered learned nested strategies cleanly in Device Profiles.
+- Expanded Jarvis Brain readiness evidence for approved device strategy memory and media fallback execution.
+- Added verifier coverage for media strategy approval, target-scoped repair suggestions, media fallback executor wiring, and version alignment.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.50
 
 - Added self-healing device strategy approvals: eligible repair suggestions can now create approved device memory when approved.

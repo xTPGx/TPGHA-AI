@@ -123,10 +123,12 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Executed actions are followed by Home Assistant state/attribute verification.",
                 "Fan speed, media playback, volume, climate temperature, locks, lights, switches, and generic service plans have grounded outcome checks.",
                 "Device profiles include reliability score, last outcome, service strategy, and common failure hints.",
+                "Approved repair suggestions can teach device-specific fan and media-player service strategies.",
+                "Generic media-player control can use learned media_play/media_stop wake or sleep fallbacks when native power services fail.",
                 f"{reliability.get('checked_commands', 0)} recent command outcomes checked.",
                 f"{reliability.get('open_repair_suggestions', 0)} open repair suggestions from failed verification.",
             ],
-            "next": "Mine repeated repair suggestions into approved permanent device service profiles.",
+            "next": "Expand learned strategies to covers, climate devices, and vendor-specific media integrations.",
         },
         {
             "id": "conversation_memory",

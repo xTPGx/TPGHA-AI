@@ -118,6 +118,9 @@ export default function Suggestions() {
                 <div className="text-sm font-semibold text-slate-100">{s.title}</div>
                 <div className="mt-1 text-sm text-slate-300">{s.message}</div>
                 <div className="mt-2 text-xs text-slate-500">Action: {s.action_type || "review"}</div>
+                {s.action_type === "device_profile_fix" && s.payload?.proposed_memory && (
+                  <RepairMemory memory={s.payload.proposed_memory} />
+                )}
                 <DeveloperDetails title="Suggestion payload" data={s.payload || {}} />
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button disabled={busy === `proactive:${s.id}`} onClick={() => actProactive(s.id, "approve")}>
@@ -209,6 +212,21 @@ function MiniStat({ label, value }: { label: string; value: any }) {
     <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
       <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 text-lg font-semibold text-slate-100">{value}</div>
+    </div>
+  );
+}
+
+function RepairMemory({ memory }: { memory: any }) {
+  const value = memory?.value || {};
+  const strategy = typeof value === "object" ? value.strategy : value;
+  return (
+    <div className="mt-3 rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-cyan-200">Device learning approval</div>
+      <div className="mt-1 text-sm text-slate-100">
+        Teach this device <span className="font-mono text-cyan-100">{memory.subject}</span> to use{" "}
+        <span className="font-mono text-cyan-100">{strategy || memory.key}</span>.
+      </div>
+      {value?.reason && <div className="mt-1 text-xs text-slate-400">{value.reason}</div>}
     </div>
   );
 }

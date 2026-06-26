@@ -7,10 +7,12 @@ we avoid hand-writing a new tool for every device type.
 """
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 from ..discovery import capabilities as caps
 from ..homeassistant.rest import HAError
+from ..memory import approved_memory_value
 from ..models.results import ActionResult
 from . import ActionContext
 
@@ -72,6 +74,10 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
     domain = plan["domain"]
     service = plan["service"]
     data = plan.get("data", {})
+    if domain == "media_player":
+        media_result = await _execute_media_player_plan(ctx, plan, friendly, intent)
+        if media_result is not None:
+            return media_result
     try:
         if domain == "fan" and service == "set_percentage":
             guarded = await _fan_percentage_guard(ctx, data, friendly, intent)
@@ -90,6 +96,154 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
         data={"service_call": {"domain": domain, "service": service, "data": data},
               "verification": verification},
     )
+
+
+async def _execute_media_player_plan(
+    ctx: ActionContext,
+    plan: dict[str, Any],
+    friendly: str,
+    intent: str,
+) -> Optional[ActionResult]:
+    """Execute media_player power/play plans with approved device strategy memory.
+
+    Some TVs and cast targets expose media_player entities but do not reliably
+    honor turn_on/turn_off. Once reliability repair approves a device strategy,
+    the generic executor should use that knowledge instead of repeating the
+    same failing service forever.
+    """
+    service = str(plan.get("service") or "")
+    data = dict(plan.get("data") or {})
+    entity_id = str(data.get("entity_id") or "")
+    if not entity_id:
+        return None
+    strategy = _approved_media_strategy(entity_id)
+    strategy_name = str(strategy.get("strategy") or "")
+    attempts: list[dict[str, Any]] = []
+
+    if service == "turn_on" and strategy_name in {"media_play_wake", "play_media_wake"}:
+        result = await _try_media_attempts(
+            ctx,
+            [
+                ("media_player", "media_play", {"entity_id": entity_id}),
+                ("media_player", "turn_on", data),
+            ],
+            attempts,
+        )
+        if result.get("success"):
+            verification = await _verify(ctx, entity_id)
+            return _media_action_result(plan, friendly, intent, result, attempts, verification, strategy_name)
+        return _media_action_fail(plan, friendly, intent, result, attempts, strategy_name)
+
+    if service == "turn_off" and strategy_name in {"media_stop_sleep", "media_stop_then_turn_off"}:
+        result = await _try_media_attempts(
+            ctx,
+            [
+                ("media_player", "media_stop", {"entity_id": entity_id}),
+                ("media_player", "turn_off", data),
+            ],
+            attempts,
+        )
+        if result.get("success"):
+            verification = await _verify(ctx, entity_id)
+            return _media_action_result(plan, friendly, intent, result, attempts, verification, strategy_name)
+        return _media_action_fail(plan, friendly, intent, result, attempts, strategy_name)
+
+    if service not in {"turn_on", "turn_off"}:
+        return None
+
+    primary = await _try_media_attempts(ctx, [("media_player", service, data)], attempts)
+    if primary.get("success"):
+        verification = await _verify(ctx, entity_id)
+        return _media_action_result(plan, friendly, intent, primary, attempts, verification, strategy_name or "native")
+
+    fallbacks = (
+        [("media_player", "media_play", {"entity_id": entity_id})]
+        if service == "turn_on"
+        else [("media_player", "media_stop", {"entity_id": entity_id})]
+    )
+    fallback = await _try_media_attempts(ctx, fallbacks, attempts)
+    if fallback.get("success"):
+        verification = await _verify(ctx, entity_id)
+        fallback["fallback_reason"] = primary.get("message")
+        fallback_strategy = "media_play_wake" if service == "turn_on" else "media_stop_sleep"
+        return _media_action_result(plan, friendly, intent, fallback, attempts, verification, fallback_strategy)
+    return _media_action_fail(plan, friendly, intent, fallback or primary, attempts, strategy_name or "native_then_fallback")
+
+
+async def _try_media_attempts(
+    ctx: ActionContext,
+    calls: list[tuple[str, str, dict[str, Any]]],
+    attempts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    last: dict[str, Any] = {"success": False, "message": "No media service attempts were available."}
+    for domain, service, data in calls:
+        call = {"domain": domain, "service": service, "data": data}
+        try:
+            await ctx.ha.call_service(domain, service, data)
+            attempts.append({**call, "success": True})
+            return {"success": True, "service_call": call}
+        except HAError as exc:
+            attempts.append({**call, "success": False, "error": exc.message, "status": exc.status})
+            last = {"success": False, "message": exc.message, "service_call": call, "status": exc.status}
+    return last
+
+
+def _media_action_result(
+    plan: dict[str, Any],
+    friendly: str,
+    intent: str,
+    result: dict[str, Any],
+    attempts: list[dict[str, Any]],
+    verification: dict[str, Any],
+    strategy: str,
+) -> ActionResult:
+    call = result.get("service_call") or {"domain": "media_player", "service": plan.get("service"), "data": plan.get("data", {})}
+    message = plan.get("success_message", f"Done (media_player.{call.get('service')}).")
+    if result.get("fallback_reason"):
+        message = f"{message} Used media fallback for {friendly} because native power control failed."
+    return ActionResult(
+        success=True,
+        intent=intent,
+        executed=True,
+        message=message,
+        data={
+            "service_call": call,
+            "service_attempts": attempts,
+            "service_strategy": strategy,
+            "verification": verification,
+        },
+    )
+
+
+def _media_action_fail(
+    plan: dict[str, Any],
+    friendly: str,
+    intent: str,
+    result: dict[str, Any],
+    attempts: list[dict[str, Any]],
+    strategy: str,
+) -> ActionResult:
+    call = result.get("service_call") or {"domain": "media_player", "service": plan.get("service"), "data": plan.get("data", {})}
+    return ActionResult.fail(
+        intent,
+        f"{friendly}: {result.get('message') or 'media_player service failed'}",
+        data={
+            "service_call": call,
+            "service_attempts": attempts,
+            "service_strategy": strategy,
+        },
+    )
+
+
+def _approved_media_strategy(entity_id: str) -> dict[str, Any]:
+    raw = approved_memory_value("device", entity_id, "preferred_media_control")
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {"strategy": raw}
+    return parsed if isinstance(parsed, dict) else {"strategy": str(parsed or "")}
 
 
 async def _fan_percentage_guard(ctx: ActionContext, data: dict[str, Any],
