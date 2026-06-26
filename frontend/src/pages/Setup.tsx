@@ -15,6 +15,7 @@ export default function Setup() {
   const [diagnosticsMessage, setDiagnosticsMessage] = useState("");
   const [backup, setBackup] = useState<any>(null);
   const [integrations, setIntegrations] = useState<any>(null);
+  const [actionPlan, setActionPlan] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -35,6 +36,7 @@ export default function Setup() {
         supportPack,
         backupReadiness,
         integrationReadiness,
+        setupActionPlan,
         v,
         runtime,
         assets,
@@ -49,6 +51,7 @@ export default function Setup() {
         api.opsDiagnostics(),
         api.backupReadiness(),
         api.integrationMatrix(),
+        api.setupActionPlan(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -63,6 +66,7 @@ export default function Setup() {
       setDiagnostics(supportPack);
       setBackup(backupReadiness);
       setIntegrations(integrationReadiness);
+      setActionPlan(setupActionPlan);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -188,7 +192,7 @@ export default function Setup() {
       </div>
 
       <ReleaseBlockersPanel release={release} completion={completion} />
-      <OwnerActionChecklistPanel release={release} gaps={gaps} onboarding={onboarding} />
+      <OwnerActionChecklistPanel actionPlan={actionPlan} release={release} gaps={gaps} onboarding={onboarding} />
       <CapabilityGapsPanel gaps={gaps} />
       <OnboardingPlanPanel onboarding={onboarding} />
       <OperationalRunbookPanel runbook={runbook} />
@@ -215,8 +219,15 @@ export default function Setup() {
   );
 }
 
-function OwnerActionChecklistPanel({ release, gaps, onboarding }: { release: any; gaps: any; onboarding: any }) {
-  const actions = buildOwnerActions(release, gaps, onboarding);
+type SetupAction = { title: string; detail: string; to: string; source: string };
+
+function OwnerActionChecklistPanel({ actionPlan, release, gaps, onboarding }: { actionPlan: any; release: any; gaps: any; onboarding: any }) {
+  const actions: SetupAction[] = actionPlan?.top_actions?.length ? actionPlan.top_actions.map((action: any) => ({
+    title: action.title,
+    detail: action.detail,
+    to: action.target,
+    source: action.source,
+  })) : buildOwnerActions(release, gaps, onboarding);
   if (!actions.length) return null;
   return (
     <div className="card mb-6 border-brand/30">
@@ -246,8 +257,8 @@ function OwnerActionChecklistPanel({ release, gaps, onboarding }: { release: any
   );
 }
 
-function buildOwnerActions(release: any, gaps: any, onboarding: any) {
-  const actions: Array<{ title: string; detail: string; to: string; source: string }> = [];
+function buildOwnerActions(release: any, gaps: any, onboarding: any): SetupAction[] {
+  const actions: SetupAction[] = [];
   const failedChecks = (release?.checks || []).filter((check: any) => !check.ok);
   for (const check of failedChecks) {
     actions.push({

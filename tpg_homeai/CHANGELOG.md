@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.21
+
+- Added Jarvis phase 117 backend setup action plan API.
+- Added `/ops/setup-action-plan` to combine release gates, capability gaps, and onboarding next-step guidance into a deduplicated owner action list.
+- Setup now consumes the backend action plan while retaining local fallback action generation.
+- Added `/brain/phase-117` and Jarvis Brain readiness evidence for the setup action plan API layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.20
 
 - Added Jarvis phase 116 Setup owner action checklist.

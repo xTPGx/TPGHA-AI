@@ -11,6 +11,7 @@ from .db.models import AcceptanceRun, CommandLog, ConversationNote, Conversation
 from .homeassistant.services import safe_get_states
 from .knowledge import build_house_graph
 from .models.schemas import AcceptanceResultRequest, AppConfig
+from .operations_brain import build_capability_gap_scanner, build_onboarding_wizard_plan
 from .settings import get_settings
 from .voice import list_voice_source_readiness
 
@@ -610,6 +611,55 @@ async def build_operational_runbook(config: AppConfig, version: str) -> dict[str
     }
 
 
+async def build_setup_action_plan(config: AppConfig, version: str) -> dict[str, Any]:
+    release = await build_release_checklist(config, version)
+    gaps = await build_capability_gap_scanner(config)
+    onboarding = await build_onboarding_wizard_plan(config)
+    actions: list[dict[str, Any]] = []
+    for check in release.get("checks", []):
+        if not check.get("ok"):
+            actions.append({
+                "id": f"release_{check.get('id')}",
+                "title": check.get("title"),
+                "detail": check.get("detail") or "Release gate needs owner attention.",
+                "target": _setup_target_for_check(str(check.get("id") or "")),
+                "source": "release",
+                "severity": "high",
+            })
+    for gap in gaps.get("open_gaps", []):
+        actions.append({
+            "id": f"gap_{gap.get('id')}",
+            "title": gap.get("title"),
+            "detail": gap.get("recommendation"),
+            "target": _setup_target_for_gap(str(gap.get("id") or "")),
+            "source": "capability_gap",
+            "severity": gap.get("severity") or "normal",
+        })
+    next_step = onboarding.get("next_step")
+    if next_step:
+        actions.append({
+            "id": f"next_{next_step.get('id')}",
+            "title": next_step.get("title"),
+            "detail": next_step.get("detail"),
+            "target": _setup_target_for_step(str(next_step.get("id") or "")),
+            "source": "onboarding",
+            "severity": "normal",
+        })
+    deduped = _dedupe_setup_actions(actions)
+    return {
+        "status": "ready" if not deduped else "attention",
+        "version": version,
+        "counts": {
+            "actions": len(deduped),
+            "release_blockers": sum(1 for action in deduped if action["source"] == "release"),
+            "capability_gaps": sum(1 for action in deduped if action["source"] == "capability_gap"),
+            "onboarding": sum(1 for action in deduped if action["source"] == "onboarding"),
+        },
+        "actions": deduped[:12],
+        "top_actions": deduped[:6],
+    }
+
+
 async def build_jarvis_phase_92_96(config: AppConfig, version: str) -> dict[str, Any]:
     interaction = build_interaction_quality_report(config)
     voice = build_voice_acceptance_plan(config)
@@ -874,6 +924,79 @@ async def build_jarvis_phase_116(version: str) -> dict[str, Any]:
         },
         "guardrail": "Phase 116 only links owners to existing management pages; it does not perform setup actions automatically.",
     }
+
+
+async def build_jarvis_phase_117(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 117,
+        "setup_action_plan_api": {
+            "source_endpoint": "/ops/setup-action-plan",
+            "combines_release_gaps_onboarding": True,
+            "deduplicates_actions": True,
+            "returns_top_actions": True,
+            "links_to_management_pages": True,
+        },
+        "guardrail": "Phase 117 creates a read-only setup action plan API; it does not execute setup actions.",
+    }
+
+
+def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    for action in actions:
+        key = (str(action.get("title") or ""), str(action.get("target") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(action)
+    return sorted(deduped, key=lambda action: _setup_severity_rank(str(action.get("severity") or "normal")))
+
+
+def _setup_severity_rank(severity: str) -> int:
+    return {"critical": 0, "high": 1, "normal": 2, "low": 3}.get(severity, 2)
+
+
+def _setup_target_for_check(check_id: str) -> str:
+    return {
+        "ha_connected": "/ha",
+        "openai_configured": "/assistants",
+        "security_pin": "/permissions",
+        "voice_acceptance": "/assistants",
+        "device_acceptance": "/discovery",
+        "interaction_quality": "/",
+        "version_aligned": "/",
+    }.get(check_id, "/jarvis")
+
+
+def _setup_target_for_gap(gap_id: str) -> str:
+    return {
+        "home_assistant_connection": "/ha",
+        "openai_key": "/assistants",
+        "security_pin": "/permissions",
+        "voice_sources": "/assistants",
+        "wake_words": "/assistants",
+        "rooms": "/rooms",
+        "pending_discovery": "/discovery",
+        "music_assistant": "/music",
+        "weather": "/entities",
+        "dashboard_assets": "/house-knowledge",
+    }.get(gap_id, "/setup")
+
+
+def _setup_target_for_step(step_id: str) -> str:
+    return {
+        "connect_ha": "/ha",
+        "sync_users": "/users",
+        "approve_discovery": "/discovery",
+        "map_rooms": "/rooms",
+        "configure_security": "/permissions",
+        "configure_voice": "/assistants",
+        "configure_music": "/music",
+        "upload_house_assets": "/house-knowledge",
+        "test_commands": "/tester",
+    }.get(step_id, "/setup")
 
 
 def _command_card(row: CommandLog) -> dict[str, Any]:

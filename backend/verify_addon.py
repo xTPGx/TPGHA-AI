@@ -647,6 +647,16 @@ def main() -> int:
     check("phase 116 endpoint is exposed",
           "/brain/phase-116" in backend_main,
           "Backend must expose the phase 116 owner action checklist readiness marker.")
+    check("phase 117 setup action plan API is wired",
+          "/ops/setup-action-plan" in backend_main
+          and "api.setupActionPlan" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_action_plan_api" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_setup_action_plan" in experience_brain
+          and "build_jarvis_phase_117" in experience_brain,
+          "Backend must expose a reusable setup action plan consumed by Setup.")
+    check("phase 117 endpoint is exposed",
+          "/brain/phase-117" in backend_main,
+          "Backend must expose the phase 117 setup action plan readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1338,6 +1348,15 @@ def main() -> int:
           and any(item.get("id") == "openai" for item in r.json().get("integrations", [])),
           str(r.json()))
 
+    r = client.get("/ops/setup-action-plan")
+    check("/ops/setup-action-plan returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/setup-action-plan exposes top actions",
+          isinstance(r.json().get("top_actions"), list)
+          and isinstance(r.json().get("actions"), list)
+          and "actions" in r.json().get("counts", {}),
+          str(r.json()))
+
     r = client.get("/brain/phase-87-91")
     check("/brain/phase-87-91 returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -1746,6 +1765,16 @@ def main() -> int:
           r.json().get("phase") == 116
           and r.json().get("setup_owner_action_checklist", {}).get("links_to_management_pages") is True
           and r.json().get("setup_owner_action_checklist", {}).get("limits_to_top_actions") == 6,
+          str(r.json()))
+
+    r = client.get("/brain/phase-117")
+    check("/brain/phase-117 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-117 has setup action plan marker",
+          r.json().get("phase") == 117
+          and r.json().get("setup_action_plan_api", {}).get("source_endpoint") == "/ops/setup-action-plan"
+          and r.json().get("setup_action_plan_api", {}).get("returns_top_actions") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

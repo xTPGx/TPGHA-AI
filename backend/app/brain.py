@@ -912,6 +912,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add action completion tracking once setup actions become transactional.",
         },
         {
+            "id": "setup_action_plan_api",
+            "title": "Setup Action Plan API",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/setup-action-plan combines release gates, capability gaps, and onboarding next step into one owner plan.",
+                "The action plan deduplicates targets and returns top actions for Setup.",
+                "Setup consumes the backend plan instead of relying only on frontend-derived actions.",
+            ],
+            "next": "Expose safe owner task launchers after idempotent setup actions are available.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
