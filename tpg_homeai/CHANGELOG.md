@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.48
+
+- Added Jarvis phase 144 release owner recommendations.
+- Added `/release/status-history/recommendations` to turn release-health warnings into next-best owner actions.
+- Added Markdown output for release recommendation summaries.
+- Added owner Dashboard recommended next action surface.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.47
 
 - Added Jarvis phase 143 release health warnings.

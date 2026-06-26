@@ -840,6 +840,68 @@ def build_release_health_warnings(limit: int = 20) -> dict[str, Any]:
     return result
 
 
+def build_release_owner_recommendations(limit: int = 20) -> dict[str, Any]:
+    health = build_release_health_warnings(limit=limit)
+    metrics = health.get("metrics", {}) or {}
+    warnings = health.get("warnings", []) or []
+    warning_ids = {str(warning.get("id") or "") for warning in warnings}
+    recommendations: list[dict[str, Any]] = []
+    if "retained_blockers" in warning_ids:
+        recommendations.append({
+            "id": "resolve_release_blockers",
+            "priority": "high",
+            "title": "Resolve retained release blockers",
+            "detail": "Open Setup and clear the failing release gates before shipping the next add-on build.",
+            "target": "/setup",
+            "source_warning": "retained_blockers",
+        })
+    if "blockers_increased" in warning_ids:
+        recommendations.append({
+            "id": "compare_latest_release_snapshots",
+            "priority": "high",
+            "title": "Compare the latest release snapshots",
+            "detail": "The newest snapshot added blockers. Review the release history delta before adding more feature work.",
+            "target": "/dashboard",
+            "source_warning": "blockers_increased",
+        })
+    if "held_exceeds_shipped" in warning_ids:
+        recommendations.append({
+            "id": "review_held_releases",
+            "priority": "normal",
+            "title": "Review held release snapshots",
+            "detail": "Held snapshots outnumber shipped snapshots. Mark resolved builds as shipped or keep a clear hold note.",
+            "target": "/dashboard",
+            "source_warning": "held_exceeds_shipped",
+        })
+    if "pass_rate_below_100" in warning_ids:
+        recommendations.append({
+            "id": "save_clean_release_snapshot",
+            "priority": "normal",
+            "title": "Save a clean release snapshot",
+            "detail": "After fixing gates, save a fresh status snapshot so the release history reflects the current healthy state.",
+            "target": "/dashboard",
+            "source_warning": "pass_rate_below_100",
+        })
+    if not recommendations:
+        recommendations.append({
+            "id": "ready_to_ship",
+            "priority": "low",
+            "title": "Release is ready to ship",
+            "detail": "No release-health warnings are active. Save a status snapshot and mark it shipped when the build is deployed.",
+            "target": "/dashboard",
+            "source_warning": "",
+        })
+    result = {
+        "status": "attention" if any(item.get("priority") == "high" for item in recommendations) else "ready",
+        "recommendations": recommendations,
+        "health": health,
+        "metrics": metrics,
+        "markdown": "",
+    }
+    result["markdown"] = _release_owner_recommendations_markdown(result)
+    return result
+
+
 def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     label = str(payload.get("label") or "")[:128]
     decision = str(payload.get("decision") or "")[:32]
@@ -1005,6 +1067,21 @@ def _release_health_warnings_markdown(result: dict[str, Any]) -> str:
             lines.append(f"- {warning.get('severity', 'info').upper()}: {warning.get('title')} - {warning.get('detail')}")
     else:
         lines.append("- No release health warnings.")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _release_owner_recommendations_markdown(result: dict[str, Any]) -> str:
+    lines = [
+        "# TPG HomeAI Release Owner Recommendations",
+        "",
+        f"Status: {result.get('status') or 'unknown'}",
+        "",
+    ]
+    for item in result.get("recommendations", []) or []:
+        lines.append(
+            f"- {str(item.get('priority') or 'normal').upper()}: "
+            f"{item.get('title')} - {item.get('detail')}"
+        )
     return "\n".join(lines).strip() + "\n"
 
 
@@ -1917,6 +1994,21 @@ async def build_jarvis_phase_143(version: str) -> dict[str, Any]:
             "dashboard_surface": "Release health warnings",
         },
         "guardrail": "Phase 143 only reports release-health warnings; it does not change snapshots, gates, or live-house state.",
+    }
+
+
+async def build_jarvis_phase_144(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 144,
+        "release_owner_recommendations": {
+            "endpoint": "/release/status-history/recommendations",
+            "sources": ["release_health_warnings", "release_status_metrics", "release_history_delta"],
+            "actions": ["resolve_release_blockers", "compare_latest_release_snapshots", "save_clean_release_snapshot"],
+            "dashboard_surface": "Recommended next action",
+        },
+        "guardrail": "Phase 144 only recommends owner release actions; it does not modify snapshots, gates, or live-house state.",
     }
 
 

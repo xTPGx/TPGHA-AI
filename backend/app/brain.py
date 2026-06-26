@@ -1236,6 +1236,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release owner recommendations that turn warnings into next-best actions.",
         },
         {
+            "id": "release_owner_recommendations",
+            "title": "Release Owner Recommendations",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/recommendations turns release-health warning ids into next-best owner actions.",
+                "Recommendations include priorities, targets, source warnings, and Markdown export.",
+                "Owner Dashboard surfaces the top recommended next action above release history.",
+            ],
+            "next": "Add release recommendation acknowledge/snooze state so owners can track which action is being handled.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

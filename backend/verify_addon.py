@@ -955,6 +955,17 @@ def main() -> int:
     check("phase 143 endpoint is exposed",
           "/brain/phase-143" in backend_main,
           "Backend must expose the phase 143 release health marker.")
+    check("phase 144 release owner recommendations are wired",
+          "/release/status-history/recommendations" in backend_main
+          and "build_release_owner_recommendations" in experience_brain
+          and "Recommended next action" in dashboard_frontend
+          and "api.releaseRecommendations" in dashboard_frontend
+          and "release_owner_recommendations" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_144" in experience_brain,
+          "Owners need actionable recommendations from release-health warnings.")
+    check("phase 144 endpoint is exposed",
+          "/brain/phase-144" in backend_main,
+          "Backend must expose the phase 144 release recommendation marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2688,6 +2699,25 @@ def main() -> int:
           r.json().get("phase") == 143
           and r.json().get("release_health_warnings", {}).get("endpoint") == "/release/status-history/health"
           and "blockers_increased" in r.json().get("release_health_warnings", {}).get("signals", []),
+          str(r.json()))
+
+    r = client.get("/release/status-history/recommendations")
+    check("/release/status-history/recommendations returns next actions",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("status") in {"ready", "attention"}
+          and isinstance(r.json().get("recommendations"), list)
+          and len(r.json().get("recommendations", [])) >= 1
+          and "# TPG HomeAI Release Owner Recommendations" in r.json().get("markdown", ""),
+          str(r.json()))
+    r = client.get("/brain/phase-144")
+    check("/brain/phase-144 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-144 has release recommendations marker",
+          r.json().get("phase") == 144
+          and r.json().get("release_owner_recommendations", {}).get("endpoint") == "/release/status-history/recommendations"
+          and "resolve_release_blockers" in r.json().get("release_owner_recommendations", {}).get("actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
