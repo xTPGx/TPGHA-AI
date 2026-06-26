@@ -459,6 +459,20 @@ def main() -> int:
           and "release_checklist" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
           and "operational_runbook" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
           "Readiness UI must show interaction, voice, device, release, and runbook layers.")
+    check("phase 97 live acceptance runner exists",
+          "build_live_acceptance_runner" in experience_brain
+          and "build_jarvis_phase_97" in experience_brain
+          and "read_only" in experience_brain
+          and "executes_actions" in experience_brain
+          and "requires_human_to_run_mutating_tests" in experience_brain,
+          "Live acceptance must generate a safe, non-mutating acceptance plan.")
+    check("phase 97 endpoints are exposed",
+          "/experience/live-acceptance" in backend_main
+          and "/brain/phase-97" in backend_main,
+          "Backend must expose the live HA acceptance runner.")
+    check("Jarvis Brain includes live acceptance readiness layer",
+          "live_acceptance_runner" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Readiness UI must show the live HA acceptance runner layer.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1256,6 +1270,30 @@ def main() -> int:
           and "release_checklist" in r.json()
           and any(step.get("id") == "feature_freeze" for step in r.json().get("runbook", [])),
           str(r.json()))
+
+    r = client.get("/brain/phase-97")
+    check("/brain/phase-97 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-97 has live acceptance section",
+          "live_acceptance" in r.json()
+          and r.json().get("phase") == 97,
+          str(r.json()))
+
+    r = client.get("/experience/live-acceptance")
+    check("/experience/live-acceptance returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    live_acceptance = r.json()
+    check("/experience/live-acceptance is non-mutating",
+          live_acceptance.get("policy", {}).get("read_only") is True
+          and live_acceptance.get("policy", {}).get("executes_actions") is False
+          and live_acceptance.get("policy", {}).get("requires_human_to_run_mutating_tests") is True,
+          str(live_acceptance))
+    check("/experience/live-acceptance exposes tests and blockers",
+          "tests" in live_acceptance
+          and "summary" in live_acceptance
+          and "blockers" in live_acceptance
+          and any(test.get("mode") == "dry_run_required" for test in live_acceptance.get("tests", [])),
+          str(live_acceptance))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")
     check("/knowledge/physical-devices returns JSON", r.status_code == 200 and is_json(r),

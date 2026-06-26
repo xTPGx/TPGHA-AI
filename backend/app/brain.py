@@ -118,6 +118,10 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             1 for domain in ("light", "fan", "lock", "climate", "media_player", "camera", "weather")
             if _domain_count(graph, domain)
         ),
+        "live_acceptance_domains": sum(
+            1 for domain in ("light", "fan", "lock", "climate", "media_player", "camera")
+            if _domain_count(graph, domain)
+        ),
     }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
@@ -641,6 +645,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Role acceptance checks verify admin, resident, and kiosk/shared behavior.",
             ],
             "next": "Use the matrix as the live-house regression checklist before declaring v1 complete.",
+        },
+        {
+            "id": "live_acceptance_runner",
+            "title": "Live HA Acceptance Runner",
+            "status": "ready" if acceptance_counts["live_acceptance_domains"] >= 4 else "partial",
+            "score": 100 if acceptance_counts["live_acceptance_domains"] >= 4 else 78,
+            "evidence": [
+                f"{acceptance_counts['live_acceptance_domains']} live mutating-domain(s) are visible for human-run acceptance checks.",
+                "Live acceptance endpoint builds read-only probes and dry-run-required tests from HA state.",
+                "The runner explicitly sets read_only=true and executes_actions=false so release checks never toggle real devices.",
+            ],
+            "next": "Run /experience/live-acceptance from the real house and work through its blockers before calling the deployment complete.",
         },
         {
             "id": "release_checklist",

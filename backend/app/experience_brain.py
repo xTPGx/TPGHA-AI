@@ -1,4 +1,4 @@
-"""Experience and release acceptance brains for Jarvis phases 92-96."""
+"""Experience and release acceptance brains for Jarvis phases 92-97."""
 from __future__ import annotations
 
 import datetime as dt
@@ -101,6 +101,158 @@ async def build_device_acceptance_matrix(config: AppConfig) -> dict[str, Any]:
     }
 
 
+async def build_live_acceptance_runner(config: AppConfig) -> dict[str, Any]:
+    """Build a read-only live-house acceptance plan from the current HA graph.
+
+    The runner intentionally does not execute Home Assistant services. It gives
+    an owner a concrete, live-data-driven plan for what can be safely checked
+    now, what needs a human-run dry run, and which critical actions must stay
+    confirmation-gated.
+    """
+    states = await safe_get_states()
+    graph = await build_house_graph(include_registries=False)
+    domains = Counter(entity.domain for entity in states.values())
+    tests = [
+        _live_acceptance_case(
+            "ha_health_probe",
+            "Home Assistant connection and entity inventory",
+            "read_only_probe",
+            "system",
+            states,
+            domains,
+            "owner",
+            "Ask TPG HomeAI for a house status summary.",
+            "Backend can read HA state cache and return entity/domain counts.",
+        ),
+        _live_acceptance_case(
+            "conversation_general_probe",
+            "General ChatGPT-style conversation",
+            "read_only_probe",
+            "conversation",
+            states,
+            domains,
+            "resident",
+            "Ask for brainstorming, advice, or a weather-style question.",
+            "Assistant answers conversationally without requiring a device target.",
+        ),
+        _live_acceptance_case(
+            "light_control_dry_run",
+            "Known light on/off",
+            "dry_run_required",
+            "light",
+            states,
+            domains,
+            "resident",
+            "Turn on a known light, then turn it back off.",
+            "Resolved target matches the requested room/device and final HA state changes as expected.",
+        ),
+        _live_acceptance_case(
+            "fan_control_dry_run",
+            "Known fan on/off and speed wording",
+            "dry_run_required",
+            "fan",
+            states,
+            domains,
+            "resident",
+            "Turn on a fan, then try 'set fan speed to level 5'.",
+            "Fan power works and unavailable percentage services produce a clear capability explanation.",
+        ),
+        _live_acceptance_case(
+            "lock_safe_flow",
+            "Door lock security policy",
+            "dry_run_required",
+            "lock",
+            states,
+            domains,
+            "resident",
+            "Lock a known door; then request unlock and verify PIN/confirmation is required.",
+            "Locking can run when allowed; unlock/open/disarm remains protected.",
+            sensitive=True,
+        ),
+        _live_acceptance_case(
+            "climate_control_dry_run",
+            "Thermostat mode and temperature",
+            "dry_run_required",
+            "climate",
+            states,
+            domains,
+            "resident",
+            "Set a known thermostat to a safe temperature.",
+            "The target thermostat is resolved and HA service payload is correct before execution.",
+        ),
+        _live_acceptance_case(
+            "media_music_dry_run",
+            "Music Assistant / speaker playback",
+            "dry_run_required",
+            "media_player",
+            states,
+            domains,
+            "resident",
+            "Play a known playlist on a known speaker.",
+            "Playback routes through the assistant owner's music account and speaker mapping.",
+        ),
+        _live_acceptance_case(
+            "camera_briefing_probe",
+            "Camera and security briefing",
+            "read_only_probe",
+            "camera",
+            states,
+            domains,
+            "resident",
+            "Ask what cameras are online.",
+            "Assistant reports camera availability without exposing protected streams to the wrong role.",
+        ),
+        _live_acceptance_case(
+            "schedule_draft_dry_run",
+            "Scheduled task creation",
+            "dry_run_required",
+            "automation",
+            states,
+            domains,
+            "resident",
+            "Create scheduled task. Turn off all lights at 10PM.",
+            "Resident can draft/install allowed schedules while dashboard/system changes stay admin-only.",
+        ),
+        _live_acceptance_case(
+            "dashboard_admin_dry_run",
+            "Dashboard generation guardrail",
+            "dry_run_required",
+            "dashboard",
+            states,
+            domains,
+            "owner",
+            "Build a dashboard for a room using available entities.",
+            "Only owner/admin can draft or install dashboard/system UI changes.",
+        ),
+    ]
+    blocked = [test for test in tests if test["status"] == "blocked"]
+    ready = [test for test in tests if test["status"] == "ready"]
+    return {
+        "status": "ready" if not blocked else "partial",
+        "generated_at": dt.datetime.utcnow().isoformat() + "Z",
+        "policy": {
+            "read_only": True,
+            "executes_actions": False,
+            "mutating_tests_are_human_run": True,
+            "requires_human_to_run_mutating_tests": True,
+            "purpose": "Build a live acceptance plan without changing real devices.",
+        },
+        "summary": {
+            "total": len(tests),
+            "ready": len(ready),
+            "blocked": len(blocked),
+            "read_only": sum(1 for test in tests if test["mode"] == "read_only_probe"),
+            "dry_run_required": sum(1 for test in tests if test["mode"] == "dry_run_required"),
+            "sensitive": sum(1 for test in tests if test["sensitive"]),
+            "domains_seen": dict(domains),
+        },
+        "tests": tests,
+        "blockers": [test["blocker"] for test in blocked],
+        "graph_counts": graph.get("counts", {}),
+        "next_action": _next_live_acceptance_action(tests),
+    }
+
+
 async def build_release_checklist(config: AppConfig, version: str) -> dict[str, Any]:
     settings = get_settings()
     interaction = build_interaction_quality_report(config)
@@ -175,6 +327,17 @@ async def build_jarvis_phase_92_96(config: AppConfig, version: str) -> dict[str,
     }
 
 
+async def build_jarvis_phase_97(config: AppConfig, version: str) -> dict[str, Any]:
+    live_acceptance = await build_live_acceptance_runner(config)
+    return {
+        "status": live_acceptance["status"],
+        "version": version,
+        "phase": 97,
+        "live_acceptance": live_acceptance,
+        "guardrail": "Phase 97 only builds read-only probes and human-run dry-run checks; it never executes real devices.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -228,6 +391,65 @@ def _voice_blockers(counts: dict[str, Any]) -> list[str]:
 def _domain_check(domain: str, title: str, domains: Counter[str]) -> dict[str, Any]:
     count = domains.get(domain, 0)
     return {"domain": domain, "title": title, "available": count > 0, "count": count}
+
+
+def _live_acceptance_case(
+    test_id: str,
+    title: str,
+    mode: str,
+    domain: str,
+    states: dict[str, Any],
+    domains: Counter[str],
+    required_role: str,
+    command_example: str,
+    expected_verification: str,
+    *,
+    sensitive: bool = False,
+) -> dict[str, Any]:
+    sample = _sample_entity(domain, states)
+    available = domain in ("system", "conversation", "automation", "dashboard") or domains.get(domain, 0) > 0
+    status = "ready" if available else "blocked"
+    return {
+        "id": test_id,
+        "title": title,
+        "mode": mode,
+        "domain": domain,
+        "status": status,
+        "available": available,
+        "sensitive": sensitive,
+        "required_role": required_role,
+        "sample_entity_id": sample.get("entity_id"),
+        "sample_name": sample.get("name"),
+        "command_example": command_example,
+        "expected_verification": expected_verification,
+        "requires_confirmation": sensitive or domain in ("dashboard", "automation"),
+        "executes_actions": False,
+        "blocker": None if available else f"No available {domain} entity was found for live acceptance.",
+    }
+
+
+def _sample_entity(domain: str, states: dict[str, Any]) -> dict[str, Any]:
+    if domain in ("system", "conversation", "automation", "dashboard"):
+        return {}
+    for entity_id, state in sorted(states.items()):
+        if getattr(state, "domain", "") != domain:
+            continue
+        attrs = getattr(state, "attributes", {}) or {}
+        return {
+            "entity_id": entity_id,
+            "name": attrs.get("friendly_name") or getattr(state, "name", None) or entity_id,
+        }
+    return {}
+
+
+def _next_live_acceptance_action(tests: list[dict[str, Any]]) -> str:
+    blocked = next((test for test in tests if test["status"] == "blocked"), None)
+    if blocked:
+        return f"Map or enable a {blocked['domain']} entity, then rerun live acceptance."
+    dry_run = next((test for test in tests if test["mode"] == "dry_run_required"), None)
+    if dry_run:
+        return f"Human-run acceptance next: {dry_run['command_example']}"
+    return "All live acceptance probes are ready; run the checklist from real owner/resident/kiosk sessions."
 
 
 def _release_check(check_id: str, title: str, passed: bool, detail: str) -> dict[str, Any]:

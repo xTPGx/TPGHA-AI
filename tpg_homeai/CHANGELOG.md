@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1
+
+- Added Jarvis phase 97 live Home Assistant acceptance runner.
+- Added `/experience/live-acceptance` and `/brain/phase-97` endpoints.
+- Acceptance runner builds read-only probes and human-run dry-run checks from live HA state without executing device actions.
+- Added explicit safety policy fields: `read_only`, `executes_actions`, and `requires_human_to_run_mutating_tests`.
+- Expanded Jarvis Brain readiness with a Live HA Acceptance Runner layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.9
 
 - Added Jarvis phases 92-96 experience and release acceptance intelligence.
