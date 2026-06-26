@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.47
+
+- Added Jarvis phase 143 release health warnings.
+- Added `/release/status-history/health` for blocker, held-release, pass-rate, and latest-delta warnings.
+- Added Markdown output for release health summaries.
+- Added owner Dashboard release health warning surface.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.46
 
 - Added Jarvis phase 142 release decision rollup metrics.

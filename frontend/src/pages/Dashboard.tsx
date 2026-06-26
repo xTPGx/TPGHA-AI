@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [releaseComparison, setReleaseComparison] = useState<any>(null);
   const [releaseDecisionDigest, setReleaseDecisionDigest] = useState<any>(null);
   const [releaseMetrics, setReleaseMetrics] = useState<any>(null);
+  const [releaseHealth, setReleaseHealth] = useState<any>(null);
   const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
   const [releaseSearchTerm, setReleaseSearchTerm] = useState("");
   const [releaseMessage, setReleaseMessage] = useState("");
@@ -60,18 +61,20 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
-          const [releaseChecklist, history, comparison, digest, metrics] = await Promise.all([
+          const [releaseChecklist, history, comparison, digest, metrics, health] = await Promise.all([
             api.releaseChecklist(),
             api.releaseStatusFilter(releaseDecisionFilter),
             api.releaseHistoryComparison(),
             api.releaseDecisionDigest(),
             api.releaseStatusMetrics(),
+            api.releaseStatusHealth(),
           ]);
           setRelease(releaseChecklist);
           setReleaseHistory(history);
           setReleaseComparison(comparison);
           setReleaseDecisionDigest(digest);
           setReleaseMetrics(metrics);
+          setReleaseHealth(health);
         } else {
           setActionPlan(null);
           setRelease(null);
@@ -79,6 +82,7 @@ export default function Dashboard() {
           setReleaseComparison(null);
           setReleaseDecisionDigest(null);
           setReleaseMetrics(null);
+          setReleaseHealth(null);
         }
       } catch {
         setSession(null);
@@ -89,6 +93,7 @@ export default function Dashboard() {
         setReleaseComparison(null);
         setReleaseDecisionDigest(null);
         setReleaseMetrics(null);
+        setReleaseHealth(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -146,16 +151,18 @@ export default function Dashboard() {
     try {
       const saved = await api.saveReleaseStatusSnapshot();
       if (saved?.checklist) setRelease(saved.checklist);
-      const [history, comparison, digest, metrics] = await Promise.all([
+      const [history, comparison, digest, metrics, health] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
         api.releaseStatusMetrics(),
+        api.releaseStatusHealth(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
       setReleaseDecisionDigest(digest);
       setReleaseMetrics(metrics);
+      setReleaseHealth(health);
       setReleaseMessage("Release snapshot saved.");
     } catch (e: any) {
       setReleaseMessage(`Snapshot failed: ${e?.message || String(e)}`);
@@ -201,16 +208,18 @@ export default function Dashboard() {
   const pruneReleaseHistory = async () => {
     try {
       const result = await api.pruneReleaseHistory(20, false);
-      const [history, comparison, digest, metrics] = await Promise.all([
+      const [history, comparison, digest, metrics, health] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
         api.releaseStatusMetrics(),
+        api.releaseStatusHealth(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
       setReleaseDecisionDigest(digest);
       setReleaseMetrics(metrics);
+      setReleaseHealth(health);
       setReleaseMessage(`${result.pruned || 0} old release snapshot${result.pruned === 1 ? "" : "s"} pruned.`);
     } catch (e: any) {
       setReleaseMessage(`Prune failed: ${e?.message || String(e)}`);
@@ -226,16 +235,18 @@ export default function Dashboard() {
           ? "Owner marked this release snapshot as shipped."
           : "Owner marked this release snapshot as held for follow-up.",
       });
-      const [history, comparison, digest, metrics] = await Promise.all([
+      const [history, comparison, digest, metrics, health] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
         api.releaseStatusMetrics(),
+        api.releaseStatusHealth(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
       setReleaseDecisionDigest(digest);
       setReleaseMetrics(metrics);
+      setReleaseHealth(health);
       setReleaseMessage(`Release snapshot marked ${decision}.`);
     } catch (e: any) {
       setReleaseMessage(`Snapshot annotation failed: ${e?.message || String(e)}`);
@@ -365,6 +376,7 @@ export default function Dashboard() {
             comparison={releaseComparison}
             decisionDigest={releaseDecisionDigest}
             metrics={releaseMetrics}
+            health={releaseHealth}
             decisionFilter={releaseDecisionFilter}
             searchTerm={releaseSearchTerm}
             message={releaseMessage}
@@ -553,6 +565,7 @@ function DashboardReleaseStatus({
   comparison,
   decisionDigest,
   metrics,
+  health,
   decisionFilter,
   searchTerm,
   message,
@@ -576,6 +589,7 @@ function DashboardReleaseStatus({
   comparison: any;
   decisionDigest: any;
   metrics: any;
+  health: any;
   decisionFilter: ReleaseDecisionFilter;
   searchTerm: string;
   message: string;
@@ -642,6 +656,12 @@ function DashboardReleaseStatus({
             <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
               <span className="font-semibold text-slate-200">Release metrics:</span>{" "}
               {metrics.count || 0} snapshots, {metrics.totals.pass_rate || 0}% pass rate, {metrics.totals.blockers || 0} blockers retained.
+            </div>
+          )}
+          {!!health?.warnings?.length && (
+            <div className="mb-3 rounded border border-amber-500/40 bg-amber-950/20 p-3 text-sm text-amber-100">
+              <div className="font-semibold">Release health warnings</div>
+              <div className="mt-1 text-amber-100/80">{health.warnings[0].title}: {health.warnings[0].detail}</div>
             </div>
           )}
           <div className="mb-3 flex flex-wrap gap-2">

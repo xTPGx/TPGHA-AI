@@ -944,6 +944,17 @@ def main() -> int:
     check("phase 142 endpoint is exposed",
           "/brain/phase-142" in backend_main,
           "Backend must expose the phase 142 release metrics marker.")
+    check("phase 143 release health warnings are wired",
+          "/release/status-history/health" in backend_main
+          and "build_release_health_warnings" in experience_brain
+          and "Release health warnings" in dashboard_frontend
+          and "api.releaseStatusHealth" in dashboard_frontend
+          and "release_health_warnings" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_143" in experience_brain,
+          "Owners need release health warnings from saved snapshot trends.")
+    check("phase 143 endpoint is exposed",
+          "/brain/phase-143" in backend_main,
+          "Backend must expose the phase 143 release health marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2659,6 +2670,24 @@ def main() -> int:
           r.json().get("phase") == 142
           and r.json().get("release_metrics", {}).get("endpoint") == "/release/status-history/metrics"
           and "pass_rate" in r.json().get("release_metrics", {}).get("metrics", []),
+          str(r.json()))
+
+    r = client.get("/release/status-history/health")
+    check("/release/status-history/health returns warning summary",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("status") in {"ready", "attention"}
+          and isinstance(r.json().get("warnings"), list)
+          and "# TPG HomeAI Release Health" in r.json().get("markdown", ""),
+          str(r.json()))
+    r = client.get("/brain/phase-143")
+    check("/brain/phase-143 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-143 has release health marker",
+          r.json().get("phase") == 143
+          and r.json().get("release_health_warnings", {}).get("endpoint") == "/release/status-history/health"
+          and "blockers_increased" in r.json().get("release_health_warnings", {}).get("signals", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -791,6 +791,55 @@ def build_release_status_metrics(limit: int = 50) -> dict[str, Any]:
     return result
 
 
+def build_release_health_warnings(limit: int = 20) -> dict[str, Any]:
+    metrics = build_release_status_metrics(limit=limit)
+    comparison = build_release_history_comparison(limit=2)
+    decisions = metrics.get("decisions", {}) or {}
+    totals = metrics.get("totals", {}) or {}
+    latest = metrics.get("latest") or {}
+    warnings: list[dict[str, Any]] = []
+    if int(totals.get("blockers") or 0) > 0:
+        warnings.append({
+            "id": "retained_blockers",
+            "severity": "warn",
+            "title": "Release history contains blockers",
+            "detail": f"{totals.get('blockers', 0)} blocker(s) are retained across saved release snapshots.",
+        })
+    if decisions.get("held", 0) > decisions.get("shipped", 0):
+        warnings.append({
+            "id": "held_exceeds_shipped",
+            "severity": "warn",
+            "title": "Held releases exceed shipped releases",
+            "detail": "Review held snapshots before continuing feature work.",
+        })
+    if float(totals.get("pass_rate") or 0) < 100 and metrics.get("count"):
+        warnings.append({
+            "id": "pass_rate_below_100",
+            "severity": "info",
+            "title": "Historical pass rate is below 100%",
+            "detail": f"Retained snapshots show a {totals.get('pass_rate', 0)}% aggregate pass rate.",
+        })
+    delta = comparison.get("delta", {}) or {}
+    if delta.get("available") and int(delta.get("blocker_change") or 0) > 0:
+        warnings.append({
+            "id": "blockers_increased",
+            "severity": "warn",
+            "title": "Blockers increased in the latest snapshot",
+            "detail": f"Latest snapshot has {delta.get('blocker_change')} more blocker(s) than the previous snapshot.",
+        })
+    status = "attention" if any(item.get("severity") == "warn" for item in warnings) else "ready"
+    result = {
+        "status": status,
+        "warnings": warnings,
+        "metrics": metrics,
+        "latest": latest,
+        "delta": delta,
+        "markdown": "",
+    }
+    result["markdown"] = _release_health_warnings_markdown(result)
+    return result
+
+
 def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     label = str(payload.get("label") or "")[:128]
     decision = str(payload.get("decision") or "")[:32]
@@ -940,6 +989,22 @@ def _release_status_metrics_markdown(metrics: dict[str, Any]) -> str:
     latest = metrics.get("latest") or {}
     if latest:
         lines.extend(["", "## Latest Snapshot", _release_decision_line(latest)])
+    return "\n".join(lines).strip() + "\n"
+
+
+def _release_health_warnings_markdown(result: dict[str, Any]) -> str:
+    lines = [
+        "# TPG HomeAI Release Health",
+        "",
+        f"Status: {result.get('status') or 'unknown'}",
+        "",
+    ]
+    warnings = result.get("warnings", []) or []
+    if warnings:
+        for warning in warnings:
+            lines.append(f"- {warning.get('severity', 'info').upper()}: {warning.get('title')} - {warning.get('detail')}")
+    else:
+        lines.append("- No release health warnings.")
     return "\n".join(lines).strip() + "\n"
 
 
@@ -1838,6 +1903,20 @@ async def build_jarvis_phase_142(version: str) -> dict[str, Any]:
             "dashboard_surface": "Release status metrics summary",
         },
         "guardrail": "Phase 142 summarizes saved release snapshots without modifying release annotations, gates, or live-house state.",
+    }
+
+
+async def build_jarvis_phase_143(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 143,
+        "release_health_warnings": {
+            "endpoint": "/release/status-history/health",
+            "signals": ["retained_blockers", "held_exceeds_shipped", "pass_rate_below_100", "blockers_increased"],
+            "dashboard_surface": "Release health warnings",
+        },
+        "guardrail": "Phase 143 only reports release-health warnings; it does not change snapshots, gates, or live-house state.",
     }
 
 

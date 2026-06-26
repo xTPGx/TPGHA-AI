@@ -1224,6 +1224,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release health trend warnings so owners can see when blockers or held releases are increasing.",
         },
         {
+            "id": "release_health_warnings",
+            "title": "Release Health Warnings",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/health reports retained blockers, held-release imbalance, pass-rate warnings, and blocker increases.",
+                "Release health exports Markdown for owner handoff.",
+                "Owner Dashboard surfaces release health warnings above the snapshot list.",
+            ],
+            "next": "Add release owner recommendations that turn warnings into next-best actions.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
