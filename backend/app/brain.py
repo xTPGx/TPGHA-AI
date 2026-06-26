@@ -780,6 +780,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Use the combined packet as the single owner-facing release evidence artifact.",
         },
         {
+            "id": "acceptance_packet_ui",
+            "title": "Acceptance Packet UI",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Brain Live Acceptance panel displays role acceptance score, active repairs, unrepaired blockers, and resolved repair count.",
+                "Owners can copy or download the expanded Markdown acceptance packet from the same panel.",
+                "Unrepaired acceptance blockers are highlighted inline before release handoff.",
+            ],
+            "next": "Add owner filters for required versus optional acceptance checks if the checklist grows too large.",
+        },
+        {
             "id": "release_checklist",
             "title": "Release Checklist",
             "status": "ready",

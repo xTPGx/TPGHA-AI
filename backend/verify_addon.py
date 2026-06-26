@@ -553,6 +553,17 @@ def main() -> int:
     check("phase 106 endpoint is exposed",
           "/brain/phase-106" in backend_main,
           "Backend must expose the combined acceptance packet phase endpoint.")
+    check("phase 107 frontend acceptance packet UI is wired",
+          "Role acceptance" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Active repairs" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Unrepaired acceptance blockers" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Resolved repairs" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "acceptance_packet_ui" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Brain UI must surface the combined acceptance packet instead of hiding it in Markdown only.")
+    check("phase 107 endpoint is exposed",
+          "/brain/phase-107" in backend_main
+          and "build_jarvis_phase_107" in experience_brain,
+          "Backend must expose the phase 107 UI readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1551,6 +1562,16 @@ def main() -> int:
           and "acceptance_repairs" in r.json().get("acceptance_packet", {})
           and "acceptance_resolutions" in r.json().get("acceptance_packet", {})
           and "## Resolution Loop" in r.json().get("acceptance_packet", {}).get("markdown", ""),
+          str(r.json()))
+
+    r = client.get("/brain/phase-107")
+    check("/brain/phase-107 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-107 has UI acceptance packet marker",
+          r.json().get("phase") == 107
+          and r.json().get("ui_acceptance_packet", {}).get("shows_role_acceptance") is True
+          and r.json().get("ui_acceptance_packet", {}).get("shows_active_repairs") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

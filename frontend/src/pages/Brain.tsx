@@ -257,6 +257,10 @@ function LiveAcceptancePanel({
   const tests = acceptance.tests || [];
   const evidence = acceptance.evidence || {};
   const latestByTest = evidence.latest_by_test || {};
+  const roleAcceptance = report?.role_acceptance || {};
+  const repairSummary = report?.acceptance_repairs?.summary || {};
+  const resolutionSummary = report?.acceptance_resolutions?.summary || {};
+  const unrepairedTests = report?.acceptance_repairs?.unrepaired_test_ids || [];
   return (
     <div className="card mb-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -307,6 +311,18 @@ function LiveAcceptancePanel({
               <button className="btn" onClick={onDownloadReport}>Download Markdown</button>
             </div>
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <MiniStat label="Role acceptance" value={`${roleAcceptance.score ?? 0}%`} />
+            <MiniStat label="Active repairs" value={repairSummary.active_repairs ?? 0} />
+            <MiniStat label="Unrepaired" value={repairSummary.unrepaired ?? 0} />
+            <MiniStat label="Resolved repairs" value={resolutionSummary.resolved_repairs ?? 0} />
+          </div>
+          {unrepairedTests.length > 0 && (
+            <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+              <div className="font-semibold">Unrepaired acceptance blockers</div>
+              <div className="mt-1 text-amber-100/80">{unrepairedTests.join(", ")}</div>
+            </div>
+          )}
           {reportMessage && <div className="mt-2 text-sm text-slate-300">{reportMessage}</div>}
         </div>
       )}

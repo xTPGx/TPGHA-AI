@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.11
+
+- Added Jarvis phase 107 acceptance packet UI summary.
+- Added `/brain/phase-107` for traceable frontend acceptance visibility.
+- Brain Live Acceptance now shows role acceptance, active repairs, unrepaired blockers, and resolved repairs inline.
+- Unrepaired acceptance blockers are highlighted before owners copy or download the release report.
+- Added verifier coverage for the owner-facing acceptance packet UI.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.10
 
 - Added Jarvis phase 106 combined acceptance packet.

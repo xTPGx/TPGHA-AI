@@ -701,6 +701,23 @@ async def build_jarvis_phase_106(config: AppConfig, version: str) -> dict[str, A
     }
 
 
+async def build_jarvis_phase_107(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 107,
+        "ui_acceptance_packet": {
+            "surface": "Brain Live Acceptance panel",
+            "shows_role_acceptance": True,
+            "shows_active_repairs": True,
+            "shows_unrepaired_blockers": True,
+            "shows_resolved_repairs": True,
+            "copy_download_available": True,
+        },
+        "guardrail": "Phase 107 only improves owner visibility for acceptance evidence; it does not execute device actions.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
