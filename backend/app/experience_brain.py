@@ -676,6 +676,26 @@ def prune_release_status_snapshots(keep: int = 20, dry_run: bool = True) -> dict
     }
 
 
+def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    label = str(payload.get("label") or "")[:128]
+    decision = str(payload.get("decision") or "")[:32]
+    notes = str(payload.get("notes") or "")[:2000]
+    with get_session() as session:
+        row = session.get(ReleaseStatusSnapshot, snapshot_id)
+        if not row:
+            return {"updated": False, "error": "snapshot_not_found", "snapshot_id": snapshot_id}
+        row.label = label
+        row.decision = decision
+        row.notes = notes
+        session.commit()
+        session.refresh(row)
+        snapshot = _release_snapshot_card(row)
+    return {
+        "updated": True,
+        "snapshot": snapshot,
+    }
+
+
 async def record_release_status_snapshot(config: AppConfig, version: str) -> dict[str, Any]:
     checklist = await build_release_checklist(config, version)
     checks = checklist.get("checks", []) or []
@@ -731,6 +751,9 @@ def _release_snapshot_card(row: ReleaseStatusSnapshot) -> dict[str, Any]:
             "passed": row.passed_count,
             "blockers": row.blocker_count,
         },
+        "label": row.label,
+        "decision": row.decision,
+        "notes": row.notes,
         "blockers": payload.get("blockers", []) or [],
     }
 
@@ -1519,6 +1542,21 @@ async def build_jarvis_phase_137(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Preview prune history", "Prune old snapshots"],
         },
         "guardrail": "Phase 137 prunes only saved release snapshots; it never removes command audit history or acceptance evidence.",
+    }
+
+
+async def build_jarvis_phase_138(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 138,
+        "release_snapshot_annotations": {
+            "endpoint": "/release/status-history/{snapshot_id}",
+            "fields": ["label", "decision", "notes"],
+            "dashboard_actions": ["Mark shipped", "Mark held"],
+            "migration_safe": True,
+        },
+        "guardrail": "Phase 138 annotates release snapshots only; it does not change release checklist evidence.",
     }
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.42
+
+- Added Jarvis phase 138 release snapshot annotations.
+- Added migration-safe label, decision, and notes fields to release status snapshots.
+- Added `PATCH /release/status-history/{snapshot_id}` for annotating held or shipped releases.
+- Added owner Dashboard actions to mark recent release snapshots as shipped or held.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.41
 
 - Added Jarvis phase 137 release history pruning.

@@ -1164,6 +1164,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release snapshot annotations so owners can label why a release was held or shipped.",
         },
         {
+            "id": "release_snapshot_annotations",
+            "title": "Release Snapshot Annotations",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Release snapshots can store an owner label, decision, and notes.",
+                "PATCH /release/status-history/{snapshot_id} updates annotations without changing checklist evidence.",
+                "Owner Dashboard exposes Mark shipped and Mark held actions for recent snapshots.",
+            ],
+            "next": "Add release decision digest so owners can see held/shipped reasoning in one summary.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

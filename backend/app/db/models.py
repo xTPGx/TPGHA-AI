@@ -168,6 +168,9 @@ class ReleaseStatusSnapshot(Base):
     blocker_count: Mapped[int] = mapped_column(Integer, default=0)
     check_count: Mapped[int] = mapped_column(Integer, default=0)
     passed_count: Mapped[int] = mapped_column(Integer, default=0)
+    label: Mapped[str] = mapped_column(String(128), default="")
+    decision: Mapped[str] = mapped_column(String(32), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
     payload: Mapped[str] = mapped_column(Text, default="{}")
 
 

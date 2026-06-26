@@ -61,6 +61,12 @@ def _migrate_sqlite() -> None:
             "data": "TEXT DEFAULT '{}'",
             "error": "TEXT DEFAULT ''",
         })
+    if "release_status_snapshot" in tables:
+        _add_missing_columns("release_status_snapshot", {
+            "label": "VARCHAR(128) DEFAULT ''",
+            "decision": "VARCHAR(32) DEFAULT ''",
+            "notes": "TEXT DEFAULT ''",
+        })
 
 
 def _add_missing_columns(table: str, additions: dict[str, str]) -> None:

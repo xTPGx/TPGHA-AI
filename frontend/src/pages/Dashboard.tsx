@@ -189,6 +189,27 @@ export default function Dashboard() {
     }
   };
 
+  const annotateReleaseSnapshot = async (snapshotId: number, decision: "shipped" | "held") => {
+    try {
+      await api.annotateReleaseSnapshot(snapshotId, {
+        decision,
+        label: decision === "shipped" ? "Shipped" : "Held",
+        notes: decision === "shipped"
+          ? "Owner marked this release snapshot as shipped."
+          : "Owner marked this release snapshot as held for follow-up.",
+      });
+      const [history, comparison] = await Promise.all([
+        api.releaseStatusHistory(),
+        api.releaseHistoryComparison(),
+      ]);
+      setReleaseHistory(history);
+      setReleaseComparison(comparison);
+      setReleaseMessage(`Release snapshot marked ${decision}.`);
+    } catch (e: any) {
+      setReleaseMessage(`Snapshot annotation failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const ha = health?.home_assistant;
   const disc = health?.discovery ?? {};
   const scanRunning = disc.scan_in_progress || phase === "initializing";
@@ -253,6 +274,7 @@ export default function Dashboard() {
             onDownloadHistory={downloadReleaseHistory}
             onPreviewPrune={previewPruneHistory}
             onPrune={pruneReleaseHistory}
+            onAnnotateSnapshot={annotateReleaseSnapshot}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -430,6 +452,7 @@ function DashboardReleaseStatus({
   onDownloadHistory,
   onPreviewPrune,
   onPrune,
+  onAnnotateSnapshot,
 }: {
   release: any;
   history: any;
@@ -442,6 +465,7 @@ function DashboardReleaseStatus({
   onDownloadHistory: () => void;
   onPreviewPrune: () => void;
   onPrune: () => void;
+  onAnnotateSnapshot: (snapshotId: number, decision: "shipped" | "held") => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -490,6 +514,15 @@ function DashboardReleaseStatus({
                 <div className="mt-1 text-xs text-slate-500">{fmtTs(snapshot.created_at)}</div>
                 <div className="mt-2 text-sm text-slate-400">
                   {snapshot.counts?.passed ?? 0}/{snapshot.counts?.checks ?? 0} gates passing - {snapshot.counts?.blockers ?? 0} blockers
+                </div>
+                {snapshot.decision && (
+                  <div className="mt-2 text-xs text-slate-500">
+                    Decision: {snapshot.label || snapshot.decision}
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="ghost" onClick={() => onAnnotateSnapshot(snapshot.id, "shipped")}>Mark shipped</Button>
+                  <Button variant="ghost" onClick={() => onAnnotateSnapshot(snapshot.id, "held")}>Mark held</Button>
                 </div>
               </div>
             ))}

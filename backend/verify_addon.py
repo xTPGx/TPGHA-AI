@@ -880,6 +880,22 @@ def main() -> int:
     check("phase 137 endpoint is exposed",
           "/brain/phase-137" in backend_main,
           "Backend must expose the phase 137 release history pruning marker.")
+    check("phase 138 release snapshot annotations are wired",
+          "label" in db_models
+          and "decision" in db_models
+          and "notes" in db_models
+          and "release_status_snapshot" in (repo_root / "backend" / "app" / "db" / "database.py").read_text(encoding="utf-8")
+          and "annotate_release_status_snapshot" in experience_brain
+          and "/release/status-history/{snapshot_id}" in backend_main
+          and "Mark shipped" in dashboard_frontend
+          and "Mark held" in dashboard_frontend
+          and "api.annotateReleaseSnapshot" in dashboard_frontend
+          and "release_snapshot_annotations" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_138" in experience_brain,
+          "Owners need migration-safe release snapshot decision annotations.")
+    check("phase 138 endpoint is exposed",
+          "/brain/phase-138" in backend_main,
+          "Backend must expose the phase 138 release snapshot annotation marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2470,6 +2486,30 @@ def main() -> int:
           r.json().get("phase") == 137
           and r.json().get("release_history_pruning", {}).get("dry_run_first") is True
           and "Prune old snapshots" in r.json().get("release_history_pruning", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.post("/release/status-history/snapshot")
+    annotation_target = r.json().get("snapshot", {}).get("id") if is_json(r) else None
+    r = client.patch(f"/release/status-history/{annotation_target}", json={
+        "label": "Verifier shipped",
+        "decision": "shipped",
+        "notes": "Verifier confirmed release annotation flow.",
+    })
+    check("/release/status-history/{snapshot_id} annotates snapshot",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("updated") is True
+          and r.json().get("snapshot", {}).get("decision") == "shipped"
+          and r.json().get("snapshot", {}).get("label") == "Verifier shipped",
+          str(r.json()))
+    r = client.get("/brain/phase-138")
+    check("/brain/phase-138 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-138 has release annotation marker",
+          r.json().get("phase") == 138
+          and r.json().get("release_snapshot_annotations", {}).get("migration_safe") is True
+          and "Mark held" in r.json().get("release_snapshot_annotations", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
