@@ -18,13 +18,21 @@ const emptyAssistant = {
   tone: "confident",
   personality: "",
   voice_provider: "openai",
+  voice_model: "gpt-4o-mini-tts",
   voice: "cedar",
+  voice_speed: 1.1,
+  voice_endpoint_url: "",
+  voice_license_note: "",
+  voice_private_only: false,
+  voice_normalize_text: true,
+  voice_max_spoken_chars: 1200,
   voice_instructions: "",
 };
 
 export default function Assistants() {
   const [cfg, setCfg] = useState<any>(null);
   const [voices, setVoices] = useState<any[]>([]);
+  const [voiceProviders, setVoiceProviders] = useState<any[]>(DEFAULT_PROVIDERS);
   const [voiceSettings, setVoiceSettings] = useState<Record<string, any>>({});
   const [voiceText, setVoiceText] = useState("Voice check complete. I am online and ready.");
   const [voiceResult, setVoiceResult] = useState<any>(null);
@@ -45,6 +53,7 @@ export default function Assistants() {
     ]);
     setCfg(config);
     setVoices(voiceCatalog.voices || []);
+    setVoiceProviders(voiceCatalog.providers || DEFAULT_PROVIDERS);
     setVoiceSettings(profiles.settings || {});
     setSession(uiSession);
   };
@@ -77,20 +86,36 @@ export default function Assistants() {
       wake_words: (assistant.wake_words ?? defaultWakeWords(assistant.id, assistant.name)).join(", "),
       listen_enabled: assistant.listen_enabled !== false,
       voice_provider: effectiveVoice.provider || voice.provider || "openai",
+      voice_model: voice.model || defaultModelForProvider(effectiveVoice.provider || voice.provider || "openai"),
       voice: effectiveVoice.voice || voice.voice || "cedar",
+      voice_speed: voice.speed || 1.1,
+      voice_endpoint_url: voice.endpoint_url || "",
+      voice_license_note: voice.license_note || "",
+      voice_private_only: Boolean(voice.private_only),
+      voice_normalize_text: voice.normalize_text !== false,
+      voice_max_spoken_chars: voice.max_spoken_chars || 1200,
       voice_instructions: voice.instructions || "",
     } : { ...emptyAssistant, owner: canManageAll ? "" : activeUserId });
   };
 
-  const editorVoiceProfile = () => ({
-    provider: editor.voice_provider || "openai",
-    model: "gpt-4o-mini-tts",
-    voice: editor.voice || "cedar",
-    response_format: "mp3",
-    output: "browser",
-    fallback_provider: "browser",
-    instructions: editor.voice_instructions || "",
-  });
+  const editorVoiceProfile = () => {
+    const provider = editor.voice_provider || "openai";
+    return {
+      provider,
+      model: editor.voice_model || defaultModelForProvider(provider),
+      voice: editor.voice || defaultVoiceForProvider(provider, voiceSettings),
+      speed: Number(editor.voice_speed || 1.1),
+      response_format: "mp3",
+      output: "browser",
+      fallback_provider: "browser",
+      endpoint_url: editor.voice_endpoint_url || "",
+      license_note: editor.voice_license_note || "",
+      private_only: Boolean(editor.voice_private_only),
+      normalize_text: editor.voice_normalize_text !== false,
+      max_spoken_chars: Number(editor.voice_max_spoken_chars || 1200),
+      instructions: editor.voice_instructions || "",
+    };
+  };
 
   const previewVoice = async () => {
     setVoiceBusy(true);
@@ -148,15 +173,7 @@ export default function Assistants() {
         listen_enabled: Boolean(editor.listen_enabled),
         tone: editor.tone,
         personality: editor.personality,
-        voice: {
-          provider: editor.voice_provider,
-          model: "gpt-4o-mini-tts",
-          voice: editor.voice,
-          response_format: "mp3",
-          output: "browser",
-          fallback_provider: "browser",
-          instructions: editor.voice_instructions,
-        },
+        voice: editorVoiceProfile(),
       };
       await api.saveAssistant(payload);
       await load();
@@ -204,16 +221,96 @@ export default function Assistants() {
             <Field label="Aliases" value={editor.aliases} onChange={(v) => setEditor({ ...editor, aliases: v })} placeholder="atlas, house" />
             <Field label="Wake Words" value={editor.wake_words} onChange={(v) => setEditor({ ...editor, wake_words: v })} placeholder="atlas, hey atlas" />
             <label>
+              <div className="mb-1 text-xs uppercase text-slate-500">Voice provider</div>
+              <select
+                className="input"
+                value={editor.voice_provider}
+                onChange={(e) => {
+                  const provider = e.target.value;
+                  setEditor({
+                    ...editor,
+                    voice_provider: provider,
+                    voice_model: defaultModelForProvider(provider),
+                    voice: defaultVoiceForProvider(provider, voiceSettings),
+                    voice_endpoint_url: provider === "kokoro"
+                      ? (editor.voice_endpoint_url || voiceSettings.kokoro_tts_base_url || "")
+                      : provider === "custom"
+                        ? (editor.voice_endpoint_url || "")
+                        : "",
+                  });
+                }}
+              >
+                {voiceProviders.map((provider: any) => (
+                  <option key={provider.id} value={provider.id}>{provider.label || provider.id}</option>
+                ))}
+              </select>
+            </label>
+            <label>
               <div className="mb-1 text-xs uppercase text-slate-500">Voice</div>
               <select className="input" value={editor.voice} onChange={(e) => setEditor({ ...editor, voice: e.target.value })}>
-                {(voices.length ? voices : DEFAULT_VOICES).map((v: any) => <option key={v.id || v} value={v.id || v}>{v.label || v.id || v}</option>)}
+                {voiceOptionsForProvider(voices, editor.voice_provider, voiceSettings).map((v: any) => <option key={v.id || v} value={v.id || v}>{v.label || v.id || v}</option>)}
               </select>
+            </label>
+            <Field label="Model" value={editor.voice_model} onChange={(v) => setEditor({ ...editor, voice_model: v })} placeholder={defaultModelForProvider(editor.voice_provider)} />
+            <label>
+              <div className="mb-1 text-xs uppercase text-slate-500">Speech speed</div>
+              <input
+                className="w-full accent-cyan-400"
+                type="range"
+                min="0.75"
+                max="1.35"
+                step="0.01"
+                value={editor.voice_speed}
+                onChange={(e) => setEditor({ ...editor, voice_speed: Number(e.target.value) })}
+              />
+              <div className="mt-1 text-xs text-slate-400">{Number(editor.voice_speed || 1.1).toFixed(2)}x</div>
+            </label>
+            {["kokoro", "custom"].includes(editor.voice_provider) && (
+              <Field
+                label="Endpoint URL"
+                value={editor.voice_endpoint_url}
+                onChange={(v) => setEditor({ ...editor, voice_endpoint_url: v })}
+                placeholder={editor.voice_provider === "kokoro" ? "http://tpg-ai:8880" : "https://your-licensed-tts/v1"}
+              />
+            )}
+            {editor.voice_provider === "custom" && (
+              <>
+                <Field
+                  label="License note"
+                  value={editor.voice_license_note}
+                  onChange={(v) => setEditor({ ...editor, voice_license_note: v })}
+                  placeholder="Personal licensed/private voice only"
+                />
+                <ToggleRow
+                  label="Private voice only"
+                  description="Marks this assistant voice as private/local so it is not a sellable default."
+                  checked={editor.voice_private_only}
+                  onChange={(checked) => setEditor({ ...editor, voice_private_only: checked })}
+                />
+              </>
+            )}
+            <label>
+              <div className="mb-1 text-xs uppercase text-slate-500">Max spoken chars</div>
+              <input
+                className="input"
+                type="number"
+                min={120}
+                max={4000}
+                value={editor.voice_max_spoken_chars}
+                onChange={(e) => setEditor({ ...editor, voice_max_spoken_chars: Number(e.target.value || 1200) })}
+              />
             </label>
             <ToggleRow
               label="Wake-word listening"
               description="Allow mapped voice sources to route wake phrases to this assistant."
               checked={editor.listen_enabled}
               onChange={(checked) => setEditor({ ...editor, listen_enabled: checked })}
+            />
+            <ToggleRow
+              label="Natural speech cleanup"
+              description="Removes markdown, entity IDs, and debug phrasing before speaking."
+              checked={editor.voice_normalize_text !== false}
+              onChange={(checked) => setEditor({ ...editor, voice_normalize_text: checked })}
             />
             <label className="md:col-span-2">
               <div className="mb-1 text-xs uppercase text-slate-500">Personality</div>
@@ -231,11 +328,11 @@ export default function Assistants() {
                 <div>
                   <div className="text-lg font-semibold">Voice Test</div>
                   <div className="text-sm text-slate-400">
-                    {editor.voice_provider} / {editor.voice} {"->"} browser playback
+                    {editor.voice_provider} / {editor.voice} {"->"} {editor.voice_provider === "piper" ? "HA speaker route" : "browser playback"}
                   </div>
                 </div>
-                <Badge tone={voiceSettings.openai_configured ? "good" : "warn"}>
-                  OpenAI TTS {voiceSettings.openai_configured ? "ready" : "not configured"}
+                <Badge tone={providerReady(editor.voice_provider, voiceSettings) ? "good" : "warn"}>
+                  {providerLabel(editor.voice_provider, voiceProviders)} {providerReady(editor.voice_provider, voiceSettings) ? "ready" : "needs setup"}
                 </Badge>
               </div>
               <textarea className="input min-h-24" value={voiceText} onChange={(e) => setVoiceText(e.target.value)} />
@@ -264,7 +361,7 @@ export default function Assistants() {
             <div className="tpg-panel-flat p-4">
               <div className="mb-3 text-lg font-semibold">Voice Catalog</div>
               <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-                {(voices.length ? voices : DEFAULT_VOICES.map((id) => ({ id, label: id }))).map((voice: any) => (
+                {voiceOptionsForProvider(voices, editor.voice_provider, voiceSettings).map((voice: any) => (
                   <button
                     key={voice.id}
                     className={`tpg-panel-flat block w-full px-3 py-2 text-left ${editor.voice === voice.id ? "border-brand bg-brand-dark/20" : ""}`}
@@ -272,6 +369,7 @@ export default function Assistants() {
                   >
                     <div className="font-semibold">{voice.label || voice.id}</div>
                     <div className="font-mono text-xs text-brand">{voice.id}</div>
+                    {voice.provider && <div className="text-xs uppercase text-slate-500">{voice.provider}</div>}
                     {voice.style && <div className="mt-1 text-xs text-slate-400">{voice.style}</div>}
                   </button>
                 ))}
@@ -357,7 +455,65 @@ function slug(value: string) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
-const DEFAULT_VOICES = ["cedar", "coral", "nova", "onyx", "marin", "sage", "verse", "ballad", "ash", "echo", "fable", "shimmer"];
+const DEFAULT_PROVIDERS = [
+  { id: "openai", label: "OpenAI TTS" },
+  { id: "kokoro", label: "Kokoro local" },
+  { id: "custom", label: "Custom private endpoint" },
+  { id: "piper", label: "Home Assistant Piper" },
+  { id: "browser", label: "Browser fallback" },
+];
+
+const DEFAULT_VOICES = [
+  { id: "cedar", label: "Cedar", provider: "openai" },
+  { id: "coral", label: "Coral", provider: "openai" },
+  { id: "nova", label: "Nova", provider: "openai" },
+  { id: "onyx", label: "Onyx", provider: "openai" },
+  { id: "af_heart", label: "Heart", provider: "kokoro" },
+  { id: "af_bella", label: "Bella", provider: "kokoro" },
+  { id: "tts.piper", label: "Piper", provider: "piper" },
+  { id: "custom", label: "Custom licensed voice", provider: "custom" },
+  { id: "browser", label: "Browser default", provider: "browser" },
+];
+
+function voiceOptionsForProvider(voices: any[], provider: string, settings: Record<string, any>) {
+  const selectedProvider = provider || "openai";
+  const catalog = voices.length ? voices : DEFAULT_VOICES;
+  const filtered = catalog.filter((voice: any) => (voice.provider || "openai") === selectedProvider);
+  if (filtered.length) return filtered;
+  if (selectedProvider === "piper") {
+    return [{ id: settings.piper_tts_entity_id || "tts.piper", label: "Piper", provider: "piper" }];
+  }
+  return DEFAULT_VOICES.filter((voice) => voice.provider === selectedProvider);
+}
+
+function defaultVoiceForProvider(provider: string, settings: Record<string, any>) {
+  if (provider === "kokoro") return "af_heart";
+  if (provider === "custom") return "custom";
+  if (provider === "piper" || provider === "ha_tts") return settings.piper_tts_entity_id || "tts.piper";
+  if (provider === "browser") return "browser";
+  return "cedar";
+}
+
+function defaultModelForProvider(provider: string) {
+  if (provider === "kokoro") return "kokoro";
+  if (provider === "custom") return "tts";
+  if (provider === "piper" || provider === "ha_tts") return "tts.piper";
+  if (provider === "browser") return "browser";
+  return "gpt-4o-mini-tts";
+}
+
+function providerReady(provider: string, settings: Record<string, any>) {
+  if (provider === "browser") return true;
+  if (provider === "openai") return Boolean(settings.openai_configured);
+  if (provider === "kokoro") return Boolean(settings.kokoro_tts_configured);
+  if (provider === "custom") return Boolean(settings.custom_tts_configured);
+  if (provider === "piper" || provider === "ha_tts") return Boolean(settings.piper_tts_configured);
+  return false;
+}
+
+function providerLabel(provider: string, providers: any[]) {
+  return providers.find((item: any) => item.id === provider)?.label || provider || "Voice";
+}
 
 function defaultWakeWords(id: string, name: string) {
   const base = String(id || name || "").trim().toLowerCase();

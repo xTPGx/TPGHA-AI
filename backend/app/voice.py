@@ -13,6 +13,8 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
+import httpx
+
 from .config_loader import get_config
 from .homeassistant.rest import HAError, get_ha_client
 from .models.schemas import AppConfig, Assistant, VoiceProfile
@@ -34,6 +36,49 @@ VOICE_CATALOG = [
     {"id": "sage", "label": "Sage", "style": "steady and thoughtful"},
     {"id": "shimmer", "label": "Shimmer", "style": "bright and energetic"},
     {"id": "verse", "label": "Verse", "style": "polished and dynamic"},
+]
+
+KOKORO_VOICE_CATALOG = [
+    {"id": "af_heart", "label": "Heart", "style": "warm natural female", "provider": "kokoro"},
+    {"id": "af_bella", "label": "Bella", "style": "friendly natural female", "provider": "kokoro"},
+    {"id": "af_sarah", "label": "Sarah", "style": "clear conversational female", "provider": "kokoro"},
+    {"id": "am_adam", "label": "Adam", "style": "steady natural male", "provider": "kokoro"},
+    {"id": "am_michael", "label": "Michael", "style": "confident natural male", "provider": "kokoro"},
+    {"id": "bf_emma", "label": "Emma", "style": "polished British female", "provider": "kokoro"},
+    {"id": "bm_george", "label": "George", "style": "grounded British male", "provider": "kokoro"},
+]
+
+PROVIDERS = [
+    {
+        "id": "openai",
+        "label": "OpenAI TTS",
+        "kind": "cloud",
+        "description": "Premium steerable voice using the configured OpenAI API key.",
+    },
+    {
+        "id": "kokoro",
+        "label": "Kokoro local",
+        "kind": "local",
+        "description": "Free/open local TTS through a Kokoro OpenAI-compatible endpoint.",
+    },
+    {
+        "id": "custom",
+        "label": "Custom private endpoint",
+        "kind": "private",
+        "description": "Personal/licensed TTS endpoint. Do not ship cloned voices without consent.",
+    },
+    {
+        "id": "piper",
+        "label": "Home Assistant Piper",
+        "kind": "local",
+        "description": "HA/Piper TTS routed to a media player or room speaker.",
+    },
+    {
+        "id": "browser",
+        "label": "Browser fallback",
+        "kind": "fallback",
+        "description": "Built-in browser speech when no real TTS provider is available.",
+    },
 ]
 
 MIME_BY_FORMAT = {
@@ -87,9 +132,18 @@ def voice_audio_path(audio_id: str) -> Path:
 
 
 def list_voices() -> dict[str, Any]:
+    settings = get_settings()
     return {
-        "voices": VOICE_CATALOG,
-        "default_model": get_settings().openai_tts_model,
+        "voices": [
+            *[dict(voice, provider="openai") for voice in VOICE_CATALOG],
+            *KOKORO_VOICE_CATALOG,
+            {"id": settings.piper_tts_entity_id, "label": "Piper", "style": "Home Assistant local TTS", "provider": "piper"},
+            {"id": "custom", "label": "Custom licensed voice", "style": "Private endpoint voice id", "provider": "custom"},
+            {"id": "browser", "label": "Browser default", "style": "Emergency fallback", "provider": "browser"},
+        ],
+        "providers": PROVIDERS,
+        "default_model": settings.openai_tts_model,
+        "default_kokoro_model": "kokoro",
         "formats": list(MIME_BY_FORMAT.keys()),
     }
 
@@ -139,9 +193,12 @@ def resolve_voice_profile(
     }
     data["backend"] = {
         "openai_configured": settings.openai_configured,
+        "kokoro_configured": bool(settings.kokoro_tts_base_url),
+        "custom_tts_configured": bool(settings.custom_tts_base_url),
+        "piper_configured": settings.ha_configured,
         "speaker_routing_configured": bool(settings.voice_public_base_url),
     }
-    data["available"] = data["provider"] == "browser" or settings.openai_configured
+    data["available"] = _provider_available(data, settings)
     return data
 
 
@@ -156,6 +213,10 @@ def list_voice_profiles(config: Optional[AppConfig] = None) -> dict[str, Any]:
         "settings": {
             "openai_tts_model": get_settings().openai_tts_model,
             "openai_configured": get_settings().openai_configured,
+            "kokoro_tts_configured": bool(get_settings().kokoro_tts_base_url),
+            "custom_tts_configured": bool(get_settings().custom_tts_base_url),
+            "piper_tts_configured": get_settings().ha_configured,
+            "piper_tts_entity_id": get_settings().piper_tts_entity_id,
             "voice_public_base_url_configured": bool(get_settings().voice_public_base_url),
         },
     }
@@ -208,8 +269,9 @@ async def preview_voice(
     return {
         "profile": profile,
         "text": text,
-        "mode": "openai_tts" if profile["provider"] == "openai" and profile["available"] else "browser",
-        "will_fallback_to_browser": profile["provider"] == "openai" and not profile["available"],
+        "speak_text": _normalize_tts_text(text, profile),
+        "mode": f"{profile['provider']}_tts" if profile["provider"] != "browser" and profile["available"] else "browser",
+        "will_fallback_to_browser": profile["provider"] != "browser" and not profile["available"],
     }
 
 
@@ -229,27 +291,33 @@ async def speak_text(
         cfg, assistant_id, target_entity_id, room, source_device_id, source_entity_id, reply_mode
     )
     profile = _apply_profile_override(profile, voice_profile)
+    speak_text_value = _normalize_tts_text(text, profile)
     if profile.get("route", {}).get("mode") == "none":
         return {
             "mode": "silent",
             "provider": "none",
             "profile": profile,
             "text": text,
+            "speak_text": speak_text_value,
             "speaker_route": profile.get("route"),
         }
     if force_browser or profile["provider"] == "browser":
-        return _browser_response(profile, text)
+        return _browser_response(profile, text, speak_text_value)
+    if profile["provider"] in {"ha_tts", "piper"}:
+        return await _ha_tts_response(profile, text, speak_text_value)
+    if profile["provider"] in {"kokoro", "custom"}:
+        return await _endpoint_tts_response(profile, text, speak_text_value)
     if profile["provider"] != "openai":
-        return _browser_response(profile, text, reason=f"Unsupported provider '{profile['provider']}'.")
+        return _browser_response(profile, text, speak_text_value, reason=f"Unsupported provider '{profile['provider']}'.")
     if not get_settings().openai_configured:
-        return _browser_response(profile, text, reason="OpenAI API key is not configured.")
+        return _browser_response(profile, text, speak_text_value, reason="OpenAI API key is not configured.")
 
     try:
-        audio_bytes = await asyncio.to_thread(_openai_speech_bytes, profile, text)
+        audio_bytes = await asyncio.to_thread(_openai_speech_bytes, profile, speak_text_value)
     except Exception as exc:  # pragma: no cover - network/sdk dependent
         detail = _safe_error_detail(exc)
         logger.warning("OpenAI TTS failed (%s); using browser fallback.", detail)
-        return _browser_response(profile, text, reason=f"OpenAI TTS failed: {detail}.")
+        return _browser_response(profile, text, speak_text_value, reason=f"OpenAI TTS failed: {detail}.")
 
     fmt = str(profile.get("response_format") or "mp3")
     content_type = MIME_BY_FORMAT.get(fmt, "audio/mpeg")
@@ -259,6 +327,7 @@ async def speak_text(
         "provider": "openai",
         "profile": profile,
         "text": text,
+        "speak_text": speak_text_value,
         "content_type": content_type,
         "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
         "audio_path": f"/voice/audio/{audio_id}",
@@ -309,8 +378,23 @@ def _apply_profile_override(profile: dict[str, Any], override: Optional[VoicePro
     for key, value in override.model_dump().items():
         if value not in (None, ""):
             data[key] = value
-    data["available"] = data.get("provider") == "browser" or settings.openai_configured
+    data["available"] = _provider_available(data, settings)
     return data
+
+
+def _provider_available(profile: dict[str, Any], settings: Any) -> bool:
+    provider = str(profile.get("provider") or "browser").lower()
+    if provider == "browser":
+        return True
+    if provider == "openai":
+        return settings.openai_configured
+    if provider == "kokoro":
+        return bool(profile.get("endpoint_url") or settings.kokoro_tts_base_url)
+    if provider == "custom":
+        return bool(profile.get("endpoint_url") or settings.custom_tts_base_url)
+    if provider in {"ha_tts", "piper"}:
+        return settings.ha_configured
+    return False
 
 
 def resolve_reply_route(
@@ -397,15 +481,171 @@ def _with_runtime_defaults(profile: VoiceProfile, model: str, response_format: s
     return profile.model_copy(update=updates)
 
 
-def _browser_response(profile: dict[str, Any], text: str, reason: str = "") -> dict[str, Any]:
+def _browser_response(profile: dict[str, Any], text: str, speak_text: Optional[str] = None, reason: str = "") -> dict[str, Any]:
     return {
         "mode": "browser",
         "provider": "browser",
         "profile": profile,
         "text": text,
-        "speak_text": text,
+        "speak_text": speak_text or text,
         "fallback_reason": reason,
     }
+
+
+async def _endpoint_tts_response(profile: dict[str, Any], text: str, speak_text: str) -> dict[str, Any]:
+    settings = get_settings()
+    provider = str(profile.get("provider") or "custom")
+    base_url = str(profile.get("endpoint_url") or "").strip()
+    if not base_url:
+        base_url = settings.kokoro_tts_base_url if provider == "kokoro" else settings.custom_tts_base_url
+    if not base_url:
+        return _browser_response(profile, text, speak_text, reason=f"{provider} TTS endpoint is not configured.")
+    try:
+        audio_bytes = await _openai_compatible_tts_bytes(profile, speak_text, base_url, settings.custom_tts_api_key if provider == "custom" else "")
+    except Exception as exc:  # pragma: no cover - depends on external local service
+        detail = _safe_error_detail(exc)
+        logger.warning("%s TTS failed (%s); using browser fallback.", provider, detail)
+        return _browser_response(profile, text, speak_text, reason=f"{provider} TTS failed: {detail}.")
+
+    fmt = str(profile.get("response_format") or "mp3")
+    content_type = MIME_BY_FORMAT.get(fmt, "audio/mpeg")
+    audio_id = _write_audio(audio_bytes, fmt)
+    response: dict[str, Any] = {
+        "mode": "audio",
+        "provider": provider,
+        "profile": profile,
+        "text": text,
+        "speak_text": speak_text,
+        "content_type": content_type,
+        "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+        "audio_path": f"/voice/audio/{audio_id}",
+        "speaker_route": {"requested": bool(profile.get("target_entity_id")), "routed": False},
+    }
+    if profile.get("target_entity_id"):
+        response["speaker_route"] = await _route_to_speaker(
+            str(profile["target_entity_id"]),
+            f"/voice/audio/{audio_id}",
+            content_type,
+        )
+    return response
+
+
+async def _ha_tts_response(profile: dict[str, Any], text: str, speak_text: str) -> dict[str, Any]:
+    route = profile.get("route") or {}
+    target_entity_id = profile.get("target_entity_id") or route.get("target_entity_id")
+    if not target_entity_id:
+        return _browser_response(profile, text, speak_text, reason="Home Assistant TTS needs a media player target.")
+    settings = get_settings()
+    tts_entity = _tts_entity_for_profile(profile, settings.piper_tts_entity_id)
+    try:
+        await get_ha_client().speak_tts(tts_entity, str(target_entity_id), speak_text)
+    except HAError as exc:
+        return _browser_response(profile, text, speak_text, reason=f"Home Assistant TTS failed: {exc.message}.")
+    return {
+        "mode": "ha_tts",
+        "provider": str(profile.get("provider") or "ha_tts"),
+        "profile": profile,
+        "text": text,
+        "speak_text": speak_text,
+        "speaker_route": {
+            "requested": True,
+            "routed": True,
+            "entity_id": target_entity_id,
+            "tts_entity_id": tts_entity,
+        },
+    }
+
+
+def _tts_entity_for_profile(profile: dict[str, Any], fallback: str) -> str:
+    for value in (profile.get("voice"), profile.get("model")):
+        text = str(value or "").strip()
+        if text.startswith("tts."):
+            return text
+    return fallback or "tts.piper"
+
+
+async def _openai_compatible_tts_bytes(
+    profile: dict[str, Any],
+    text: str,
+    base_url: str,
+    api_key: str = "",
+) -> bytes:
+    url = _speech_endpoint_url(base_url)
+    provider = str(profile.get("provider") or "custom").lower()
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    payload: dict[str, Any] = {
+        "model": str(profile.get("model") or ("kokoro" if provider == "kokoro" else "tts")),
+        "voice": str(profile.get("voice") or ("af_heart" if provider == "kokoro" else "default")),
+        "input": text,
+        "response_format": str(profile.get("response_format") or "mp3"),
+        "speed": _coerce_speed(profile.get("speed"), 1.1),
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.content
+
+
+def _speech_endpoint_url(base_url: str) -> str:
+    cleaned = str(base_url or "").strip().rstrip("/")
+    if not cleaned:
+        raise ValueError("TTS endpoint URL is empty")
+    if cleaned.endswith("/v1/audio/speech") or cleaned.endswith("/audio/speech"):
+        return cleaned
+    if cleaned.endswith("/v1"):
+        return f"{cleaned}/audio/speech"
+    return f"{cleaned}/v1/audio/speech"
+
+
+def _normalize_tts_text(text: str, profile: dict[str, Any]) -> str:
+    if profile.get("normalize_text") is False:
+        return str(text or "")
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    value = re.sub(r"```.*?```", " ", value, flags=re.S)
+    value = re.sub(r"`([^`]+)`", r"\1", value)
+    value = re.sub(r"\*\*([^*]+)\*\*", r"\1", value)
+    value = re.sub(r"\*([^*]+)\*", r"\1", value)
+    value = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", value)
+    value = re.sub(r"^\s*[-*]\s+", "", value, flags=re.M)
+    value = re.sub(r"^\s*\d+\.\s+", "", value, flags=re.M)
+    value = re.sub(
+        r"\b(?:light|fan|switch|sensor|binary_sensor|media_player|device_tracker|person|lock|cover|climate|camera)\.([a-z0-9_]+)\b",
+        lambda match: match.group(1).replace("_", " "),
+        value,
+    )
+    replacements = {
+        "HA": "Home Assistant",
+        "TPG": "T P G",
+        "API": "A P I",
+        "UI": "U I",
+        "TV": "T V",
+        "LED": "L E D",
+        "UUID": "U U I D",
+    }
+    for source, target in replacements.items():
+        value = re.sub(rf"\b{re.escape(source)}\b", target, value)
+    value = value.replace("_", " ")
+    value = re.sub(r"\s+", " ", value).strip()
+    max_chars = _coerce_max_spoken_chars(profile.get("max_spoken_chars"), 1200)
+    if len(value) <= max_chars:
+        return value
+    clipped = value[:max_chars].rstrip()
+    sentence = max(clipped.rfind("."), clipped.rfind("?"), clipped.rfind("!"))
+    if sentence > max_chars * 0.55:
+        clipped = clipped[: sentence + 1]
+    return f"{clipped.rstrip()}."
+
+
+def _coerce_max_spoken_chars(value: Any, default: int = 1200) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(120, min(4000, parsed))
 
 
 def _openai_speech_bytes(profile: dict[str, Any], text: str) -> bytes:

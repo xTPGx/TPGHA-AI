@@ -76,7 +76,7 @@ class User(_CfgBase):
 
 
 class VoiceProfile(_CfgBase):
-    provider: Literal["browser", "openai", "ha_tts"] = "browser"
+    provider: Literal["browser", "openai", "ha_tts", "piper", "kokoro", "custom"] = "browser"
     model: str = "gpt-4o-mini-tts"
     voice: str = "alloy"
     instructions: str = ""
@@ -85,6 +85,11 @@ class VoiceProfile(_CfgBase):
     output: Literal["browser", "media_player"] = "browser"
     target_entity_id: Optional[str] = None
     fallback_provider: Literal["browser", "none"] = "browser"
+    endpoint_url: Optional[str] = None
+    license_note: str = ""
+    private_only: bool = False
+    normalize_text: bool = True
+    max_spoken_chars: int = 1200
 
 
 class Assistant(_CfgBase):

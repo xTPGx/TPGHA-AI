@@ -21,6 +21,10 @@ if command -v bashio >/dev/null 2>&1; then
   OPENAI_TRANSCRIBE_MODEL="$(bashio::config 'openai_transcribe_model')"
   OLLAMA_URL="$(bashio::config 'ollama_base_url')"
   OLLAMA_MODEL="$(bashio::config 'ollama_model')"
+  KOKORO_TTS_BASE_URL="$(bashio::config 'kokoro_tts_base_url')"
+  CUSTOM_TTS_BASE_URL="$(bashio::config 'custom_tts_base_url')"
+  CUSTOM_TTS_API_KEY="$(bashio::config 'custom_tts_api_key')"
+  PIPER_TTS_ENTITY_ID="$(bashio::config 'piper_tts_entity_id')"
   VOICE_PUBLIC_BASE_URL="$(bashio::config 'voice_public_base_url')"
   SECURITY_PIN="$(bashio::config 'security_pin')"
   API_TOKEN="$(bashio::config 'api_token')"
@@ -43,6 +47,10 @@ else
   OPENAI_TRANSCRIBE_MODEL="$(jq -r '.openai_transcribe_model // "gpt-4o-mini-transcribe"' "${OPTIONS_FILE}")"
   OLLAMA_URL="$(jq -r '.ollama_base_url // ""' "${OPTIONS_FILE}")"
   OLLAMA_MODEL="$(jq -r '.ollama_model // ""' "${OPTIONS_FILE}")"
+  KOKORO_TTS_BASE_URL="$(jq -r '.kokoro_tts_base_url // ""' "${OPTIONS_FILE}")"
+  CUSTOM_TTS_BASE_URL="$(jq -r '.custom_tts_base_url // ""' "${OPTIONS_FILE}")"
+  CUSTOM_TTS_API_KEY="$(jq -r '.custom_tts_api_key // ""' "${OPTIONS_FILE}")"
+  PIPER_TTS_ENTITY_ID="$(jq -r '.piper_tts_entity_id // "tts.piper"' "${OPTIONS_FILE}")"
   VOICE_PUBLIC_BASE_URL="$(jq -r '.voice_public_base_url // ""' "${OPTIONS_FILE}")"
   SECURITY_PIN="$(jq -r '.security_pin // ""' "${OPTIONS_FILE}")"
   API_TOKEN="$(jq -r '.api_token // ""' "${OPTIONS_FILE}")"
@@ -58,7 +66,7 @@ else
 fi
 
 # bashio/jq may yield the literal "null" for empty values.
-for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_CHAT_MODEL OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OLLAMA_URL OLLAMA_MODEL VOICE_PUBLIC_BASE_URL SECURITY_PIN API_TOKEN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
+for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_CHAT_MODEL OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OLLAMA_URL OLLAMA_MODEL KOKORO_TTS_BASE_URL CUSTOM_TTS_BASE_URL CUSTOM_TTS_API_KEY PIPER_TTS_ENTITY_ID VOICE_PUBLIC_BASE_URL SECURITY_PIN API_TOKEN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
            SCAN_ON_START SCAN_INTERVAL NOTIFY_NEW NOTIFY_UNAVAIL \
            AUTO_LOW_RISK AUTO_DOMAINS; do
   if [ "$(eval echo \$$var)" = "null" ]; then eval "$var=''"; fi
@@ -86,6 +94,10 @@ export OPENAI_TTS_FORMAT="${OPENAI_TTS_FORMAT:-mp3}"
 export OPENAI_TRANSCRIBE_MODEL="${OPENAI_TRANSCRIBE_MODEL:-gpt-4o-mini-transcribe}"
 export OLLAMA_BASE_URL="${OLLAMA_URL}"
 export OLLAMA_MODEL="${OLLAMA_MODEL}"
+export KOKORO_TTS_BASE_URL="${KOKORO_TTS_BASE_URL}"
+export CUSTOM_TTS_BASE_URL="${CUSTOM_TTS_BASE_URL}"
+export CUSTOM_TTS_API_KEY="${CUSTOM_TTS_API_KEY}"
+export PIPER_TTS_ENTITY_ID="${PIPER_TTS_ENTITY_ID:-tts.piper}"
 export VOICE_PUBLIC_BASE_URL="${VOICE_PUBLIC_BASE_URL}"
 export TPG_SECURITY_PIN="${SECURITY_PIN}"
 export TPG_API_TOKEN="${API_TOKEN}"

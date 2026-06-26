@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     openai_transcribe_model: str = Field(default="gpt-4o-mini-transcribe", alias="OPENAI_TRANSCRIBE_MODEL")
     ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="", alias="OLLAMA_MODEL")
+    kokoro_tts_base_url: str = Field(default="", alias="KOKORO_TTS_BASE_URL")
+    custom_tts_base_url: str = Field(default="", alias="CUSTOM_TTS_BASE_URL")
+    custom_tts_api_key: str = Field(default="", alias="CUSTOM_TTS_API_KEY")
+    piper_tts_entity_id: str = Field(default="tts.piper", alias="PIPER_TTS_ENTITY_ID")
 
     # --- Home Assistant ---
     home_assistant_url: str = Field(default="", alias="HOME_ASSISTANT_URL")
@@ -124,6 +128,10 @@ class Settings(BaseSettings):
             "ollama_configured": bool(self.ollama_base_url and self.ollama_model),
             "ollama_base_url": self.ollama_base_url,
             "ollama_model": self.ollama_model,
+            "kokoro_tts_configured": bool(self.kokoro_tts_base_url),
+            "custom_tts_configured": bool(self.custom_tts_base_url),
+            "custom_tts_api_key_configured": bool(self.custom_tts_api_key),
+            "piper_tts_entity_id": self.piper_tts_entity_id,
             "voice_public_base_url_configured": bool(self.voice_public_base_url),
             "security_pin_configured": bool(self.security_pin),
             "api_token_configured": bool(self.api_token),

@@ -111,6 +111,7 @@ def main() -> int:
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     schemas_source = (repo_root / "backend" / "app" / "models" / "schemas.py").read_text(encoding="utf-8")
     voice_source = (repo_root / "backend" / "app" / "voice.py").read_text(encoding="utf-8")
+    assistants_frontend = (repo_root / "frontend" / "src" / "pages" / "Assistants.tsx").read_text(encoding="utf-8")
     ai_client_source = (repo_root / "backend" / "app" / "ai" / "client.py").read_text(encoding="utf-8")
     conversation_source = (repo_root / "backend" / "app" / "conversation.py").read_text(encoding="utf-8")
     router_source = (repo_root / "backend" / "app" / "router" / "intent_router.py").read_text(encoding="utf-8")
@@ -285,6 +286,24 @@ def main() -> int:
           and "speechRateForProfile" in chat_frontend
           and "playbackRate" in chat_frontend,
           "Assistant voices should support natural speed in OpenAI TTS and browser playback.")
+    check("Assistant voice providers support local/private TTS",
+          "kokoro_tts_base_url" in addon_config
+          and "custom_tts_base_url" in addon_config
+          and "piper_tts_entity_id" in addon_config
+          and "KOKORO_TTS_BASE_URL" in run_sh
+          and "CUSTOM_TTS_BASE_URL" in run_sh
+          and "PIPER_TTS_ENTITY_ID" in run_sh
+          and "kokoro_tts_base_url" in settings_source
+          and "custom_tts_base_url" in settings_source
+          and "piper_tts_entity_id" in settings_source
+          and "KOKORO_VOICE_CATALOG" in voice_source
+          and "_openai_compatible_tts_bytes" in voice_source
+          and "_endpoint_tts_response" in voice_source
+          and "_ha_tts_response" in voice_source
+          and "_normalize_tts_text" in voice_source
+          and "Voice provider" in assistants_frontend
+          and "Private voice only" in assistants_frontend,
+          "Voice setup must support sellable local Kokoro/Piper and private licensed endpoints from the assistant editor.")
     check("Voice command routing strips wake-word prefixes",
           "_strip_assistant_address" in router_source
           and "wake_words" in router_source

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.65
+
+- Added sellable local/private voice provider support for Kokoro, custom OpenAI-compatible TTS endpoints, and Home Assistant/Piper TTS.
+- Added add-on options and environment wiring for Kokoro/custom/Piper routing without hardcoding private voice services into the app.
+- Moved provider, model, speed, endpoint, privacy, and license controls into the Assistant editor where voice identity belongs.
+- Added natural speech cleanup so spoken replies avoid markdown, entity IDs, and debug-style cadence.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.64
 
 - Tuned live voice pause capture, no-speech recovery, and re-listen timing for faster hands-free turns.

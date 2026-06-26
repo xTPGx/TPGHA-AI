@@ -174,6 +174,23 @@ class HomeAssistantREST:
             },
         )
 
+    async def speak_tts(
+        self,
+        tts_entity_id: str,
+        media_player_entity_id: str,
+        message: str,
+        *,
+        options: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        data: dict[str, Any] = {
+            "entity_id": tts_entity_id,
+            "media_player_entity_id": media_player_entity_id,
+            "message": message,
+        }
+        if options:
+            data["options"] = options
+        return await self.call_service("tts", "speak", data)
+
     async def music_assistant_play_media(
         self,
         entity_id: str,
