@@ -1093,6 +1093,22 @@ async def build_jarvis_phase_124(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_125(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 125,
+        "role_aware_chat_prompts": {
+            "surface": "Chat",
+            "source_endpoint": "/ops/role-suggested-prompts",
+            "resident_safe_examples": True,
+            "owner_management_examples": True,
+            "uses_role_policy": True,
+        },
+        "guardrail": "Phase 125 personalizes starter prompts by role without weakening server-side action policy.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

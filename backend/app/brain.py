@@ -1008,6 +1008,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add lightweight role-aware suggested prompts so residents see safe examples and owners see management examples.",
         },
         {
+            "id": "role_aware_chat_prompts",
+            "title": "Role-Aware Chat Starters",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/role-suggested-prompts returns starter prompts derived from the role action policy.",
+                "Residents and shared panels see conversation, safe control, and scheduled-task examples.",
+                "Owners/admins see dashboard and setup prompts only when their role allows those actions.",
+            ],
+            "next": "Track which prompts lead to successful actions and rank the best starters first.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

@@ -386,6 +386,38 @@ def build_role_action_policy(role: str = "guest") -> dict[str, Any]:
     }
 
 
+def build_role_suggested_prompts(role: str = "guest") -> dict[str, Any]:
+    policy = build_role_action_policy(role)
+    by_id = {item["id"]: item for item in policy.get("capabilities", [])}
+    can_schedule = bool(by_id.get("scheduled_tasks", {}).get("allowed"))
+    can_control = bool(by_id.get("safe_device_control", {}).get("allowed"))
+    can_manage_dashboards = bool(by_id.get("dashboard_authoring", {}).get("allowed"))
+    can_manage_system = bool(by_id.get("system_setup", {}).get("allowed"))
+    prompts = [
+        _role_prompt("conversation", "Help me think through a project I am working on."),
+        _role_prompt("advice", "What should I improve in my smart home next?"),
+    ]
+    if can_schedule:
+        prompts.append(_role_prompt("schedule", "Create scheduled task. Turn off all lights at 10PM."))
+    else:
+        prompts.append(_role_prompt("schedule", "Explain what scheduled tasks this login can request."))
+    if can_control:
+        prompts.append(_role_prompt("control", "Turn off the office lights."))
+    if can_manage_dashboards:
+        prompts.append(_role_prompt("dashboard", "Build a dashboard for the office."))
+    else:
+        prompts.append(_role_prompt("owner_boundary", "Which changes need owner approval?"))
+    if can_manage_system:
+        prompts.append(_role_prompt("setup", "Show me the next setup blockers for full Jarvis mode."))
+    return {
+        "status": "ready",
+        "role": policy["role"],
+        "prompts": prompts[:6],
+        "policy_counts": policy.get("counts", {}),
+        "guardrail": "Starter prompts reflect the resolved role; they do not grant access beyond server-side policy.",
+    }
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)
@@ -458,6 +490,10 @@ def _role_capability(capability_id: str, title: str, allowed: bool, detail: str)
         "allowed": bool(allowed),
         "detail": detail,
     }
+
+
+def _role_prompt(prompt_id: str, text: str) -> dict[str, str]:
+    return {"id": prompt_id, "text": text}
 
 
 def _role_policy_highlights(role: str, capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:

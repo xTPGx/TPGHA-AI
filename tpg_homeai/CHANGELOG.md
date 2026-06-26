@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.29
+
+- Added Jarvis phase 125 role-aware Chat starter prompts.
+- Added `/ops/role-suggested-prompts` so starter prompts come from the same role action policy as Chat and Dashboard.
+- Chat now loads role-aware prompts with the current HA/TPG role instead of showing one generic starter list for every user.
+- Residents/shared users see safe chat, control, and scheduled-task examples while owners/admins also see management prompts.
+- Added `/brain/phase-125` and Jarvis Brain readiness evidence for role-aware Chat prompts.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.28
 
 - Added Jarvis phase 124 Chat role policy guidance.

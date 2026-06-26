@@ -401,6 +401,7 @@ export default function Chat() {
   const [speakResponses, setSpeakResponses] = useState(false);
   const [safePreview] = useState(true);
   const [actionPolicy, setActionPolicy] = useState<any>(null);
+  const [suggestedPrompts, setSuggestedPrompts] = useState<any[]>([]);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [lastTranscript, setLastTranscript] = useState("");
@@ -558,12 +559,16 @@ export default function Chat() {
   useEffect(() => {
     const role = session?.role || "guest";
     let cancelled = false;
-    api.roleActionPolicy(role)
-      .then((policy) => {
-        if (!cancelled) setActionPolicy(policy);
+    Promise.all([api.roleActionPolicy(role), api.roleSuggestedPrompts(role)])
+      .then(([policy, prompts]) => {
+        if (cancelled) return;
+        setActionPolicy(policy);
+        setSuggestedPrompts(prompts?.prompts || []);
       })
       .catch(() => {
-        if (!cancelled) setActionPolicy(null);
+        if (cancelled) return;
+        setActionPolicy(null);
+        setSuggestedPrompts([]);
       });
     return () => {
       cancelled = true;
@@ -1133,7 +1138,11 @@ export default function Chat() {
             <section className="relative min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-6" onScroll={handleChatScroll}>
               <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
                 {messages.length === 0 && (
-                  <EmptyState assistantName={selectedAssistant?.name || "TPG HomeAI"} onPrompt={(prompt) => void send(prompt)} />
+                  <EmptyState
+                    assistantName={selectedAssistant?.name || "TPG HomeAI"}
+                    prompts={suggestedPrompts}
+                    onPrompt={(prompt) => void send(prompt)}
+                  />
                 )}
                 <div className="space-y-6">
                   {messages.map((m) => (
@@ -1399,13 +1408,14 @@ function RolePolicyMini({ policy }: { policy: any }) {
   );
 }
 
-function EmptyState({ assistantName, onPrompt }: { assistantName: string; onPrompt: (prompt: string) => void }) {
-  const prompts = [
-    "Create scheduled task. Turn off all lights at 10PM.",
-    "What should I improve in my smart home?",
-    "Build a dashboard for the office.",
-    "What is the weather today?",
+function EmptyState({ assistantName, prompts, onPrompt }: { assistantName: string; prompts: any[]; onPrompt: (prompt: string) => void }) {
+  const fallbackPrompts = [
+    { id: "schedule", text: "Create scheduled task. Turn off all lights at 10PM." },
+    { id: "advice", text: "What should I improve in my smart home?" },
+    { id: "dashboard", text: "Build a dashboard for the office." },
+    { id: "weather", text: "What is the weather today?" },
   ];
+  const promptList = prompts.length ? prompts : fallbackPrompts;
   return (
     <div className="flex flex-1 flex-col justify-center py-10">
       <div className="mb-8 text-center">
@@ -1415,13 +1425,13 @@ function EmptyState({ assistantName, onPrompt }: { assistantName: string; onProm
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {prompts.map((prompt) => (
+        {promptList.map((prompt) => (
           <button
-            key={prompt}
+            key={prompt.id || prompt.text}
             className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
-            onClick={() => onPrompt(quickPrompt(prompt))}
+            onClick={() => onPrompt(quickPrompt(prompt.text || String(prompt)))}
           >
-            {prompt}
+            {prompt.text || String(prompt)}
           </button>
         ))}
       </div>

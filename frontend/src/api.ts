@@ -239,6 +239,8 @@ export const api = {
   },
   roleActionPolicy: (role: string) =>
     http<any>(`/ops/role-action-policy?role=${encodeURIComponent(role || "guest")}`),
+  roleSuggestedPrompts: (role: string) =>
+    http<any>(`/ops/role-suggested-prompts?role=${encodeURIComponent(role || "guest")}`),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

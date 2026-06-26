@@ -728,6 +728,17 @@ def main() -> int:
     check("phase 124 endpoint is exposed",
           "/brain/phase-124" in backend_main,
           "Backend must expose the phase 124 Chat role policy marker.")
+    check("phase 125 role-aware chat prompts are wired",
+          "/ops/role-suggested-prompts" in backend_main
+          and "build_role_suggested_prompts" in operations_brain
+          and "roleSuggestedPrompts" in api_frontend
+          and "suggestedPrompts" in (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
+          and "role_aware_chat_prompts" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_125" in experience_brain,
+          "Chat starter prompts must be generated from role policy rather than a single hardcoded list.")
+    check("phase 125 endpoint is exposed",
+          "/brain/phase-125" in backend_main,
+          "Backend must expose the phase 125 role-aware Chat prompts marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2007,6 +2018,34 @@ def main() -> int:
           r.json().get("phase") == 124
           and r.json().get("chat_role_policy_guidance", {}).get("uses_endpoint") == "/ops/role-action-policy"
           and r.json().get("chat_role_policy_guidance", {}).get("shows_owner_only_denials") is True,
+          str(r.json()))
+
+    r = client.get("/ops/role-suggested-prompts?role=resident")
+    check("/ops/role-suggested-prompts returns resident prompts",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("role") == "resident"
+          and any("scheduled task" in p.get("text", "").lower() for p in r.json().get("prompts", []))
+          and not any("dashboard for" in p.get("text", "").lower() for p in r.json().get("prompts", [])),
+          str(r.json()))
+
+    r = client.get("/ops/role-suggested-prompts?role=admin")
+    check("/ops/role-suggested-prompts returns owner prompts",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("role") == "admin"
+          and any("dashboard" in p.get("text", "").lower() for p in r.json().get("prompts", []))
+          and any("setup blockers" in p.get("text", "").lower() for p in r.json().get("prompts", [])),
+          str(r.json()))
+
+    r = client.get("/brain/phase-125")
+    check("/brain/phase-125 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-125 has role-aware prompt marker",
+          r.json().get("phase") == 125
+          and r.json().get("role_aware_chat_prompts", {}).get("source_endpoint") == "/ops/role-suggested-prompts"
+          and r.json().get("role_aware_chat_prompts", {}).get("uses_role_policy") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
