@@ -180,12 +180,16 @@ async def main():
     res = await scanner.scan()
     summ = res["summary"]
     new_ids = summ["new_entities"]["entities"]
-    check("P2 discovery finds new light.new_lamp", "light.new_lamp" in new_ids,
-          str(new_ids))
+    check("P2 discovery smart auto-approves light.new_lamp",
+          "light.new_lamp" in res.get("auto_approved", []),
+          str(res.get("auto_approved", [])))
     # classification of the new lamp
     lamp = next((e for e in res["entities"] if e["entity_id"] == "light.new_lamp"), None)
     check("P2 new lamp suggested_category light",
           lamp and lamp["suggested_category"] == "light")
+    check("P2 new lamp maps as light",
+          lamp and lamp["suggested_mapping"] == "lights" and lamp["auto_approvable"] is True,
+          str(lamp))
     fan_new = next((e for e in res["entities"] if e["entity_id"] == "fan.den_fan"), None)
     check("P2 den fan classified as fan", fan_new and fan_new["likely_device_type"] == "fan")
     check("P2 den fan unavailable but not ignored",
@@ -195,22 +199,28 @@ async def main():
           lock_c and lock_c["risk_level"] == "high")
     phone_c = next((e for e in res["entities"]
                     if e["entity_id"] == "sensor.tpg_iphone17_app_version"), None)
-    check("P2 iPhone sensor classified personal_device",
-          phone_c and phone_c["suggested_category"] == "personal_device",
+    check("P2 iPhone sensor classified personal_device_sensor",
+          phone_c and phone_c["suggested_category"] == "personal_device_sensor",
           str(phone_c))
-    check("P2 iPhone maps to personal_devices",
-          phone_c and phone_c["suggested_mapping"] == "personal_devices",
+    check("P2 iPhone diagnostic maps to generic status only",
+          phone_c and phone_c["suggested_mapping"] == "device_aliases"
+          and phone_c["auto_approvable"] is False,
           str(phone_c))
     check("P2 iPhone diagnostic has no guessed room",
           phone_c and phone_c["likely_room"] is None, str(phone_c))
     phone_bssid = next((e for e in res["entities"]
                         if e["entity_id"] == "sensor.tpg_iphone17_bssid"), None)
-    check("P2 iPhone BSSID classified personal_device",
-          phone_bssid and phone_bssid["suggested_category"] == "personal_device",
+    check("P2 iPhone BSSID classified personal_device_sensor",
+          phone_bssid and phone_bssid["suggested_category"] == "personal_device_sensor",
           str(phone_bssid))
     ipad_c = next((e for e in res["entities"] if e["entity_id"] == "device_tracker.ipad1"), None)
     check("P2 iPad tracker classified personal_device",
           ipad_c and ipad_c["likely_device_type"] == "tablet", str(ipad_c))
+    check("P2 iPad tracker smart auto-approved",
+          ipad_c and ipad_c["suggested_mapping"] == "personal_devices"
+          and ipad_c["auto_approvable"] is True
+          and "device_tracker.ipad1" in res.get("auto_approved", []),
+          str(ipad_c))
     backup_c = next((e for e in res["entities"]
                      if e["entity_id"] == "sensor.backup_backup_manager_state"), None)
     check("P2 backup sensor does not match back yard",
@@ -218,12 +228,16 @@ async def main():
 
     # approve writes overlay + reload exposes it
     from app.discovery import registry
-    registry.approve("light.new_lamp", mapping="device_aliases", room="office",
+    registry.approve("light.new_lamp", mapping="lights", room="office",
                      friendly_name="Office Lamp", aliases=["office lamp"])
     from app.config_loader import reload_config
     cfg = reload_config()
-    check("P2 approve writes config",
+    check("P2 approve writes light alias",
           any(a.entity_id == "light.new_lamp" for a in cfg.devices.device_aliases))
+    office = next((room for room in cfg.devices.rooms if room.id == "office"), None)
+    check("P2 approve writes room light mapping",
+          office is not None and "light.new_lamp" in office.lights,
+          str(office))
 
     # ignore writes avoid
     registry.ignore("media_player.office_tv", reason="duplicate")

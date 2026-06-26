@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.58
+
+- Added smart Discovery automapping for obvious Home Assistant domains: lights, fans, people, and personal device trackers no longer require manual generic mapping.
+- Discovery approvals now write light/fan entities into room mappings and device aliases so room-aware commands work immediately after approval.
+- Mobile/iOS diagnostic sensors are categorized as personal-device diagnostics instead of fake personal devices, reducing noisy manual approval work.
+- Discovery UI now shows clearer smart-map badges and first-class approval labels such as "Approve as light", "Approve as fan", and "Approve as person".
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.57
 
 - Reworked the app navigation into everyday Jarvis surfaces plus an Owner Console hub.

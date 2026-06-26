@@ -55,12 +55,54 @@ _OVERLAY_LIST_KEYS = ["device_aliases", "cameras", "locks", "speakers",
                       "personal_devices", "avoid"]
 
 
+def _humanize_id(value: str) -> str:
+    return " ".join(str(value).replace("_", " ").split()).title()
+
+
+def _merge_room_overlay(base_rooms: list[Any], overlay_rooms: list[Any]) -> list[Any]:
+    if not overlay_rooms:
+        return list(base_rooms or [])
+    merged: list[dict[str, Any]] = [
+        dict(room) for room in (base_rooms or []) if isinstance(room, dict)
+    ]
+    by_id = {room.get("id"): room for room in merged if room.get("id")}
+    for overlay in overlay_rooms:
+        if not isinstance(overlay, dict) or not overlay.get("id"):
+            continue
+        room_id = overlay["id"]
+        room = by_id.get(room_id)
+        if room is None:
+            room = {
+                "id": room_id,
+                "name": overlay.get("name") or _humanize_id(room_id),
+                "aliases": [],
+                "lights": [],
+                "fans": [],
+            }
+            merged.append(room)
+            by_id[room_id] = room
+        for key in ("aliases", "lights", "fans"):
+            values = list(room.get(key, []) or [])
+            for value in overlay.get(key, []) or []:
+                if value not in values:
+                    values.append(value)
+            room[key] = values
+        for key in ("speaker", "camera", "display", "lock", "climate"):
+            if overlay.get(key) and not room.get(key):
+                room[key] = overlay[key]
+    return merged
+
+
 def _merge_overlay(devices: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Merge discovery-approved entries (config/discovered.yaml) into the
     hand-written devices.yaml so approvals never rewrite the original file."""
     if not overlay:
         return devices
     merged = dict(devices)
+    merged["rooms"] = _merge_room_overlay(
+        list(merged.get("rooms", []) or []),
+        list(overlay.get("rooms", []) or []),
+    )
     for key in _OVERLAY_LIST_KEYS:
         extra = overlay.get(key) or []
         if not extra:

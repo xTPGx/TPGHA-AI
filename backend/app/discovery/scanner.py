@@ -56,6 +56,7 @@ async def scan(auto_low_risk: bool = False,
             registry.approve(c.entity_id, mapping=c.suggested_mapping,
                              room=c.likely_room, friendly_name=c.friendly_name,
                              aliases=c.suggested_aliases)
+            c.status = "approved"
             auto_approved.append(c.entity_id)
 
     summary = recommendations.summarize(classifications)

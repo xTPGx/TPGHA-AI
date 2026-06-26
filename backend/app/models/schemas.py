@@ -370,7 +370,7 @@ class ScanRequest(BaseModel):
 
 class ApproveRequest(BaseModel):
     entity_id: str
-    mapping: Optional[str] = None  # device_aliases|cameras|locks|speakers|displays|climate|security_sensors|personal_devices
+    mapping: Optional[str] = None  # device_aliases|lights|fans|person|cameras|locks|speakers|displays|climate|security_sensors|personal_devices
     room: Optional[str] = None
     friendly_name: Optional[str] = None
     aliases: Optional[list[str]] = None
@@ -383,7 +383,7 @@ class IgnoreRequest(BaseModel):
 
 class MapRequest(BaseModel):
     entity_id: str
-    target: str  # speaker|display|camera|security_sensor|lock|climate|personal_device|device
+    target: str  # light|fan|person|speaker|display|camera|security_sensor|lock|climate|personal_device|device
     room: Optional[str] = None
     friendly_name: Optional[str] = None
     aliases: Optional[list[str]] = None

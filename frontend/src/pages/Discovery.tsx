@@ -22,6 +22,9 @@ interface Discovered {
   is_available: boolean;
   is_duplicate_candidate: boolean;
   reason: string;
+  approval_label?: string;
+  auto_approvable?: boolean;
+  confidence?: number;
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -33,6 +36,9 @@ const RISK_COLORS: Record<string, string> = {
 
 const TARGET_LABELS: Record<string, string> = {
   device: "Approve as status",
+  light: "Approve as light",
+  fan: "Approve as fan",
+  person: "Approve as person",
   personal_device: "Map as personal device",
   speaker: "Map as speaker",
   display: "Map as display",
@@ -57,7 +63,12 @@ function roomOf(d: Discovered) {
 function mapTargets(d: Discovered) {
   const category = categoryOf(d);
   const domain = d.domain;
+  if (domain === "light") return ["light", "device"];
+  if (domain === "fan") return ["fan", "device"];
+  if (domain === "person") return ["person", "device"];
+  if (domain === "device_tracker") return ["personal_device", "device"];
   if (category === "personal_device") return ["personal_device", "device"];
+  if (category === "personal_device_sensor") return ["device"];
   if (["system_backup", "diagnostic_sensor", "network", "person"].includes(category)) {
     return ["device"];
   }
@@ -66,7 +77,16 @@ function mapTargets(d: Discovered) {
   if (domain === "climate") return ["climate", "device"];
   if (domain === "binary_sensor") return ["security_sensor", "device"];
   if (domain === "media_player") return ["speaker", "display", "device"];
+  if (domain === "switch") return ["device"];
   return ["device", "speaker", "display", "camera", "security_sensor", "lock", "climate"];
+}
+
+function primaryTarget(d: Discovered) {
+  if (d.domain === "light") return "light";
+  if (d.domain === "fan") return "fan";
+  if (d.domain === "person") return "person";
+  if (d.domain === "device_tracker" || categoryOf(d) === "personal_device") return "personal_device";
+  return "device";
 }
 
 export default function Discovery() {
@@ -256,6 +276,7 @@ function EntityCard({
         <span className="break-all font-mono text-sm text-brand">{d.entity_id}</span>
         <span className={`badge ${RISK_COLORS[d.risk_level] || ""}`}>{d.risk_level}</span>
         <Badge>{prettyCategory(categoryOf(d))}</Badge>
+        {d.auto_approvable && <Badge tone="good">smart map</Badge>}
         {!d.is_available && <Badge tone="warn">unavailable</Badge>}
         {d.is_duplicate_candidate && <Badge tone="warn">duplicate?</Badge>}
       </div>
@@ -264,7 +285,7 @@ function EntityCard({
         <div>Device: <span className="text-slate-300">{d.device_name || "-"}</span></div>
         <div>Room: <span className="text-slate-300">{roomOf(d) || "-"}</span></div>
         <div>Domain: <span className="text-slate-300">{d.domain}</span></div>
-        <div>Mapping: <span className="text-slate-300">{d.suggested_mapping || "device_aliases"}</span></div>
+        <div>Mapping: <span className="text-slate-300">{prettyCategory(d.suggested_mapping || "device_aliases")}</span></div>
       </div>
       <div className="mt-2 text-xs text-slate-500">
         Aliases: {(d.suggested_aliases || []).join(", ") || "-"}
@@ -273,7 +294,7 @@ function EntityCard({
       <div className="mt-3 flex flex-wrap gap-2">
         {mapTargets(d).map((t) => (
           <Button key={t} variant="ghost" className="px-3 py-1.5 text-xs" disabled={busy === d.entity_id} onClick={() => approve(d, t)}>
-            {TARGET_LABELS[t] || `Map as ${t.replace("_", " ")}`}
+            {t === primaryTarget(d) && d.approval_label ? d.approval_label : TARGET_LABELS[t] || `Map as ${t.replace("_", " ")}`}
           </Button>
         ))}
         <Button variant="ghost" className="px-3 py-1.5 text-xs text-rose-200" disabled={busy === d.entity_id} onClick={() => ignore(d)}>

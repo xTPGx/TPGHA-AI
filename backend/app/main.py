@@ -242,7 +242,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.57"
+APP_VERSION = "1.2.58"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -909,6 +909,7 @@ async def discovery_ignore(req: IgnoreRequest):
 
 
 _MAP_TO_SECTION = {
+    "light": "lights", "fan": "fans", "person": "person",
     "speaker": "speakers", "display": "displays", "camera": "cameras",
     "security_sensor": "security_sensors", "lock": "locks",
     "climate": "climate", "personal_device": "personal_devices",

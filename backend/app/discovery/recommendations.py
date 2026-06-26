@@ -32,6 +32,8 @@ def should_auto_approve(c: EntityClassification, auto_low_risk: bool,
         return False
     if c.risk_level in ("high", "critical"):
         return False
+    if c.auto_approvable:
+        return True
     if c.domain in set(auto_domains or []):
         return True
     return bool(auto_low_risk) and c.risk_level == "low"
@@ -48,7 +50,7 @@ def summarize(classifications: list[EntityClassification]) -> dict[str, Any]:
         "risky_entities": [],
     }
     for c in classifications:
-        if c.status == "known":
+        if c.status in ("known", "approved"):
             buckets["known_entities"].append(c.entity_id)
         elif c.status == "ignored":
             buckets["ignored_entities"].append(c.entity_id)

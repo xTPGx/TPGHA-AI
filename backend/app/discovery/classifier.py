@@ -13,11 +13,15 @@ UNAVAILABLE = {"unavailable", "unknown", "none", ""}
 
 # domain -> the devices.yaml section an approved entity should map into.
 _MAPPING_BY_DOMAIN = {
+    "light": "lights",
+    "fan": "fans",
     "camera": "cameras",
     "lock": "locks",
     "climate": "climate",
     "media_player": "speakers",
     "binary_sensor": "security_sensors",
+    "person": "person",
+    "device_tracker": "personal_devices",
 }
 # domain -> high-level category label.
 _CATEGORY_BY_DOMAIN = {
@@ -27,7 +31,8 @@ _CATEGORY_BY_DOMAIN = {
     "binary_sensor": "sensor", "sensor": "sensor", "siren": "siren",
     "vacuum": "vacuum", "scene": "scene", "script": "script",
     "automation": "automation", "person": "person",
-    "device_tracker": "device_tracker", "weather": "weather",
+    "device_tracker": "device_tracker", "device": "device",
+    "weather": "weather",
     "calendar": "calendar", "todo": "todo", "select": "control",
     "number": "control", "humidifier": "climate", "water_heater": "climate",
     "valve": "valve", "button": "button",
@@ -62,6 +67,9 @@ class EntityClassification:
     suggested_aliases: list[str]
     suggested_category: str
     suggested_mapping: str
+    approval_label: str
+    auto_approvable: bool
+    confidence: float
     is_available: bool
     is_duplicate_candidate: bool
     reason: str
@@ -95,7 +103,10 @@ def _contains_phrase(tokens: list[str], phrase: str) -> bool:
     return any(tokens[i:i + len(p)] == p for i in range(len(tokens) - len(p) + 1))
 
 
-def _guess_room(entity_id: str, friendly: str, room_idx: dict[str, str]) -> Optional[str]:
+def _guess_room(entity_id: str, friendly: str, room_idx: dict[str, str],
+                domain: str = "") -> Optional[str]:
+    if domain in {"person", "device_tracker", "weather", "calendar", "todo"}:
+        return None
     raw_text = f"{entity_id} {friendly}".lower().replace(".", " ").replace("_", " ")
     if any(hint.replace("_", " ") in raw_text for hint in _NO_ROOM_HINTS):
         return None
@@ -120,15 +131,19 @@ def _suggest_aliases(friendly: str, room_id: Optional[str], domain: str) -> list
     return list(dict.fromkeys([a for a in out if a]))
 
 
-def _is_personal_device_entity(entity: HAEntity, friendly: str) -> bool:
+def _mobile_signal_text(entity: HAEntity, friendly: str) -> str:
     attrs = entity.attributes or {}
-    text = " ".join([
+    return " ".join([
         entity.entity_id,
         friendly,
         str(attrs.get("device_class") or ""),
         str(attrs.get("icon") or ""),
         str(attrs.get("source_type") or ""),
     ]).lower()
+
+
+def _is_personal_device_entity(entity: HAEntity, friendly: str) -> bool:
+    text = _mobile_signal_text(entity, friendly)
     if entity.domain == "device_tracker":
         return True
     return any(hint in text for hint in _MOBILE_HINTS)
@@ -167,6 +182,8 @@ def _configured_entity_ids(config: AppConfig) -> set[str]:
         ids.add(da.entity_id)
     for ss in d.security_sensors:
         ids.add(ss.entity_id)
+    for pd in d.personal_devices:
+        ids.add(pd.entity_id)
     for r in d.rooms:
         for v in (r.speaker, r.camera, r.display, r.lock, r.climate):
             if v:
@@ -174,6 +191,36 @@ def _configured_entity_ids(config: AppConfig) -> set[str]:
         ids.update(r.lights)
         ids.update(r.fans)
     return ids
+
+
+def _approval_label(mapping: str, category: str, domain: str) -> str:
+    labels = {
+        "lights": "Approve as light",
+        "fans": "Approve as fan",
+        "person": "Approve as person",
+        "personal_devices": "Map as personal device",
+        "cameras": "Map as camera",
+        "locks": "Map as lock",
+        "speakers": "Map as speaker",
+        "displays": "Map as display",
+        "climate": "Map as climate",
+        "security_sensors": "Map as security sensor",
+    }
+    if mapping in labels:
+        return labels[mapping]
+    if category in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
+        return "Approve as diagnostic"
+    if domain == "switch":
+        return "Approve as switch"
+    return "Approve as status"
+
+
+def _auto_approvable(domain: str, category: str, risk: str, duplicate: bool) -> bool:
+    if duplicate or risk in {"high", "critical"}:
+        return False
+    if category in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
+        return False
+    return domain in {"light", "fan", "person", "device_tracker"} or category == "personal_device"
 
 
 def classify(entity: HAEntity, config: AppConfig,
@@ -187,7 +234,7 @@ def classify(entity: HAEntity, config: AppConfig,
     domain = entity.domain
     friendly = entity.friendly_name or entity.entity_id
     is_available = entity.state not in UNAVAILABLE
-    room = _guess_room(entity.entity_id, friendly, room_idx)
+    room = _guess_room(entity.entity_id, friendly, room_idx, domain)
     category = _CATEGORY_BY_DOMAIN.get(domain, "other")
     capability = caps.DOMAIN_CAPABILITIES.get(domain, ["get_status"])
     risk = caps.risk_for_domain(domain)
@@ -195,7 +242,12 @@ def classify(entity: HAEntity, config: AppConfig,
     aliases = _suggest_aliases(friendly, room, domain)
     likely_type = domain
 
-    if _is_personal_device_entity(entity, friendly):
+    if entity.domain in {"sensor", "binary_sensor"} and _is_personal_device_entity(entity, friendly):
+        category = "personal_device_sensor"
+        mapping = "device_aliases"
+        likely_type = "diagnostic_sensor"
+        aliases = list(dict.fromkeys([*aliases, "personal device sensor"]))
+    elif _is_personal_device_entity(entity, friendly):
         platform, device_type = _personal_device_type(entity, friendly)
         category = "personal_device"
         mapping = "personal_devices"
@@ -209,7 +261,7 @@ def classify(entity: HAEntity, config: AppConfig,
     # Duplicate heuristic: an avoided sibling exists, or a known entity shares
     # the same room+domain (likely a duplicate surface like office vs office_tv).
     dup = entity.entity_id in avoid
-    if not dup and not is_known:
+    if not dup and not is_known and domain in {"media_player", "sensor", "binary_sensor"}:
         prefix = entity.entity_id.split(".", 1)[0]
         for other in configured_ids:
             if other.startswith(prefix + ".") and room and room.replace("_", "") in other.replace("_", ""):
@@ -228,6 +280,9 @@ def classify(entity: HAEntity, config: AppConfig,
         reason_bits.append("possible duplicate surface")
     if room:
         reason_bits.append(f"likely room {room}")
+    auto_ok = _auto_approvable(domain, category, risk, dup)
+    if auto_ok:
+        reason_bits.append("safe obvious HA domain auto-map")
 
     return EntityClassification(
         entity_id=entity.entity_id,
@@ -241,6 +296,9 @@ def classify(entity: HAEntity, config: AppConfig,
         suggested_aliases=aliases,
         suggested_category=category,
         suggested_mapping=mapping,
+        approval_label=_approval_label(mapping, category, domain),
+        auto_approvable=auto_ok,
+        confidence=1.0 if domain in _CATEGORY_BY_DOMAIN else 0.65,
         is_available=is_available,
         is_duplicate_candidate=dup,
         reason="; ".join(reason_bits),

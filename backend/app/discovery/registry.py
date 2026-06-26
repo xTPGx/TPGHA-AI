@@ -58,6 +58,18 @@ def _humanize_slug(value: str) -> str:
     return re.sub(r"\s+", " ", value.replace("_", " ")).strip().title()
 
 
+def _room_name(room_id: str) -> str:
+    try:
+        from ..config_loader import get_config
+
+        for room in get_config().devices.rooms:
+            if room.id == room_id:
+                return room.name
+    except Exception:  # noqa: BLE001 - discovery should still write overlay
+        pass
+    return _humanize_slug(room_id)
+
+
 def _derive_device_name(entity_id: str, friendly: str = "") -> str:
     text = f"{entity_id} {friendly}".lower()
     mobile_match = re.search(r"(tpg[ _-]*)?(iphone|ipad|watch|android)[ _-]*([a-z0-9]+)?", text)
@@ -82,10 +94,21 @@ def _derive_device_name(entity_id: str, friendly: str = "") -> str:
 def _semantic_category(entity_id: str, domain: str, category: str = "",
                        friendly: str = "") -> str:
     text = f"{entity_id} {friendly} {category}".lower()
-    if category == "personal_device" or domain == "device_tracker" or any(
-        h in text for h in ("iphone", "ipad", "android", "mobile", "watch")
-    ):
+    if category == "personal_device" and domain in {"sensor", "binary_sensor"}:
+        return "personal_device_sensor"
+    if category == "personal_device" or domain == "device_tracker":
         return "personal_device"
+    if category == "personal_device_sensor":
+        return "personal_device_sensor"
+    if domain in {"sensor", "binary_sensor"} and any(
+        h in text for h in (
+            "app_version", "app version", "bssid", "ssid", "sim_1", "sim 1",
+            "sim_2", "sim 2", "audio_output", "audio output",
+            "location_permission", "location permission", "geocoded_location",
+            "geocoded location", "last_update", "last update",
+        )
+    ):
+        return "personal_device_sensor"
     if domain == "person":
         return "person"
     if "backup" in text:
@@ -103,6 +126,12 @@ def _semantic_category(entity_id: str, domain: str, category: str = "",
 
 
 def _suggested_mapping(category: str, domain: str) -> str:
+    if domain == "light":
+        return "lights"
+    if domain == "fan":
+        return "fans"
+    if category == "person" or domain == "person":
+        return "person"
     if category == "personal_device":
         return "personal_devices"
     if domain == "camera":
@@ -116,6 +145,30 @@ def _suggested_mapping(category: str, domain: str) -> str:
     if domain == "binary_sensor":
         return "security_sensors"
     return "device_aliases"
+
+
+def _approval_label(mapping: str, semantic: str, domain: str) -> str:
+    if mapping == "lights":
+        return "Approve as light"
+    if mapping == "fans":
+        return "Approve as fan"
+    if mapping == "person":
+        return "Approve as person"
+    if mapping == "personal_devices":
+        return "Map as personal device"
+    if semantic in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
+        return "Approve as diagnostic"
+    if domain == "switch":
+        return "Approve as switch"
+    return "Approve as status"
+
+
+def _auto_approvable(domain: str, semantic: str, risk: str, duplicate: bool) -> bool:
+    if duplicate or risk in {"high", "critical"}:
+        return False
+    if semantic in {"diagnostic_sensor", "personal_device_sensor", "network", "system_backup"}:
+        return False
+    return domain in {"light", "fan", "person", "device_tracker"} or semantic == "personal_device"
 
 
 # --------------------------------------------------------------------------
@@ -167,6 +220,7 @@ def _row_dict(r: DiscoveredEntity) -> dict[str, Any]:
                                   r.friendly_name or "")
     device_name = _derive_device_name(r.entity_id, r.friendly_name or "")
     suggested_mapping = _suggested_mapping(semantic, r.domain or "")
+    duplicate = "possible duplicate" in (r.reason or "").lower()
     return {
         "entity_id": r.entity_id, "status": r.status, "domain": r.domain,
         "friendly_name": r.friendly_name, "category": r.category,
@@ -175,11 +229,36 @@ def _row_dict(r: DiscoveredEntity) -> dict[str, Any]:
         "device_name": device_name, "source": "Home Assistant",
         "source_detail": "Home Assistant entity state registry (/api/states)",
         "suggested_mapping": suggested_mapping,
+        "approval_label": _approval_label(suggested_mapping, semantic, r.domain or ""),
+        "auto_approvable": _auto_approvable(
+            r.domain or "", semantic, r.risk_level or "low", duplicate
+        ),
+        "confidence": 1.0 if r.domain else 0.65,
         "risk_level": r.risk_level, "suggested_aliases": aliases,
         "reason": r.reason, "is_available": r.is_available,
-        "is_duplicate_candidate": "possible duplicate" in (r.reason or "").lower(),
+        "is_duplicate_candidate": duplicate,
         "ignore_reason": r.ignore_reason,
     }
+
+
+def _upsert_device_alias(overlay: dict[str, Any], entry: dict[str, Any]) -> None:
+    section = overlay.setdefault("device_aliases", [])
+    section[:] = [e for e in section if e.get("entity_id") != entry.get("entity_id")]
+    section.append(entry)
+
+
+def _upsert_room_member(overlay: dict[str, Any], room: Optional[str],
+                        field: str, entity_id: str) -> None:
+    if not room:
+        return
+    rooms = overlay.setdefault("rooms", [])
+    room_entry = next((r for r in rooms if isinstance(r, dict) and r.get("id") == room), None)
+    if room_entry is None:
+        room_entry = {"id": room, "name": _room_name(room), "aliases": [], "lights": [], "fans": []}
+        rooms.append(room_entry)
+    values = room_entry.setdefault(field, [])
+    if entity_id not in values:
+        values.append(entity_id)
 
 
 # --------------------------------------------------------------------------
@@ -219,6 +298,36 @@ def approve(entity_id: str, mapping: str = "device_aliases",
         entry = {"id": _slug(entity_id), "name": name, "entity_id": entity_id,
                  "owner": None, "platform": platform, "device_type": device_type,
                  "room": room, "aliases": aliases}
+    elif mapping in {"lights", "fans"}:
+        category = "light" if mapping == "lights" else "fan"
+        entry = {"id": _slug(entity_id), "name": name, "entity_id": entity_id,
+                 "domain": domain, "room": room, "category": category,
+                 "aliases": aliases}
+        _upsert_device_alias(overlay, entry)
+        _upsert_room_member(overlay, room, mapping, entity_id)
+        for key in ("avoid", "ignored"):
+            if key in overlay:
+                overlay[key] = [e for e in overlay[key]
+                                if (e if isinstance(e, str) else e.get("entity_id")) != entity_id]
+        write_overlay(overlay)
+        _set_status(entity_id, "approved", room=room or "", friendly=name,
+                    aliases=aliases, mapping=mapping)
+        logger.info("Approved %s into %s", entity_id, mapping)
+        return {"entity_id": entity_id, "mapping": mapping, "entry": entry}
+    elif mapping == "person":
+        entry = {"id": _slug(entity_id), "name": name, "entity_id": entity_id,
+                 "domain": domain, "room": None, "category": "person",
+                 "aliases": aliases}
+        _upsert_device_alias(overlay, entry)
+        for key in ("avoid", "ignored"):
+            if key in overlay:
+                overlay[key] = [e for e in overlay[key]
+                                if (e if isinstance(e, str) else e.get("entity_id")) != entity_id]
+        write_overlay(overlay)
+        _set_status(entity_id, "approved", room="", friendly=name,
+                    aliases=aliases, mapping="person")
+        logger.info("Approved %s into person", entity_id)
+        return {"entity_id": entity_id, "mapping": "person", "entry": entry}
     else:
         mapping = "device_aliases"
         entry = {"id": _slug(entity_id), "name": name, "entity_id": entity_id,
