@@ -122,19 +122,27 @@ from .routine_brain import (
     build_security_routine_brain,
     build_sleep_wake_brain,
 )
+from .operations_brain import (
+    build_backup_recovery_readiness,
+    build_capability_gap_scanner,
+    build_diagnostics_support_pack,
+    build_integration_readiness_matrix,
+    build_jarvis_phase_82_86,
+    build_onboarding_wizard_plan,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.1.6"
+APP_VERSION = "1.1.7"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "media", "security", "rooms", "awareness", "briefings", "routines", "openapi.json",
+    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -1180,6 +1188,36 @@ async def routines_sleep_wake():
 @app.get("/routines/proactive-plan")
 async def routines_proactive_plan():
     return await build_proactive_action_plan(get_config())
+
+
+@app.get("/brain/phase-82-86")
+async def brain_phase_82_86():
+    return await build_jarvis_phase_82_86(get_config(), APP_VERSION)
+
+
+@app.get("/ops/capability-gaps")
+async def ops_capability_gaps():
+    return await build_capability_gap_scanner(get_config())
+
+
+@app.get("/ops/onboarding")
+async def ops_onboarding():
+    return await build_onboarding_wizard_plan(get_config())
+
+
+@app.get("/ops/diagnostics")
+async def ops_diagnostics():
+    return await build_diagnostics_support_pack(get_config(), APP_VERSION)
+
+
+@app.get("/ops/backup-readiness")
+async def ops_backup_readiness():
+    return await build_backup_recovery_readiness(get_config())
+
+
+@app.get("/ops/integration-matrix")
+async def ops_integration_matrix():
+    return await build_integration_readiness_matrix(get_config())
 
 
 @app.get("/ai/providers")

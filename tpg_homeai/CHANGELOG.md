@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.7
+
+- Added Jarvis phases 82-86 operations intelligence.
+- Added capability gap scanner, onboarding wizard plan, diagnostics support pack, backup/recovery readiness, and integration readiness matrix.
+- Added `/ops/capability-gaps`, `/ops/onboarding`, `/ops/diagnostics`, `/ops/backup-readiness`, `/ops/integration-matrix`, and `/brain/phase-82-86` endpoints.
+- Expanded Jarvis Brain readiness with operational deployment layers.
+- Kept the operations layer read-only and support-safe with secrets masked.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.6
 
 - Added Jarvis phases 77-81 for approval-first routine and scene intelligence.

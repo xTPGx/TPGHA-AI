@@ -86,6 +86,21 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "media_players": media_counts["media_players"],
         "modes": len(config.devices.modes),
     }
+    ops_counts = {
+        "ha_configured": settings.ha_configured,
+        "openai_configured": settings.openai_configured,
+        "security_pin": bool(settings.security_pin),
+        "voice_source_ids": sum(
+            1 for source in config.devices.voice_sources
+            if source.source_device_id or source.source_entity_id
+        ),
+        "rooms": len(config.devices.rooms),
+        "music_assistant_routes": sum(
+            1 for speaker in config.devices.speakers if speaker.music_assistant_entity_id
+        ),
+        "weather": _domain_count(graph, "weather"),
+        "pending": pending,
+    }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -449,6 +464,67 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "House State includes the plan for dashboard and chat drill-down.",
             ],
             "next": "Let owners turn selected proposal types into scheduled monitor notifications.",
+        },
+        {
+            "id": "capability_gap_scanner",
+            "title": "Capability Gap Scanner",
+            "status": "ready" if ops_counts["ha_configured"] and ops_counts["openai_configured"] else "partial",
+            "score": 100 if ops_counts["ha_configured"] and ops_counts["openai_configured"] else 76,
+            "evidence": [
+                "Ops endpoints expose missing setup gates before users hit broken behavior.",
+                f"HA configured: {ops_counts['ha_configured']}. OpenAI configured: {ops_counts['openai_configured']}.",
+                f"{ops_counts['pending']} pending discovery approval(s) remain.",
+                "Gaps include HA, OpenAI, security PIN, voice sources, wake words, rooms, music, weather, and house assets.",
+            ],
+            "next": "Use /ops/capability-gaps in setup UI to guide owners through remaining deployment blockers.",
+        },
+        {
+            "id": "onboarding_wizard",
+            "title": "Onboarding Wizard Planner",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Onboarding plan is generated from current capability gaps.",
+                "Required steps cover HA connection, user sync, discovery, rooms, security, voice, and acceptance tests.",
+                "Recommended steps cover Music Assistant and spatial house assets.",
+            ],
+            "next": "Render the onboarding plan as an owner setup checklist with direct links to each config page.",
+        },
+        {
+            "id": "diagnostics_support_pack",
+            "title": "Diagnostics Support Pack",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Diagnostics endpoint returns versions, degraded reasons, safe settings, counts, and key routes.",
+                "Secrets are masked through settings.safe_dict().",
+                "Support packs can explain issues without exposing tokens or API keys.",
+            ],
+            "next": "Add one-click copy/download from the admin setup page.",
+        },
+        {
+            "id": "backup_recovery_readiness",
+            "title": "Backup + Recovery Readiness",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Automation installs already create timestamped automations.yaml backups.",
+                "Ops endpoint reports HA config root, automations path, database URL, config dir, and backup-related entities.",
+                "Recommendations explain when to run HA backups before major generated changes.",
+            ],
+            "next": "Add a pre-install backup reminder before large automation/dashboard installs.",
+        },
+        {
+            "id": "integration_matrix",
+            "title": "Integration Readiness Matrix",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Matrix reports readiness for HA, OpenAI, Ollama, Music Assistant, Browser Mod, Frigate, Nest, Tailscale, Apple/iCloud, and Nabu Casa.",
+                f"{ops_counts['music_assistant_routes']} Music Assistant speaker route(s), {ops_counts['voice_source_ids']} source identity mapping(s), and {ops_counts['weather']} weather entity/entities are visible.",
+                "The matrix is best-effort and uses only safe config/state hints.",
+            ],
+            "next": "Promote matrix issues into setup suggestions when an expected integration is missing.",
         },
         {
             "id": "ha_native_ui",

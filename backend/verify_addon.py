@@ -108,6 +108,7 @@ def main() -> int:
     media_brain = (repo_root / "backend" / "app" / "media_brain.py").read_text(encoding="utf-8")
     situational_brain = (repo_root / "backend" / "app" / "situational_brain.py").read_text(encoding="utf-8")
     routine_brain = (repo_root / "backend" / "app" / "routine_brain.py").read_text(encoding="utf-8")
+    operations_brain = (repo_root / "backend" / "app" / "operations_brain.py").read_text(encoding="utf-8")
     house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
     security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -372,6 +373,34 @@ def main() -> int:
     check("house state includes proactive action plan",
           "proactive_action_plan" in house_state_source,
           "House State should include the approval-first proactive action plan.")
+    check("phases 82-86 operations brain module exists",
+          "build_capability_gap_scanner" in operations_brain
+          and "build_onboarding_wizard_plan" in operations_brain
+          and "build_diagnostics_support_pack" in operations_brain
+          and "build_backup_recovery_readiness" in operations_brain
+          and "build_integration_readiness_matrix" in operations_brain,
+          "Capability gaps, onboarding, diagnostics, backup, and integration readiness must be reusable.")
+    check("operations brain is read-only and support-safe",
+          "safe_for_support" in operations_brain
+          and "secrets_redacted" in operations_brain
+          and "safe_dict()" in operations_brain
+          and "await safe_get_states()" in operations_brain,
+          "Operations intelligence must expose safe diagnostics without secrets or mutations.")
+    check("phases 82-86 endpoints are exposed",
+          "/ops/capability-gaps" in backend_main
+          and "/ops/onboarding" in backend_main
+          and "/ops/diagnostics" in backend_main
+          and "/ops/backup-readiness" in backend_main
+          and "/ops/integration-matrix" in backend_main
+          and "/brain/phase-82-86" in backend_main,
+          "Backend must expose phase 82-86 operations brains as API endpoints.")
+    check("Jarvis Brain includes operations readiness layers",
+          "capability_gap_scanner" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "onboarding_wizard" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "diagnostics_support_pack" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "backup_recovery_readiness" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "integration_matrix" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Readiness UI must show the operational deployment layers.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1003,6 +1032,59 @@ def main() -> int:
     check("/routines/proactive-plan is approval-first",
           r.json().get("policy", {}).get("approval_first") is True
           and r.json().get("policy", {}).get("auto_execute") is False,
+          str(r.json()))
+
+    r = client.get("/brain/phase-82-86")
+    check("/brain/phase-82-86 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-82-86 has operations sections",
+          "capability_gaps" in r.json()
+          and "onboarding" in r.json()
+          and "diagnostics" in r.json()
+          and "backup_recovery" in r.json()
+          and "integration_matrix" in r.json(),
+          str(r.json()))
+
+    r = client.get("/ops/capability-gaps")
+    check("/ops/capability-gaps returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/capability-gaps exposes open gaps and gates",
+          "open_gaps" in r.json() and "all_gates" in r.json() and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/ops/onboarding")
+    check("/ops/onboarding returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/onboarding exposes ordered setup steps",
+          "steps" in r.json() and "next_step" in r.json(),
+          str(r.json()))
+
+    r = client.get("/ops/diagnostics")
+    check("/ops/diagnostics returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/diagnostics is support-safe",
+          r.json().get("safe_for_support") is True
+          and r.json().get("secrets_redacted") is True
+          and "settings" in r.json()
+          and "counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/ops/backup-readiness")
+    check("/ops/backup-readiness returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/backup-readiness exposes recovery paths",
+          "automations_yaml" in r.json()
+          and "config_dir" in r.json()
+          and "recommendations" in r.json(),
+          str(r.json()))
+
+    r = client.get("/ops/integration-matrix")
+    check("/ops/integration-matrix returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/integration-matrix lists major integrations",
+          "integrations" in r.json()
+          and any(item.get("id") == "home_assistant" for item in r.json().get("integrations", []))
+          and any(item.get("id") == "openai" for item in r.json().get("integrations", [])),
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")
