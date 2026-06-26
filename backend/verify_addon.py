@@ -574,6 +574,15 @@ def main() -> int:
     check("phase 108 endpoint is exposed",
           "/brain/phase-108" in backend_main,
           "Backend must expose the phase 108 acceptance triage readiness marker.")
+    check("phase 109 setup release blocker panel is wired",
+          "Release blockers" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "api.releaseChecklist" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_release_blockers" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_109" in experience_brain,
+          "Setup must surface formal release blockers with links to the management pages that clear them.")
+    check("phase 109 endpoint is exposed",
+          "/brain/phase-109" in backend_main,
+          "Backend must expose the phase 109 setup release blocker readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1593,6 +1602,16 @@ def main() -> int:
           and r.json().get("acceptance_triage_filters", {}).get("default_filter") == "attention"
           and "missing_evidence" in r.json().get("acceptance_triage_filters", {}).get("filters", [])
           and "dry_run" in r.json().get("acceptance_triage_filters", {}).get("filters", []),
+          str(r.json()))
+
+    r = client.get("/brain/phase-109")
+    check("/brain/phase-109 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-109 has setup release blocker marker",
+          r.json().get("phase") == 109
+          and r.json().get("setup_release_blockers", {}).get("surface") == "Setup page"
+          and r.json().get("setup_release_blockers", {}).get("uses_formal_release_checklist") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

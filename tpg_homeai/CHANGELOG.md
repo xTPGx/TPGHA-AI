@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.13
+
+- Added Jarvis phase 109 Setup release blocker panel.
+- Setup now surfaces failed release gates and live-house blockers from the formal release/completion checks.
+- Added targeted links from each release blocker to the likely management page needed to clear it.
+- Added `/brain/phase-109` and Jarvis Brain readiness evidence for the Setup release blocker layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.12
 
 - Added Jarvis phase 108 acceptance triage filters for the Brain Live Acceptance panel.

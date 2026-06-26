@@ -743,6 +743,24 @@ async def build_jarvis_phase_108(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_109(config: AppConfig, version: str) -> dict[str, Any]:
+    checklist = await build_release_checklist(config, version)
+    return {
+        "status": checklist["status"],
+        "version": version,
+        "phase": 109,
+        "setup_release_blockers": {
+            "surface": "Setup page",
+            "release_status": checklist["status"],
+            "failed_gates": checklist["blockers"],
+            "ship_rule": checklist["ship_rule"],
+            "links_to_management_pages": True,
+            "uses_formal_release_checklist": True,
+        },
+        "guardrail": "Phase 109 only surfaces release blockers in Setup; it never changes Home Assistant or device state.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

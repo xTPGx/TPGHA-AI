@@ -816,6 +816,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Surface release blockers in the owner setup dashboard.",
         },
         {
+            "id": "setup_release_blockers",
+            "title": "Setup Release Blockers",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page displays failed release gates and live-house blockers together.",
+                "Each blocker links to the management area most likely to clear it.",
+                "The panel uses the same formal release checklist as the release API.",
+            ],
+            "next": "Add one-click owner runbook steps for clearing each blocker when the workflow stabilizes.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

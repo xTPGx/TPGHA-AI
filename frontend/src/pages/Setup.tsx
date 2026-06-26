@@ -7,6 +7,7 @@ export default function Setup() {
   const [health, setHealth] = useState<any>(null);
   const [cfg, setCfg] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
+  const [release, setRelease] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -16,10 +17,11 @@ export default function Setup() {
 
   const load = async () => {
     try {
-      const [h, c, done, v, runtime, assets] = await Promise.all([
+      const [h, c, done, releaseChecklist, v, runtime, assets] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
+        api.releaseChecklist(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -27,6 +29,7 @@ export default function Setup() {
       setHealth(h);
       setCfg(c);
       setCompletion(done);
+      setRelease(releaseChecklist);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -141,6 +144,8 @@ export default function Setup() {
         <Stat label="Pending discovery" value={health?.discovery?.pending_count ?? "—"} />
       </div>
 
+      <ReleaseBlockersPanel release={release} completion={completion} />
+
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {checks.map((check) => (
           <Link key={check.title} to={check.to} className="card block hover:border-brand/60">
@@ -156,6 +161,86 @@ export default function Setup() {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ReleaseBlockersPanel({ release, completion }: { release: any; completion: any }) {
+  const failedChecks = (release?.checks || []).filter((check: any) => !check.pass);
+  const liveBlockers = completion?.blockers || [];
+  const ready = failedChecks.length === 0 && liveBlockers.length === 0;
+  const targetForCheck = (checkId: string) => {
+    const targets: Record<string, string> = {
+      ha_connected: "/ha",
+      openai_configured: "/assistants",
+      security_pin: "/permissions",
+      voice_acceptance: "/assistants",
+      device_acceptance: "/discovery",
+      interaction_quality: "/dashboard",
+      version_aligned: "/",
+    };
+    return targets[checkId] || "/brain";
+  };
+  const targetForBlocker = (blocker: string) => {
+    const text = blocker.toLowerCase();
+    if (text.includes("voice")) return "/assistants";
+    if (text.includes("pin") || text.includes("security")) return "/permissions";
+    if (text.includes("pending") || text.includes("approval") || text.includes("entity")) return "/discovery";
+    if (text.includes("openai")) return "/assistants";
+    if (text.includes("home assistant") || text.includes("ha ")) return "/ha";
+    return "/brain";
+  };
+
+  return (
+    <div className={`card mb-6 ${ready ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Release blockers</div>
+          <div className="text-sm text-slate-400">
+            Setup now mirrors the formal release checklist so owners can clear the exact gates blocking Jarvis.
+          </div>
+        </div>
+        <span className={`badge ${ready ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {ready ? "ready" : `${failedChecks.length + liveBlockers.length} to clear`}
+        </span>
+      </div>
+
+      {ready ? (
+        <div className="rounded border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+          No release blockers are currently reported. Keep acceptance evidence current before calling the live house complete.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {failedChecks.map((check: any) => (
+            <Link key={check.id} to={targetForCheck(check.id)} className="rounded border border-slate-800 bg-slate-950/30 p-3 hover:border-brand/60">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-100">{check.title}</div>
+                  <div className="mt-1 text-sm text-slate-400">{check.detail}</div>
+                </div>
+                <span className="badge bg-amber-500/10 text-amber-200">release gate</span>
+              </div>
+            </Link>
+          ))}
+          {liveBlockers.map((blocker: string) => (
+            <Link key={blocker} to={targetForBlocker(blocker)} className="rounded border border-slate-800 bg-slate-950/30 p-3 hover:border-brand/60">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-100">{blocker}</div>
+                  <div className="mt-1 text-sm text-slate-400">Live-house deployment blocker from the Jarvis completion gate.</div>
+                </div>
+                <span className="badge bg-amber-500/10 text-amber-200">live house</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {release?.ship_rule && (
+        <div className="mt-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-300">
+          {release.ship_rule}
+        </div>
+      )}
     </div>
   );
 }
