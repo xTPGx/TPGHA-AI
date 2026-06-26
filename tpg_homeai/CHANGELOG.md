@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.60
+
+- Added a shared TPG console design system with neon/glass panels, sharper controls, and consistent cyan/violet product styling.
+- Reworked Chat into a more ChatGPT-like workspace with a stronger conversation rail, cleaner assistant identity, responsive history drawer, centered empty state, and polished composer.
+- Updated chat notes, follow-ups, confirmation metadata, shell chrome, buttons, badges, and the floating AI launcher to match the new visual language.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.59
 
 - Added shared entity intelligence for smart Jarvis names, aliases, Browser Mod roles, and offline health explanations.

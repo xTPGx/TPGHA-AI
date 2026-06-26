@@ -10,7 +10,7 @@ export default function Badge({
   className?: string;
 }) {
   const tones = {
-    brand: "border-sky-400/30 bg-sky-400/10 text-sky-200",
+    brand: "border-cyan-400/35 bg-cyan-400/10 text-cyan-100",
     good: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
     warn: "border-amber-400/30 bg-amber-400/10 text-amber-200",
     danger: "border-rose-400/30 bg-rose-400/10 text-rose-200",

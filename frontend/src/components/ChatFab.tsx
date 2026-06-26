@@ -77,7 +77,7 @@ export default function ChatFab({ canUseChat }: { canUseChat: boolean }) {
 
   return (
     <button
-      className={`fixed z-50 flex h-16 w-16 touch-none select-none items-center justify-center rounded-full border border-white/20 bg-white text-sm font-bold text-black shadow-[0_18px_50px_rgba(0,0,0,0.45)] transition hover:scale-105 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-white/70 ${dragging ? "cursor-grabbing scale-105" : "cursor-grab"}`}
+      className={`fixed z-50 flex h-16 w-16 touch-none select-none items-center justify-center rounded-full border border-cyan-200/50 bg-cyan-300 text-sm font-bold text-[#03101d] shadow-[0_18px_50px_rgba(0,0,0,0.45),0_0_34px_rgba(25,211,230,0.24)] transition hover:scale-105 hover:bg-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-100/80 ${dragging ? "cursor-grabbing scale-105" : "cursor-grab"}`}
       style={{ left: position.x, top: position.y }}
       aria-label="Open TPG HomeAI chat"
       title="Drag to move. Tap to open chat."

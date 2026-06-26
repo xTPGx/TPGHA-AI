@@ -1099,30 +1099,30 @@ export default function Chat() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 bg-[#0a0a0a] text-slate-100">
-      <aside className="hidden w-[18rem] shrink-0 border-r border-white/10 bg-[#0f0f0f] md:block">
+    <div className="tpg-chat-layout relative flex h-full min-h-0 text-slate-100">
+      <aside className="hidden w-[21rem] shrink-0 border-r border-cyan-300/10 bg-[#050914]/95 lg:block">
         {sidebar}
       </aside>
 
       {historyOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <button className="absolute inset-0 bg-black/60" onClick={() => setHistoryOpen(false)} aria-label="Close chat history" />
-          <aside className="relative h-full w-[min(21rem,88vw)] border-r border-white/10 bg-[#0f0f0f] shadow-2xl">
+          <aside className="relative h-full w-[min(22rem,88vw)] border-r border-cyan-300/10 bg-[#050914] shadow-2xl">
             {sidebar}
           </aside>
         </div>
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[#0a0a0a]/95 px-3 backdrop-blur sm:px-5">
+        <header className="flex h-[4.5rem] shrink-0 items-center justify-between border-b border-cyan-300/10 bg-[#050914]/92 px-3 backdrop-blur sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <button className="chat-icon-btn md:hidden" onClick={() => setHistoryOpen(true)} aria-label="Open chat history">
+            <button className="chat-icon-btn lg:hidden" onClick={() => setHistoryOpen(true)} aria-label="Open chat history">
               <span className="block h-0.5 w-5 rounded bg-current" />
               <span className="block h-0.5 w-5 rounded bg-current" />
               <span className="block h-0.5 w-5 rounded bg-current" />
             </button>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-100 sm:text-base">{selectedAssistant?.name || "TPG HomeAI"}</div>
+              <div className="tpg-glow-text truncate text-sm font-semibold sm:text-base">{selectedAssistant?.name || "TPG HomeAI"}</div>
               <div className="truncate text-xs text-slate-500">{selectedUser?.name || "Home Assistant user"} profile</div>
             </div>
           </div>
@@ -1154,12 +1154,12 @@ export default function Chat() {
           </div>
         </header>
 
-        {error && <div className="mx-4 mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
+        {error && <div className="mx-4 mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
         {voiceError && (
-          <div className="mx-4 mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <div className="mx-4 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
             <div>{voiceError}</div>
             <button
-              className="mt-3 rounded-lg border border-amber-300/30 px-3 py-1.5 text-xs font-semibold text-amber-50 hover:bg-amber-300/10"
+              className="mt-3 rounded-md border border-amber-300/30 px-3 py-1.5 text-xs font-semibold text-amber-50 hover:bg-amber-300/10"
               onClick={async () => setVoiceError(await microphoneReadinessReport())}
             >
               Diagnose mic
@@ -1189,7 +1189,7 @@ export default function Chat() {
         ) : (
           <>
             <section className="relative min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-6" onScroll={handleChatScroll}>
-              <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
+              <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col">
                 {messages.length === 0 && (
                   <EmptyState
                     assistantName={selectedAssistant?.name || "TPG HomeAI"}
@@ -1224,7 +1224,7 @@ export default function Chat() {
               </div>
               {!stuckToBottom && (
                 <button
-                  className="fixed bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[#171717] px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg transition hover:border-white/25 hover:bg-[#222]"
+                  className="fixed bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border border-cyan-300/20 bg-[#081225] px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg transition hover:border-cyan-300/50 hover:bg-[#0d1b34]"
                   onClick={jumpToLatest}
                 >
                   Jump to latest
@@ -1232,7 +1232,7 @@ export default function Chat() {
               )}
             </section>
 
-            <div className="shrink-0 border-t border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:px-6">
+            <div className="shrink-0 border-t border-cyan-300/10 bg-[#050914]/92 px-3 py-3 backdrop-blur sm:px-6">
               {followups.length > 0 && (
                 <ChatFollowups
                   followups={followups}
@@ -1241,7 +1241,7 @@ export default function Chat() {
                 />
               )}
               {panelMode && (
-                <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-xs">
+                <div className="mx-auto mb-2 flex max-w-4xl flex-wrap items-center gap-2 text-xs">
                   <span className={`inline-flex h-2.5 w-2.5 rounded-full ${panelListening ? "animate-pulse bg-emerald-400" : "bg-slate-600"}`} />
                   <span className="text-slate-400">
                     {panelListening
@@ -1249,7 +1249,7 @@ export default function Chat() {
                       : "Panel mode paused"}
                   </span>
                   <input
-                    className="ml-auto w-32 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-white/30"
+                    className="ml-auto w-32 rounded-md border border-cyan-300/15 bg-black/30 px-2 py-1 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-300/45"
                     value={panelRoom}
                     onChange={(e) => setPanelRoom(e.target.value)}
                     placeholder="Room (optional)"
@@ -1258,7 +1258,7 @@ export default function Chat() {
                   {panelHeard && <span className="w-full truncate text-slate-500">heard: {panelHeard}</span>}
                 </div>
               )}
-              <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-white/10 bg-[#171717] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.4)]">
+              <div className="tpg-composer mx-auto flex max-w-4xl items-end gap-2 p-2">
                 <button
                   className={`chat-icon-btn shrink-0 ${micState === "recording" ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
                   onClick={() => void toggleListening()}
@@ -1302,11 +1302,11 @@ function ChatFollowups({
   onPreference: (followup: any, state: "pinned" | "dismissed") => void;
 }) {
   return (
-    <div className="mx-auto mb-2 flex max-w-3xl gap-2 overflow-x-auto pb-1">
+    <div className="mx-auto mb-2 flex max-w-4xl gap-2 overflow-x-auto pb-1">
       {followups.slice(0, 4).map((followup) => (
         <div
           key={followup.id || followup.text}
-          className="group flex shrink-0 items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
+          className="group flex shrink-0 items-center overflow-hidden rounded-full border border-cyan-300/15 bg-cyan-300/[0.04] text-xs font-medium text-slate-300 transition hover:border-cyan-300/40 hover:bg-cyan-300/[0.08] hover:text-slate-100"
         >
           <button
             className="min-w-0 px-3 py-1.5"
@@ -1317,14 +1317,14 @@ function ChatFollowups({
             {followup.text || String(followup)}
           </button>
           <button
-            className="border-l border-white/10 px-2 py-1.5 text-[11px] text-slate-500 opacity-0 transition hover:text-sky-200 group-hover:opacity-100"
+            className="border-l border-cyan-300/10 px-2 py-1.5 text-[11px] text-slate-500 opacity-0 transition hover:text-sky-200 group-hover:opacity-100"
             onClick={() => onPreference(followup, "pinned")}
             title="Pin this follow-up for this assistant profile"
           >
             Pin
           </button>
           <button
-            className="border-l border-white/10 px-2 py-1.5 text-[11px] text-slate-500 opacity-0 transition hover:text-rose-200 group-hover:opacity-100"
+            className="border-l border-cyan-300/10 px-2 py-1.5 text-[11px] text-slate-500 opacity-0 transition hover:text-rose-200 group-hover:opacity-100"
             onClick={() => onPreference(followup, "dismissed")}
             title="Hide this follow-up for this assistant profile"
           >
@@ -1355,7 +1355,7 @@ function VoiceSessionBar({
       ? "Transcribing"
       : "Last voice input";
   return (
-    <div className="mx-4 mt-4 rounded-2xl border border-white/10 bg-[#111827]/80 p-3 text-sm text-slate-200">
+    <div className="mx-4 mt-4 rounded-lg border border-cyan-300/15 bg-[#0b1427]/80 p-3 text-sm text-slate-200">
       <div className="flex flex-wrap items-center gap-3">
         <span className={`h-2.5 w-2.5 rounded-full ${listening ? "animate-pulse bg-rose-400" : "bg-sky-400"}`} />
         <span className="font-semibold">{label}</span>
@@ -1372,7 +1372,7 @@ function VoiceSessionBar({
         )}
         {micState !== "idle" && (
           <button
-            className="ml-auto rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-rose-300/40 hover:bg-rose-500/10 hover:text-rose-100"
+            className="ml-auto rounded-md border border-cyan-300/15 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-rose-300/40 hover:bg-rose-500/10 hover:text-rose-100"
             onClick={cancelVoiceInput}
           >
             Cancel
@@ -1380,7 +1380,7 @@ function VoiceSessionBar({
         )}
       </div>
       {lastTranscript && (
-        <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-400">
+        <div className="mt-2 rounded-lg border border-cyan-300/15 bg-black/20 px-3 py-2 text-xs text-slate-400">
           Heard: <span className="text-slate-200">{lastTranscript}</span>
         </div>
       )}
@@ -1421,35 +1421,42 @@ function ConversationRail({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col p-3">
-      <div className="mb-3 flex items-center justify-between gap-2 md:hidden">
+      <div className="mb-3 flex items-center justify-between gap-2 lg:hidden">
         <div className="text-sm font-semibold text-slate-100">Workspace</div>
         <button className="chat-pill" onClick={close}>Close</button>
       </div>
-      <button className="mb-3 min-h-11 rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-white/90" onClick={newChat}>
+      <button className="tpg-neon-button mb-3 min-h-11" onClick={newChat}>
         New chat
       </button>
-      <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+      <div className="tpg-segmented mb-3 grid-cols-2">
         <button
-          className={`rounded-lg px-3 py-2 text-sm transition ${activeTab === "chat" ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-100"}`}
+          className={`tpg-segment ${activeTab === "chat" ? "tpg-segment-active" : "text-slate-400 hover:text-slate-100"}`}
           onClick={() => setActiveTab("chat")}
         >
           Chat
         </button>
         <button
-          className={`rounded-lg px-3 py-2 text-sm transition ${activeTab === "notebook" ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-100"}`}
+          className={`tpg-segment ${activeTab === "notebook" ? "tpg-segment-active" : "text-slate-400 hover:text-slate-100"}`}
           onClick={() => setActiveTab("notebook")}
         >
           Notes
         </button>
       </div>
-      <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-        <div className="truncate text-sm font-semibold text-slate-100">{selectedAssistant?.name || "Assistant"}</div>
-        <div className="mt-1 truncate text-xs text-slate-500">{selectedUser?.name || "HA user"} · {sessionRole}</div>
+      <div className="tpg-panel-flat mb-4 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-100">{selectedAssistant?.name || "Assistant"}</div>
+            <div className="mt-1 truncate text-xs text-slate-500">{selectedUser?.name || "HA user"} · {sessionRole}</div>
+          </div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-300/10 text-xs font-bold text-cyan-100">
+            AI
+          </div>
+        </div>
         <button
-          className={`mt-3 w-full rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+          className={`mt-3 w-full rounded-md border px-3 py-2 text-xs font-semibold transition ${
             speakResponses
               ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100"
-              : "border-white/10 bg-black/20 text-slate-300"
+              : "border-cyan-300/15 bg-black/20 text-slate-300"
           }`}
           onClick={() => setSpeakResponses(!speakResponses)}
         >
@@ -1462,8 +1469,8 @@ function ConversationRail({
         {conversations.map((item) => (
           <div
             key={item.conversation_id}
-            className={`group flex w-full items-start gap-2 rounded-xl px-3 py-2.5 transition ${
-              item.conversation_id === conversationId ? "bg-white/10 text-slate-100" : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100"
+            className={`group tpg-rail-item flex w-full items-start gap-2 ${
+              item.conversation_id === conversationId ? "tpg-rail-item-active text-slate-100" : "text-slate-400 hover:border-cyan-300/25 hover:bg-cyan-300/[0.04] hover:text-slate-100"
             }`}
           >
             <button
@@ -1474,7 +1481,7 @@ function ConversationRail({
               <div className="mt-1 text-xs text-slate-600 group-hover:text-slate-500">{item.message_count} messages · {item.note_count} notes</div>
             </button>
             <button
-              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-500 opacity-0 transition hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-200 group-hover:opacity-100 focus:opacity-100"
+              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent text-slate-500 opacity-0 transition hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-200 group-hover:opacity-100 focus:opacity-100"
               onClick={(event) => {
                 event.stopPropagation();
                 void deleteConversation(item.conversation_id);
@@ -1486,7 +1493,7 @@ function ConversationRail({
             </button>
           </div>
         ))}
-        {conversations.length === 0 && <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-500">No saved chats yet.</div>}
+        {conversations.length === 0 && <div className="rounded-lg border border-cyan-300/15 bg-black/20 p-3 text-sm text-slate-500">No saved chats yet.</div>}
       </div>
     </div>
   );
@@ -1495,7 +1502,7 @@ function ConversationRail({
 function RolePolicyMini({ policy }: { policy: any }) {
   if (!policy?.highlights?.length) return null;
   return (
-    <div className="mb-4 rounded-xl border border-white/10 bg-black/20 p-3">
+    <div className="tpg-panel-flat mb-4 p-3">
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">This login can</div>
       <div className="space-y-2">
         {policy.highlights.slice(0, 4).map((item: any) => (
@@ -1523,16 +1530,17 @@ function EmptyState({ assistantName, prompts, onPrompt }: { assistantName: strin
   return (
     <div className="flex flex-1 flex-col justify-center py-10">
       <div className="mb-8 text-center">
-        <div className="text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">{assistantName}</div>
-        <div className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-400">
-          Ask anything, brainstorm, manage the house, or create Home Assistant changes from natural language.
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-300/10 text-sm font-bold text-cyan-100 shadow-[0_0_34px_rgba(25,211,230,0.20)]">
+          AI
         </div>
+        <div className="tpg-glow-text text-3xl font-semibold tracking-tight sm:text-4xl">{assistantName}</div>
+        <div className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-400">Ready when you are.</div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {promptList.map((prompt) => (
           <button
             key={prompt.id || prompt.text}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
+            className="tpg-panel-flat p-4 text-left text-sm text-slate-300 transition hover:border-cyan-300/45 hover:bg-cyan-300/[0.05] hover:text-slate-100"
             onClick={() => onPrompt(quickPrompt(prompt.text || String(prompt)))}
           >
             <span className="block">{prompt.text || String(prompt)}</span>
@@ -1569,8 +1577,13 @@ function MessageBubble({
   const isUser = message.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[min(42rem,92%)] ${isUser ? "chat-user-bubble" : "chat-assistant-bubble"}`}>
-        {message.mode && !isUser && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{message.mode}</div>}
+      {!isUser && (
+        <div className="mr-3 mt-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-300/10 text-[10px] font-bold text-cyan-100 sm:flex">
+          AI
+        </div>
+      )}
+      <div className={`max-w-[min(46rem,92%)] ${isUser ? "chat-user-bubble" : "chat-assistant-bubble"}`}>
+        {message.mode && !isUser && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-200/80">{message.mode}</div>}
         {isUser ? (
           <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
         ) : (
@@ -1582,7 +1595,7 @@ function MessageBubble({
         )}
 
         {message.command && (
-          <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-slate-300">
+          <div className="mt-3 space-y-2 rounded-lg border border-cyan-300/15 bg-black/25 p-3 text-xs text-slate-300">
             <div className="flex flex-wrap gap-2">
               {message.command.intent && <Badge tone="brand">{message.command.intent}</Badge>}
               {message.command.data?.policy?.decision && <Badge>{message.command.data.policy.decision}</Badge>}
@@ -1623,7 +1636,7 @@ function MessageBubble({
         )}
 
         {message.kind === "confirmation" && message.command?.confirmation_token && (
-          <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+          <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3">
             <div className="font-semibold text-amber-100">Confirm action</div>
             <div className="mt-1 text-xs text-amber-100/80">Review the target and confirm only if it is correct.</div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -1645,7 +1658,7 @@ function RoleDeniedCard({ policy }: { policy: any }) {
   const role = String(policy?.actual_role || "this login").replace(/_/g, " ");
   const required = String(policy?.required_role || "owner/admin").replace(/_/g, " ");
   return (
-    <div className="mt-3 rounded-xl border border-amber-400/35 bg-amber-500/10 p-3 text-xs text-amber-50">
+    <div className="mt-3 rounded-lg border border-amber-400/35 bg-amber-500/10 p-3 text-xs text-amber-50">
       <div className="font-semibold">Owner-only change blocked</div>
       <div className="mt-1 text-amber-100/80">
         This session is {role}; this action needs {required}. I can still help brainstorm it, but I will not change dashboards,
@@ -1675,7 +1688,7 @@ function NotebookPanel({
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-6">
       <div className="mx-auto max-w-4xl space-y-4">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="tpg-panel p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate text-lg font-semibold text-slate-100">{detail?.messages?.[0]?.message || "Current conversation"}</div>
@@ -1685,11 +1698,11 @@ function NotebookPanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="tpg-panel p-4">
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Transcript</div>
           <div className="max-h-[28rem] space-y-3 overflow-auto pr-1">
             {(detail?.messages || []).map((message: any) => (
-              <div key={message.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div key={message.id} className="rounded-lg border border-cyan-300/15 bg-black/20 p-3">
                 <div className="mb-2 text-xs text-slate-500">{message.created_at}</div>
                 <div className="mb-2 text-sm text-slate-200"><span className="text-slate-500">User:</span> {message.message}</div>
                 <div className="whitespace-pre-wrap text-sm text-slate-300"><span className="text-slate-500">Assistant:</span> {message.response}</div>
@@ -1699,11 +1712,11 @@ function NotebookPanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="tpg-panel p-4">
           <div className="mb-3 text-lg font-semibold text-slate-100">Notes</div>
           <div className="mb-4 space-y-2">
             {(detail?.notes || []).map((n: any) => (
-              <div key={n.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div key={n.id} className="rounded-lg border border-cyan-300/15 bg-black/20 p-3">
                 <div className="text-sm font-semibold text-slate-200">{n.title}</div>
                 <div className="mt-1 whitespace-pre-wrap text-sm text-slate-400">{n.body}</div>
               </div>

@@ -50,12 +50,12 @@ export default function AppShell({
   }, [open]);
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden bg-[#08090d] text-slate-100">
-      <header className="compact-header sticky top-0 z-40 border-b border-white/10 bg-[#0f0f0f]/95 px-3 py-2 backdrop-blur xl:hidden">
+    <div className="app-shell tpg-console min-h-screen overflow-x-hidden text-slate-100">
+      <header className="compact-header sticky top-0 z-40 border-b border-cyan-300/10 bg-[#050914]/92 px-3 py-2 backdrop-blur xl:hidden">
         <div className="flex min-h-12 items-center justify-between gap-3">
           {canGoBack && (
             <button
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-cyan-300/15 bg-[#091225] text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
               onClick={() => navigate(-1)}
               aria-label="Go back"
             >
@@ -63,7 +63,7 @@ export default function AppShell({
             </button>
           )}
           <button
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-cyan-300/15 bg-[#091225] text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-300/50"
             onClick={() => setOpen(true)}
             aria-label="Open navigation"
           >
@@ -74,17 +74,17 @@ export default function AppShell({
             </span>
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-slate-100">TPG HomeAI</div>
+            <div className="tpg-glow-text truncate text-sm font-bold">TPG HomeAI</div>
             <div className="truncate text-xs text-slate-500">{sessionUser?.name || "House"} · {roleLabel(role)}</div>
           </div>
-          <div className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs text-slate-200">
+          <div className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-xs text-cyan-100">
             AI
           </div>
         </div>
       </header>
 
       <div className="flex min-h-screen min-w-0">
-        <aside className="wide-sidebar hidden w-[15.5rem] shrink-0 border-r border-white/10 bg-[#0d0f14]/95 p-3 backdrop-blur xl:block">
+        <aside className="wide-sidebar hidden w-[16rem] shrink-0 border-r border-cyan-300/10 bg-[#050914]/92 p-3 backdrop-blur xl:block">
           <ShellNav
             navGroups={navGroups}
             role={role}
@@ -106,10 +106,10 @@ export default function AppShell({
               onClick={() => setOpen(false)}
               aria-label="Close navigation"
             />
-            <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-white/10 bg-[#0f0f0f] p-4 shadow-2xl">
+            <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-cyan-300/10 bg-[#050914] p-4 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <div className="text-lg font-bold text-slate-100">TPG HomeAI</div>
+                  <div className="tpg-glow-text text-lg font-bold">TPG HomeAI</div>
                   <div className="text-xs text-slate-500">Smart-home AI</div>
                 </div>
                 <button className="btn-ghost min-h-11" onClick={() => setOpen(false)}>Close</button>
@@ -137,7 +137,7 @@ export default function AppShell({
           }>
             {canGoBack && !isChatWorkspace && (
               <button
-                className="mb-4 hidden min-h-11 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-sky-400/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300/70 xl:inline-flex"
+                className="tpg-ghost-button mb-4 hidden min-h-11 xl:inline-flex"
                 onClick={() => navigate(-1)}
               >
                 Back
@@ -179,14 +179,14 @@ function ShellNav({
   return (
     <div className="flex min-h-full flex-col">
       <div className="mb-5 hidden xl:block">
-        <div className="text-base font-bold text-slate-100">TPG HomeAI</div>
+        <div className="tpg-glow-text text-base font-bold">TPG HomeAI</div>
         <div className="text-xs text-slate-500">Jarvis command center</div>
       </div>
 
       {sessionUser && (
-        <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.035] p-3">
+        <div className="tpg-panel-flat mb-5 p-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-xs font-bold text-slate-100">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-cyan-300/25 bg-cyan-300/10 text-xs font-bold text-cyan-100">
               {(sessionUser.name || "H").slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -195,17 +195,17 @@ function ShellNav({
             </div>
           </div>
           {haUserCandidates.length > 0 && (
-            <div className="mt-2 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-slate-400">
+            <div className="mt-2 rounded-md border border-cyan-300/15 bg-black/20 px-2 py-1 text-[11px] text-slate-400">
               HA login: {haUserCandidates.join(", ")}
             </div>
           )}
           {unknownHaUser && (
-            <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+            <div className="mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
               Add this HA username as an alias to the right TPG user.
             </div>
           )}
           {identityWarning && (
-            <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+            <div className="mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
               {identityWarning}
             </div>
           )}
@@ -237,10 +237,10 @@ function ShellNav({
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `min-h-10 rounded-xl px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/30 ${
+                    `min-h-10 rounded-lg px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-cyan-300/35 ${
                       isActive
-                        ? "bg-white/12 text-white"
-                        : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+                        ? "border border-cyan-300/35 bg-cyan-300/[0.10] text-cyan-50 shadow-[inset_3px_0_0_rgba(25,211,230,0.9)]"
+                        : "border border-transparent text-slate-400 hover:border-cyan-300/15 hover:bg-cyan-300/[0.04] hover:text-white"
                     }`
                   }
                 >
