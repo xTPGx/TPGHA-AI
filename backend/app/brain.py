@@ -1128,6 +1128,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release status history so owners can compare readiness across updates.",
         },
         {
+            "id": "release_status_history",
+            "title": "Release Status History",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history lists owner-saved release readiness snapshots.",
+                "/release/status-history/snapshot records the current checklist with version, status, gate counts, and blockers.",
+                "Owner Dashboard can save and review recent release snapshots without altering Home Assistant or release gates.",
+            ],
+            "next": "Add release comparison export so owners can compare readiness across multiple versions.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

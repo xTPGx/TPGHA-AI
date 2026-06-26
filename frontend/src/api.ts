@@ -223,6 +223,9 @@ export const api = {
   liveAcceptanceReport: () => http<any>("/experience/live-acceptance/report"),
   liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
   releaseChecklist: () => http<any>("/release/checklist"),
+  releaseStatusHistory: () => http<any>("/release/status-history"),
+  saveReleaseStatusSnapshot: () =>
+    http<any>("/release/status-history/snapshot", { method: "POST" }),
   releaseRunbook: () => http<any>("/release/runbook"),
   capabilityGaps: () => http<any>("/ops/capability-gaps"),
   onboardingPlan: () => http<any>("/ops/onboarding"),

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.39
+
+- Added Jarvis phase 135 release status history.
+- Added persisted release status snapshots with version, status, blocker, and gate counts.
+- Added `/release/status-history`, `/release/status-history/snapshot`, and `/brain/phase-135`.
+- Added owner Dashboard controls to save and review release readiness snapshots.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.38
 
 - Added Jarvis phase 134 owner Dashboard release status.

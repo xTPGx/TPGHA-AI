@@ -103,6 +103,7 @@ def main() -> int:
     users_frontend = (repo_root / "frontend" / "src" / "pages" / "Users.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    db_models = (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
     control_actions = (repo_root / "backend" / "app" / "actions" / "control.py").read_text(encoding="utf-8")
     climate_actions = (repo_root / "backend" / "app" / "actions" / "climate.py").read_text(encoding="utf-8")
     device_adapters = (repo_root / "backend" / "app" / "device_adapters.py").read_text(encoding="utf-8")
@@ -842,6 +843,19 @@ def main() -> int:
     check("phase 134 endpoint is exposed",
           "/brain/phase-134" in backend_main,
           "Backend must expose the phase 134 dashboard release status marker.")
+    check("phase 135 release status history is wired",
+          "ReleaseStatusSnapshot" in db_models
+          and "/release/status-history" in backend_main
+          and "/release/status-history/snapshot" in backend_main
+          and "Save status snapshot" in dashboard_frontend
+          and "api.releaseStatusHistory" in dashboard_frontend
+          and "api.saveReleaseStatusSnapshot" in dashboard_frontend
+          and "release_status_history" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_135" in experience_brain,
+          "Owners need persisted release status snapshots and Dashboard history controls.")
+    check("phase 135 endpoint is exposed",
+          "/brain/phase-135" in backend_main,
+          "Backend must expose the phase 135 release status history marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2360,6 +2374,30 @@ def main() -> int:
           r.json().get("phase") == 134
           and r.json().get("dashboard_release_status", {}).get("owner_only") is True
           and "Copy release checklist" in r.json().get("dashboard_release_status", {}).get("actions", []),
+          str(r.json()))
+
+    r = client.post("/release/status-history/snapshot")
+    check("/release/status-history/snapshot records snapshot",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("recorded") is True
+          and r.json().get("snapshot", {}).get("version") == APP_VERSION,
+          str(r.json()))
+    r = client.get("/release/status-history")
+    check("/release/status-history returns saved snapshots",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("count", 0) >= 1
+          and r.json().get("snapshots", [{}])[0].get("counts", {}).get("checks", 0) >= 1,
+          str(r.json()))
+    r = client.get("/brain/phase-135")
+    check("/brain/phase-135 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-135 has release history marker",
+          r.json().get("phase") == 135
+          and r.json().get("release_status_history", {}).get("history_endpoint") == "/release/status-history"
+          and "Save status snapshot" in r.json().get("release_status_history", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

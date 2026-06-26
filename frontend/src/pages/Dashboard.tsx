@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [session, setSession] = useState<any>(null);
   const [actionPlan, setActionPlan] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
+  const [releaseHistory, setReleaseHistory] = useState<any>(null);
   const [releaseMessage, setReleaseMessage] = useState("");
   const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
@@ -46,16 +47,23 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
-          setRelease(await api.releaseChecklist());
+          const [releaseChecklist, history] = await Promise.all([
+            api.releaseChecklist(),
+            api.releaseStatusHistory(),
+          ]);
+          setRelease(releaseChecklist);
+          setReleaseHistory(history);
         } else {
           setActionPlan(null);
           setRelease(null);
+          setReleaseHistory(null);
         }
       } catch {
         setSession(null);
         setRoleSummary(null);
         setActionPlan(null);
         setRelease(null);
+        setReleaseHistory(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -106,6 +114,18 @@ export default function Dashboard() {
     anchor.click();
     URL.revokeObjectURL(url);
     setReleaseMessage("Release checklist downloaded.");
+  };
+
+  const saveReleaseSnapshot = async () => {
+    setReleaseMessage("Saving release snapshot...");
+    try {
+      const saved = await api.saveReleaseStatusSnapshot();
+      if (saved?.checklist) setRelease(saved.checklist);
+      setReleaseHistory(await api.releaseStatusHistory());
+      setReleaseMessage("Release snapshot saved.");
+    } catch (e: any) {
+      setReleaseMessage(`Snapshot failed: ${e?.message || String(e)}`);
+    }
   };
 
   const ha = health?.home_assistant;
@@ -162,9 +182,11 @@ export default function Dashboard() {
         <>
           <DashboardReleaseStatus
             release={release}
+            history={releaseHistory}
             message={releaseMessage}
             onCopy={copyReleaseChecklist}
             onDownload={downloadReleaseChecklist}
+            onSnapshot={saveReleaseSnapshot}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -332,17 +354,22 @@ function DashboardActionPlan({ actionPlan }: { actionPlan: any }) {
 
 function DashboardReleaseStatus({
   release,
+  history,
   message,
   onCopy,
   onDownload,
+  onSnapshot,
 }: {
   release: any;
+  history: any;
   message: string;
   onCopy: () => void;
   onDownload: () => void;
+  onSnapshot: () => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
+  const snapshots = history?.snapshots || [];
   return (
     <div className={`card ${failed.length ? "border-amber-500/30" : "border-emerald-500/30"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -353,6 +380,7 @@ function DashboardReleaseStatus({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={onSnapshot}>Save status snapshot</Button>
           <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>
           <Button variant="ghost" onClick={onDownload}>Download release checklist</Button>
           <Link to="/setup" className="btn-ghost">Open Setup</Link>
@@ -367,6 +395,25 @@ function DashboardReleaseStatus({
               <div className="mt-1 text-sm text-slate-400">{check.detail}</div>
             </div>
           ))}
+        </div>
+      )}
+      {!!snapshots.length && (
+        <div className="mt-4">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Release history</div>
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+            {snapshots.slice(0, 3).map((snapshot: any) => (
+              <div key={snapshot.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-semibold text-slate-100">v{snapshot.version || "current"}</div>
+                  <Badge tone={snapshot.status === "ready" ? "good" : "warn"}>{snapshot.status || "unknown"}</Badge>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{fmtTs(snapshot.created_at)}</div>
+                <div className="mt-2 text-sm text-slate-400">
+                  {snapshot.counts?.passed ?? 0}/{snapshot.counts?.checks ?? 0} gates passing - {snapshot.counts?.blockers ?? 0} blockers
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {message && <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}

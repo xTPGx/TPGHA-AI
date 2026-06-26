@@ -156,6 +156,21 @@ class ArchivedConversation(Base):
     archived_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+class ReleaseStatusSnapshot(Base):
+    """Point-in-time release readiness history for owner review."""
+
+    __tablename__ = "release_status_snapshot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)
+    version: Mapped[str] = mapped_column(String(32), default="")
+    status: Mapped[str] = mapped_column(String(32), default="unknown")
+    blocker_count: Mapped[int] = mapped_column(Integer, default=0)
+    check_count: Mapped[int] = mapped_column(Integer, default=0)
+    passed_count: Mapped[int] = mapped_column(Integer, default=0)
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+
+
 class FollowupPreference(Base):
     """Per-profile follow-up prompt preference.
 

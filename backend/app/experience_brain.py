@@ -7,7 +7,14 @@ from collections import Counter
 from typing import Any
 
 from .db.database import get_session
-from .db.models import AcceptanceRun, CommandLog, ConversationNote, ConversationState, Suggestion
+from .db.models import (
+    AcceptanceRun,
+    CommandLog,
+    ConversationNote,
+    ConversationState,
+    ReleaseStatusSnapshot,
+    Suggestion,
+)
 from .homeassistant.services import safe_get_states
 from .knowledge import build_house_graph
 from .models.schemas import AcceptanceResultRequest, AppConfig
@@ -607,6 +614,66 @@ def _release_checklist_markdown(checklist: dict[str, Any]) -> str:
     if checklist.get("ship_rule"):
         lines.extend(["", f"Ship rule: {checklist.get('ship_rule')}"])
     return "\n".join(lines).strip() + "\n"
+
+
+def list_release_status_snapshots(limit: int = 20) -> dict[str, Any]:
+    limit = max(1, min(limit, 50))
+    with get_session() as session:
+        rows = (
+            session.query(ReleaseStatusSnapshot)
+            .order_by(ReleaseStatusSnapshot.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+    snapshots = [_release_snapshot_card(row) for row in rows]
+    return {
+        "status": "ready",
+        "count": len(snapshots),
+        "snapshots": snapshots,
+    }
+
+
+async def record_release_status_snapshot(config: AppConfig, version: str) -> dict[str, Any]:
+    checklist = await build_release_checklist(config, version)
+    checks = checklist.get("checks", []) or []
+    row = ReleaseStatusSnapshot(
+        version=version,
+        status=str(checklist.get("status") or "unknown"),
+        blocker_count=len(checklist.get("blockers", []) or []),
+        check_count=len(checks),
+        passed_count=sum(1 for check in checks if check.get("pass")),
+        payload=json.dumps(checklist, sort_keys=True),
+    )
+    with get_session() as session:
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+        snapshot = _release_snapshot_card(row)
+    return {
+        "recorded": True,
+        "snapshot": snapshot,
+        "checklist": checklist,
+    }
+
+
+def _release_snapshot_card(row: ReleaseStatusSnapshot) -> dict[str, Any]:
+    try:
+        payload = json.loads(row.payload or "{}")
+    except Exception:
+        payload = {}
+    created_at = row.created_at.isoformat() if row.created_at else ""
+    return {
+        "id": row.id,
+        "created_at": created_at,
+        "version": row.version,
+        "status": row.status,
+        "counts": {
+            "checks": row.check_count,
+            "passed": row.passed_count,
+            "blockers": row.blocker_count,
+        },
+        "blockers": payload.get("blockers", []) or [],
+    }
 
 
 async def build_operational_runbook(config: AppConfig, version: str) -> dict[str, Any]:
@@ -1295,6 +1362,21 @@ async def build_jarvis_phase_134(version: str) -> dict[str, Any]:
             "links_to_setup": True,
         },
         "guardrail": "Phase 134 keeps release status owner-visible and read-only on the Dashboard.",
+    }
+
+
+async def build_jarvis_phase_135(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 135,
+        "release_status_history": {
+            "history_endpoint": "/release/status-history",
+            "snapshot_endpoint": "/release/status-history/snapshot",
+            "owner_only_ui": True,
+            "dashboard_actions": ["Save status snapshot", "View release history"],
+        },
+        "guardrail": "Phase 135 stores release status snapshots for owner review without changing release gates or device behavior.",
     }
 
 
