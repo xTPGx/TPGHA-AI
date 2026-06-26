@@ -718,6 +718,31 @@ async def build_jarvis_phase_107(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_108(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 108,
+        "acceptance_triage_filters": {
+            "surface": "Brain Live Acceptance panel",
+            "default_filter": "attention",
+            "filters": [
+                "all",
+                "attention",
+                "missing_evidence",
+                "passed",
+                "owner",
+                "resident",
+                "dry_run",
+                "read_only",
+            ],
+            "shows_match_count": True,
+            "keeps_copy_download_available": True,
+        },
+        "guardrail": "Phase 108 only filters release acceptance evidence for owner triage; it never executes device actions.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

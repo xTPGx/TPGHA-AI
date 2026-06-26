@@ -261,6 +261,33 @@ function LiveAcceptancePanel({
   const repairSummary = report?.acceptance_repairs?.summary || {};
   const resolutionSummary = report?.acceptance_resolutions?.summary || {};
   const unrepairedTests = report?.acceptance_repairs?.unrepaired_test_ids || [];
+  const [filter, setFilter] = useState<
+    "all" | "attention" | "missing" | "passed" | "owner" | "resident" | "dry_run" | "read_only"
+  >("attention");
+  const needsAttention = (test: any) => {
+    const latestStatus = latestByTest[test.id]?.status;
+    return test.status === "blocked" || !latestStatus || ["failed", "blocked"].includes(latestStatus);
+  };
+  const filterOptions = [
+    { id: "all", label: "All", count: tests.length },
+    { id: "attention", label: "Attention", count: tests.filter(needsAttention).length },
+    { id: "missing", label: "Missing evidence", count: tests.filter((test: any) => !latestByTest[test.id]?.status).length },
+    { id: "passed", label: "Passed", count: tests.filter((test: any) => latestByTest[test.id]?.status === "passed").length },
+    { id: "owner", label: "Owner", count: tests.filter((test: any) => test.required_role === "owner").length },
+    { id: "resident", label: "Resident", count: tests.filter((test: any) => test.required_role === "resident").length },
+    { id: "dry_run", label: "Dry-run", count: tests.filter((test: any) => test.mode === "dry_run_required").length },
+    { id: "read_only", label: "Read-only", count: tests.filter((test: any) => test.mode === "read_only_probe").length },
+  ];
+  const filteredTests = tests.filter((test: any) => {
+    if (filter === "attention") return needsAttention(test);
+    if (filter === "missing") return !latestByTest[test.id]?.status;
+    if (filter === "passed") return latestByTest[test.id]?.status === "passed";
+    if (filter === "owner") return test.required_role === "owner";
+    if (filter === "resident") return test.required_role === "resident";
+    if (filter === "dry_run") return test.mode === "dry_run_required";
+    if (filter === "read_only") return test.mode === "read_only_probe";
+    return true;
+  });
   return (
     <div className="card mb-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -333,8 +360,38 @@ function LiveAcceptancePanel({
         </div>
       )}
 
+      <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-100">Acceptance triage filters</div>
+            <div className="text-xs text-slate-500">
+              Start with attention, then drill into role, mode, or evidence status before release.
+            </div>
+          </div>
+          <span className="badge bg-slate-800 text-slate-200">
+            showing {filteredTests.length}/{tests.length}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {filterOptions.map((option) => (
+            <button
+              key={option.id}
+              className={filter === option.id ? "btn" : "btn-ghost"}
+              onClick={() => setFilter(option.id as typeof filter)}
+            >
+              {option.label} ({option.count})
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="space-y-2">
-        {tests.map((test: any) => {
+        {filteredTests.length === 0 && (
+          <div className="rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
+            No acceptance checks match this filter.
+          </div>
+        )}
+        {filteredTests.map((test: any) => {
           const latest = latestByTest[test.id];
           return (
             <div key={test.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">

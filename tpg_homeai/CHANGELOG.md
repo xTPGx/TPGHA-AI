@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.12
+
+- Added Jarvis phase 108 acceptance triage filters for the Brain Live Acceptance panel.
+- Brain owners can filter acceptance checks by attention, missing evidence, passed evidence, owner role, resident role, dry-run checks, and read-only probes.
+- Added `/brain/phase-108` for traceable acceptance triage UI readiness.
+- Added Jarvis Brain readiness evidence for the acceptance triage filter layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.11
 
 - Added Jarvis phase 107 acceptance packet UI summary.

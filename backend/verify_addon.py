@@ -564,6 +564,16 @@ def main() -> int:
           "/brain/phase-107" in backend_main
           and "build_jarvis_phase_107" in experience_brain,
           "Backend must expose the phase 107 UI readiness marker.")
+    check("phase 108 acceptance triage filters are wired",
+          "Acceptance triage filters" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Missing evidence" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Dry-run" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "acceptance_triage_filters" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_108" in experience_brain,
+          "Brain UI must let owners filter live acceptance checks by release-triage state.")
+    check("phase 108 endpoint is exposed",
+          "/brain/phase-108" in backend_main,
+          "Backend must expose the phase 108 acceptance triage readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1572,6 +1582,17 @@ def main() -> int:
           r.json().get("phase") == 107
           and r.json().get("ui_acceptance_packet", {}).get("shows_role_acceptance") is True
           and r.json().get("ui_acceptance_packet", {}).get("shows_active_repairs") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-108")
+    check("/brain/phase-108 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-108 has acceptance triage filters",
+          r.json().get("phase") == 108
+          and r.json().get("acceptance_triage_filters", {}).get("default_filter") == "attention"
+          and "missing_evidence" in r.json().get("acceptance_triage_filters", {}).get("filters", [])
+          and "dry_run" in r.json().get("acceptance_triage_filters", {}).get("filters", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

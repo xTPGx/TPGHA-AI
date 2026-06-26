@@ -792,6 +792,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add owner filters for required versus optional acceptance checks if the checklist grows too large.",
         },
         {
+            "id": "acceptance_triage_filters",
+            "title": "Acceptance Triage Filters",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Brain Live Acceptance defaults to an attention-first triage view.",
+                "Owners can filter checks by missing evidence, passed evidence, role boundary, dry-run work, or read-only probes.",
+                "The filtered view keeps acceptance record buttons, copy report, and Markdown download available.",
+            ],
+            "next": "Persist the owner's last triage filter if the acceptance workflow becomes a daily operational tool.",
+        },
+        {
             "id": "release_checklist",
             "title": "Release Checklist",
             "status": "ready",
