@@ -486,6 +486,12 @@ def main() -> int:
     check("Jarvis Brain includes acceptance evidence readiness layer",
           "acceptance_evidence_journal" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
           "Readiness UI must show whether real-house acceptance evidence exists.")
+    check("phase 99 frontend live acceptance panel is wired",
+          "liveAcceptance" in api_frontend
+          and "recordLiveAcceptanceResult" in api_frontend
+          and "LiveAcceptancePanel" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Latest evidence" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8"),
+          "Brain UI must expose the live acceptance plan and evidence recording.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")

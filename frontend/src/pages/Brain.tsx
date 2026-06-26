@@ -15,18 +15,22 @@ export default function Brain() {
   const [brain, setBrain] = useState<any>(null);
   const [providers, setProviders] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
+  const [acceptance, setAcceptance] = useState<any>(null);
+  const [acceptanceBusy, setAcceptanceBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const [brainResult, providerResult, completionResult] = await Promise.all([
+      const [brainResult, providerResult, completionResult, acceptanceResult] = await Promise.all([
         api.brainLayers(),
         api.aiProviders(),
         api.completionStatus(),
+        api.liveAcceptance(),
       ]);
       setBrain(brainResult);
       setProviders(providerResult);
       setCompletion(completionResult);
+      setAcceptance(acceptanceResult);
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -36,6 +40,23 @@ export default function Brain() {
   useEffect(() => {
     void load();
   }, []);
+
+  const recordAcceptance = async (testId: string, status: "passed" | "failed" | "blocked" | "skipped") => {
+    setAcceptanceBusy(`${testId}:${status}`);
+    try {
+      await api.recordLiveAcceptanceResult({
+        test_id: testId,
+        status,
+        notes: `Marked ${status} from the Brain acceptance UI.`,
+        evidence: { source: "brain_ui", mutating: false },
+      });
+      await load();
+    } catch (e: any) {
+      setError(e.message || String(e));
+    } finally {
+      setAcceptanceBusy(null);
+    }
+  };
 
   return (
     <div>
@@ -134,6 +155,14 @@ export default function Brain() {
         </div>
       )}
 
+      {acceptance && (
+        <LiveAcceptancePanel
+          acceptance={acceptance}
+          busy={acceptanceBusy}
+          onRecord={recordAcceptance}
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {(brain?.layers || []).map((layer: any) => (
           <div key={layer.id} className="card">
@@ -169,6 +198,95 @@ export default function Brain() {
       {!brain && !error && <div className="card text-slate-400">Loading brain map…</div>}
         </>
       )}
+    </div>
+  );
+}
+
+function LiveAcceptancePanel({
+  acceptance,
+  busy,
+  onRecord,
+}: {
+  acceptance: any;
+  busy: string | null;
+  onRecord: (testId: string, status: "passed" | "failed" | "blocked" | "skipped") => void;
+}) {
+  const tests = acceptance.tests || [];
+  const evidence = acceptance.evidence || {};
+  const latestByTest = evidence.latest_by_test || {};
+  return (
+    <div className="card mb-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Live Acceptance</div>
+          <div className="text-sm text-slate-400">
+            Read-only readiness checks plus human-run evidence for the real house.
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="badge bg-emerald-500/10 text-emerald-200">
+            read only
+          </span>
+          <span className="badge bg-cyan-500/10 text-cyan-200">
+            {acceptance.summary?.ready ?? 0}/{acceptance.summary?.total ?? tests.length} ready
+          </span>
+          <span className="badge bg-slate-800 text-slate-200">
+            {evidence.count || 0} evidence
+          </span>
+        </div>
+      </div>
+
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <MiniStat label="Read-only probes" value={acceptance.summary?.read_only ?? 0} />
+        <MiniStat label="Dry-run checks" value={acceptance.summary?.dry_run_required ?? 0} />
+        <MiniStat label="Blocked" value={acceptance.summary?.blocked ?? 0} />
+        <MiniStat label="Sensitive" value={acceptance.summary?.sensitive ?? 0} />
+        <MiniStat label="Recorded" value={evidence.count || 0} />
+      </div>
+
+      {acceptance.policy?.executes_actions === false && (
+        <div className="mb-3 rounded border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          This runner never executes device actions. Mutating checks must be performed intentionally by a human.
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {tests.map((test: any) => {
+          const latest = latestByTest[test.id];
+          return (
+            <div key={test.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-100">{test.title}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {test.domain} · {test.mode} · {test.required_role}
+                    {test.sample_entity_id ? ` · ${test.sample_entity_id}` : ""}
+                  </div>
+                  <div className="mt-2 text-sm text-slate-300">{test.command_example}</div>
+                  {latest && (
+                    <div className="mt-2 text-xs text-slate-400">
+                      Latest evidence: <span className="text-slate-200">{latest.status}</span>
+                      {latest.user ? ` by ${latest.user}` : ""} on {latest.version || "unknown version"}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(["passed", "failed", "blocked", "skipped"] as const).map((status) => (
+                    <button
+                      key={status}
+                      className={status === "passed" ? "btn" : "btn-ghost"}
+                      disabled={busy === `${test.id}:${status}`}
+                      onClick={() => onRecord(test.id, status)}
+                    >
+                      {busy === `${test.id}:${status}` ? "Saving" : status}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

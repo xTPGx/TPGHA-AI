@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.3
+
+- Added Jarvis phase 99 live acceptance UI.
+- Added frontend API helpers for live acceptance plans and evidence recording.
+- Brain page now shows the live acceptance checklist, safety policy, readiness counts, latest evidence, and pass/fail/blocked/skipped controls.
+- Added verifier coverage for the new Brain live acceptance panel wiring.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.2
 
 - Added Jarvis phase 98 acceptance evidence journal.

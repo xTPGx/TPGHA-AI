@@ -219,6 +219,13 @@ export const api = {
     return http<any>("/voice/transcribe", { method: "POST", body: form });
   },
   aiProviders: () => http<any>("/ai/providers"),
+  liveAcceptance: () => http<any>("/experience/live-acceptance"),
+  liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
+  recordLiveAcceptanceResult: (body: Record<string, any>) =>
+    http<any>("/experience/live-acceptance/results", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   memories: (status?: string, owner?: string) => {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
