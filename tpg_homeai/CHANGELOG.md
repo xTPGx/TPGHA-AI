@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.53
+
+- Added Jarvis phase 149 full release packet.
+- Added `/release/packet` to bundle checklist, decisions, metrics, recommendations, and runbook Markdown.
+- Added owner Dashboard actions to copy and download the full release packet.
+- Added `/brain/phase-149` readiness marker.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.52
 
 - Added Jarvis phase 148 release recommendation export packet.

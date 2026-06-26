@@ -1296,6 +1296,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release packet bundling that includes checklist, decisions, metrics, recommendations, and runbook together.",
         },
         {
+            "id": "release_packet_bundle",
+            "title": "Release Packet Bundle",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/packet bundles checklist, decisions, metrics, recommendations, and runbook into one Markdown packet.",
+                "Owner Dashboard exposes copy and download actions for the full release packet.",
+                "The packet reuses existing release evidence instead of generating a separate source of truth.",
+            ],
+            "next": "Add release packet manifest metadata so exported packets show exactly which evidence sections are present.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

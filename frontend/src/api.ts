@@ -223,6 +223,7 @@ export const api = {
   liveAcceptanceReport: () => http<any>("/experience/live-acceptance/report"),
   liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
   releaseChecklist: () => http<any>("/release/checklist"),
+  releasePacket: () => http<any>("/release/packet"),
   releaseStatusHistory: () => http<any>("/release/status-history"),
   releaseHistoryComparison: () => http<any>("/release/status-history/compare"),
   releaseStatusFilter: (decision = "all") =>

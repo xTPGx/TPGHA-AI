@@ -965,6 +965,44 @@ def build_release_recommendation_export(limit: int = 50) -> dict[str, Any]:
     }
 
 
+async def build_release_packet(config: AppConfig, version: str, limit: int = 50) -> dict[str, Any]:
+    checklist = await build_release_checklist(config, version)
+    runbook = await build_operational_runbook(config, version)
+    decisions = build_release_decision_digest(limit=limit)
+    metrics = build_release_status_metrics(limit=limit)
+    recommendations = build_release_recommendation_export(limit=limit)
+    markdown = "\n".join([
+        f"# TPG HomeAI Full Release Packet {version}",
+        "",
+        "## Checklist",
+        (checklist.get("markdown") or "").strip(),
+        "",
+        "## Decisions",
+        (decisions.get("markdown") or "").strip(),
+        "",
+        "## Metrics",
+        (metrics.get("markdown") or "").strip(),
+        "",
+        "## Recommendations",
+        (recommendations.get("markdown") or "").strip(),
+        "",
+        "## Runbook",
+        (runbook.get("markdown") or "").strip(),
+        "",
+    ]).strip() + "\n"
+    return {
+        "status": "attention" if checklist.get("status") != "ready" else "ready",
+        "version": version,
+        "generated_at": dt.datetime.utcnow().isoformat() + "Z",
+        "checklist": checklist,
+        "decisions": decisions,
+        "metrics": metrics,
+        "recommendations": recommendations,
+        "runbook": runbook,
+        "markdown": markdown,
+    }
+
+
 def save_release_recommendation_state(recommendation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     recommendation_id = str(recommendation_id or "")[:128]
     if not recommendation_id:
@@ -2213,6 +2251,21 @@ async def build_jarvis_phase_148(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Copy recommendation packet", "Download recommendation packet"],
         },
         "guardrail": "Phase 148 exports release recommendation evidence without changing owner state, snapshots, or live-house data.",
+    }
+
+
+async def build_jarvis_phase_149(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 149,
+        "release_packet": {
+            "endpoint": "/release/packet",
+            "format": "markdown",
+            "includes": ["checklist", "decision_digest", "metrics", "recommendations", "runbook"],
+            "dashboard_actions": ["Copy full release packet", "Download full release packet"],
+        },
+        "guardrail": "Phase 149 bundles existing release evidence into one packet without changing release state or live-house data.",
     }
 
 

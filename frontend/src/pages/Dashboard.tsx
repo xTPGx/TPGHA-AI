@@ -353,6 +353,33 @@ export default function Dashboard() {
     }
   };
 
+  const copyFullReleasePacket = async () => {
+    try {
+      const packet = await api.releasePacket();
+      await navigator.clipboard.writeText(packet.markdown || JSON.stringify(packet, null, 2));
+      setReleaseMessage("Full release packet copied.");
+    } catch (e: any) {
+      setReleaseMessage(`Full release packet copy failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const downloadFullReleasePacket = async () => {
+    try {
+      const packet = await api.releasePacket();
+      const body = packet.markdown || JSON.stringify(packet, null, 2);
+      const blob = new Blob([body], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `tpg-homeai-full-release-packet-${release?.version || "current"}.md`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setReleaseMessage("Full release packet downloaded.");
+    } catch (e: any) {
+      setReleaseMessage(`Full release packet download failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const changeReleaseDecisionFilter = async (decision: ReleaseDecisionFilter) => {
     setReleaseDecisionFilter(decision);
     try {
@@ -472,6 +499,8 @@ export default function Dashboard() {
             onDownloadDecisionDigest={downloadDecisionDigest}
             onCopyRecommendationPacket={copyRecommendationPacket}
             onDownloadRecommendationPacket={downloadRecommendationPacket}
+            onCopyFullReleasePacket={copyFullReleasePacket}
+            onDownloadFullReleasePacket={downloadFullReleasePacket}
             onDecisionFilter={changeReleaseDecisionFilter}
             onSearchTermChange={setReleaseSearchTerm}
             onSearch={searchReleaseHistory}
@@ -668,6 +697,8 @@ function DashboardReleaseStatus({
   onDownloadDecisionDigest,
   onCopyRecommendationPacket,
   onDownloadRecommendationPacket,
+  onCopyFullReleasePacket,
+  onDownloadFullReleasePacket,
   onDecisionFilter,
   onSearchTermChange,
   onSearch,
@@ -699,6 +730,8 @@ function DashboardReleaseStatus({
   onDownloadDecisionDigest: () => void;
   onCopyRecommendationPacket: () => void;
   onDownloadRecommendationPacket: () => void;
+  onCopyFullReleasePacket: () => void;
+  onDownloadFullReleasePacket: () => void;
   onDecisionFilter: (decision: ReleaseDecisionFilter) => void;
   onSearchTermChange: (value: string) => void;
   onSearch: () => void;
@@ -731,6 +764,8 @@ function DashboardReleaseStatus({
           <Button variant="ghost" onClick={onDownloadDecisionDigest} disabled={!decisionDigest}>Download decision digest</Button>
           <Button variant="ghost" onClick={onCopyRecommendationPacket}>Copy recommendation packet</Button>
           <Button variant="ghost" onClick={onDownloadRecommendationPacket}>Download recommendation packet</Button>
+          <Button variant="ghost" onClick={onCopyFullReleasePacket}>Copy full release packet</Button>
+          <Button variant="ghost" onClick={onDownloadFullReleasePacket}>Download full release packet</Button>
           <Button variant="ghost" onClick={onPreviewPrune} disabled={!snapshots.length}>Preview prune history</Button>
           <Button variant="ghost" onClick={onPrune} disabled={snapshots.length <= 20}>Prune old snapshots</Button>
           <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>
