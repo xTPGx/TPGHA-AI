@@ -48,6 +48,7 @@ from .models.schemas import (
     ConfirmRequest,
     DashboardDraftRequest,
     DraftUpdateRequest,
+    FollowupPreferenceCleanupRequest,
     FollowupPreferenceRequest,
     ConversationNoteRequest,
     IgnoreRequest,
@@ -132,6 +133,7 @@ from .operations_brain import (
     build_jarvis_phase_82_86,
     build_chat_followups,
     build_profile_tuning_export,
+    cleanup_chat_followup_preferences,
     list_chat_followup_preferences,
     build_onboarding_wizard_plan,
     build_role_prompt_insights,
@@ -184,6 +186,7 @@ from .experience_brain import (
     build_jarvis_phase_127,
     build_jarvis_phase_128,
     build_jarvis_phase_129,
+    build_jarvis_phase_130,
     list_live_acceptance_results,
     build_live_acceptance_report,
     build_live_acceptance_runner,
@@ -200,7 +203,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.33"
+APP_VERSION = "1.2.34"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1342,6 +1345,16 @@ async def ops_save_chat_followup_preference(payload: FollowupPreferenceRequest):
     )
 
 
+@app.post("/ops/chat-followups/preferences/cleanup")
+async def ops_cleanup_chat_followup_preferences(payload: FollowupPreferenceCleanupRequest):
+    return cleanup_chat_followup_preferences(
+        user=payload.user,
+        assistant=payload.assistant,
+        max_age_days=payload.max_age_days,
+        apply=payload.apply,
+    )
+
+
 @app.get("/ops/profile-tuning-export")
 async def ops_profile_tuning_export(user: str = "", assistant: str = ""):
     return build_profile_tuning_export(get_config(), user=user, assistant=assistant)
@@ -1525,6 +1538,11 @@ async def brain_phase_128():
 @app.get("/brain/phase-129")
 async def brain_phase_129():
     return await build_jarvis_phase_129(APP_VERSION)
+
+
+@app.get("/brain/phase-130")
+async def brain_phase_130():
+    return await build_jarvis_phase_130(APP_VERSION)
 
 
 @app.get("/experience/interaction-quality")

@@ -1171,6 +1171,21 @@ async def build_jarvis_phase_129(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_130(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 130,
+        "followup_preference_cleanup": {
+            "source_endpoint": "/ops/chat-followups/preferences/cleanup",
+            "dry_run_default": True,
+            "only_dismissed": True,
+            "pinned_protected": True,
+        },
+        "guardrail": "Phase 130 cleanup is explicit and only removes stale dismissed follow-up preferences when apply=true.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

@@ -1068,6 +1068,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add safe stale-preference cleanup with a dry-run report.",
         },
         {
+            "id": "followup_preference_cleanup",
+            "title": "Follow-Up Preference Cleanup",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/chat-followups/preferences/cleanup previews stale dismissed preferences before removal.",
+                "Cleanup defaults to dry-run and only applies when explicitly requested.",
+                "Pinned follow-up preferences are protected from cleanup.",
+            ],
+            "next": "Add an owner-visible cleanup preview in the profile management UI.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

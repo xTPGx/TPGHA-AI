@@ -261,6 +261,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  cleanupChatFollowupPreferences: (body: Record<string, any>) =>
+    http<any>("/ops/chat-followups/preferences/cleanup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   profileTuningExport: (user?: string, assistant?: string) => {
     const params = new URLSearchParams();
     if (user) params.set("user", user);

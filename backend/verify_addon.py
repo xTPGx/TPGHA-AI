@@ -787,6 +787,17 @@ def main() -> int:
     check("phase 129 endpoint is exposed",
           "/brain/phase-129" in backend_main,
           "Backend must expose the phase 129 profile tuning export marker.")
+    check("phase 130 followup preference cleanup is wired",
+          "/ops/chat-followups/preferences/cleanup" in backend_main
+          and "cleanup_chat_followup_preferences" in operations_brain
+          and "FollowupPreferenceCleanupRequest" in (repo_root / "backend" / "app" / "models" / "schemas.py").read_text(encoding="utf-8")
+          and "cleanupChatFollowupPreferences" in api_frontend
+          and "followup_preference_cleanup" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_130" in experience_brain,
+          "Follow-up tuning needs a dry-run cleanup path for stale dismissed suggestions.")
+    check("phase 130 endpoint is exposed",
+          "/brain/phase-130" in backend_main,
+          "Backend must expose the phase 130 followup preference cleanup marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2210,6 +2221,53 @@ def main() -> int:
           r.json().get("phase") == 129
           and r.json().get("profile_tuning_export", {}).get("source_endpoint") == "/ops/profile-tuning-export"
           and "markdown" in r.json().get("profile_tuning_export", {}).get("formats", []),
+          str(r.json()))
+
+    r = client.post("/ops/chat-followups/preferences", json={
+        "user": "shawn",
+        "assistant": "atlas",
+        "followup_id": "verify_cleanup_followup",
+        "text": "Temporary hidden follow-up.",
+        "state": "dismissed",
+        "source_intent": "verify",
+    })
+    check("/ops/chat-followups/preferences creates cleanup candidate",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("preference", {}).get("state") == "dismissed",
+          str(r.json()))
+
+    cleanup_payload = {
+        "user": "shawn",
+        "assistant": "atlas",
+        "max_age_days": 0,
+        "apply": False,
+    }
+    r = client.post("/ops/chat-followups/preferences/cleanup", json=cleanup_payload)
+    check("/ops/chat-followups/preferences/cleanup previews candidates",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("dry_run") is True
+          and r.json().get("candidate_count", 0) >= 1,
+          str(r.json()))
+
+    cleanup_payload["apply"] = True
+    r = client.post("/ops/chat-followups/preferences/cleanup", json=cleanup_payload)
+    check("/ops/chat-followups/preferences/cleanup applies explicit cleanup",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("applied") is True
+          and r.json().get("removed", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/brain/phase-130")
+    check("/brain/phase-130 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-130 has cleanup marker",
+          r.json().get("phase") == 130
+          and r.json().get("followup_preference_cleanup", {}).get("dry_run_default") is True
+          and r.json().get("followup_preference_cleanup", {}).get("pinned_protected") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

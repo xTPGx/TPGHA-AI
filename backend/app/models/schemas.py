@@ -462,6 +462,13 @@ class FollowupPreferenceRequest(BaseModel):
     source_intent: str = ""
 
 
+class FollowupPreferenceCleanupRequest(BaseModel):
+    user: str = ""
+    assistant: str = ""
+    max_age_days: int = 90
+    apply: bool = False
+
+
 class HAEntity(BaseModel):
     entity_id: str
     state: str

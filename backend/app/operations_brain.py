@@ -657,6 +657,45 @@ def build_profile_tuning_export(config: AppConfig, user: str = "", assistant: st
     return payload
 
 
+def cleanup_chat_followup_preferences(
+    *,
+    user: str = "",
+    assistant: str = "",
+    max_age_days: int = 90,
+    apply: bool = False,
+) -> dict[str, Any]:
+    safe_days = max(0, int(max_age_days))
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=safe_days)
+    with get_session() as session:
+        query = session.query(FollowupPreference).filter(
+            FollowupPreference.state == "dismissed",
+            FollowupPreference.updated_at <= cutoff,
+        )
+        if user:
+            query = query.filter(FollowupPreference.user == user)
+        if assistant:
+            query = query.filter(FollowupPreference.assistant == assistant)
+        rows = query.order_by(FollowupPreference.updated_at.asc(), FollowupPreference.id.asc()).limit(500).all()
+        candidates = [_followup_preference_dict(row) for row in rows]
+        removed = 0
+        if apply:
+            for row in rows:
+                session.delete(row)
+            session.commit()
+            removed = len(rows)
+    return {
+        "status": "ready",
+        "dry_run": not apply,
+        "applied": bool(apply),
+        "removed": removed,
+        "candidate_count": len(candidates),
+        "max_age_days": safe_days,
+        "cutoff": cutoff.isoformat(),
+        "candidates": candidates,
+        "guardrail": "Only dismissed follow-up preferences are cleanup candidates. Pinned preferences are never removed by this task.",
+    }
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)

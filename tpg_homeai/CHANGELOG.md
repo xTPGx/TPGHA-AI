@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.34
+
+- Added Jarvis phase 130 follow-up preference cleanup.
+- Added `/ops/chat-followups/preferences/cleanup` with dry-run by default and explicit apply mode.
+- Cleanup only targets stale dismissed follow-up preferences; pinned preferences are protected.
+- Added frontend API plumbing for profile cleanup previews.
+- Added `/brain/phase-130` and Jarvis Brain readiness evidence for safe tuning maintenance.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.33
 
 - Added Jarvis phase 129 profile tuning export.
