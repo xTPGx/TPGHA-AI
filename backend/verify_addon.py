@@ -107,6 +107,7 @@ def main() -> int:
     outcomes_source = (repo_root / "backend" / "app" / "outcomes.py").read_text(encoding="utf-8")
     media_brain = (repo_root / "backend" / "app" / "media_brain.py").read_text(encoding="utf-8")
     situational_brain = (repo_root / "backend" / "app" / "situational_brain.py").read_text(encoding="utf-8")
+    routine_brain = (repo_root / "backend" / "app" / "routine_brain.py").read_text(encoding="utf-8")
     house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
     security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -348,6 +349,29 @@ def main() -> int:
     check("house state includes daily briefing brain",
           "daily_briefing" in house_state_source,
           "House State should include the daily briefing composer.")
+    check("phases 77-81 routine brain module exists",
+          "build_security_routine_brain" in routine_brain
+          and "build_comfort_energy_brain" in routine_brain
+          and "build_media_scene_brain" in routine_brain
+          and "build_sleep_wake_brain" in routine_brain
+          and "build_proactive_action_plan" in routine_brain,
+          "Routine, scene, sleep/wake, and proactive plan brains must be reusable.")
+    check("routine brain stays approval-first",
+          "approval_required" in routine_brain
+          and '"auto_execute": False' in routine_brain
+          and "automation_draft" in routine_brain,
+          "Routine intelligence must propose and draft, not silently execute.")
+    check("phases 77-81 endpoints are exposed",
+          "/routines/security" in backend_main
+          and "/routines/comfort-energy" in backend_main
+          and "/routines/media-scenes" in backend_main
+          and "/routines/sleep-wake" in backend_main
+          and "/routines/proactive-plan" in backend_main
+          and "/brain/phase-77-81" in backend_main,
+          "Backend must expose phase 77-81 brains as API endpoints.")
+    check("house state includes proactive action plan",
+          "proactive_action_plan" in house_state_source,
+          "House State should include the approval-first proactive action plan.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -831,6 +855,10 @@ def main() -> int:
     check("/brain/house-state includes daily briefing",
           "daily_briefing" in r.json() and "headline" in r.json().get("daily_briefing", {}),
           str(r.json()))
+    check("/brain/house-state includes proactive action plan",
+          "proactive_action_plan" in r.json()
+          and "policy" in r.json().get("proactive_action_plan", {}),
+          str(r.json()))
 
     r = client.get("/brain/modes")
     check("/brain/modes returns JSON", r.status_code == 200 and is_json(r),
@@ -928,6 +956,53 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     check("/briefings/daily exposes spoken briefing and source brains",
           "headline" in r.json() and "spoken" in r.json() and "brains" in r.json(),
+          str(r.json()))
+
+    r = client.get("/brain/phase-77-81")
+    check("/brain/phase-77-81 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-77-81 has routine sections",
+          "security_routines" in r.json()
+          and "comfort_energy" in r.json()
+          and "media_scenes" in r.json()
+          and "sleep_wake" in r.json()
+          and "proactive_action_plan" in r.json(),
+          str(r.json()))
+
+    r = client.get("/routines/security")
+    check("/routines/security returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/routines/security exposes templates and guardrails",
+          "routine_templates" in r.json() and "guardrails" in r.json(),
+          str(r.json()))
+
+    r = client.get("/routines/comfort-energy")
+    check("/routines/comfort-energy returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/routines/comfort-energy exposes optimizer context",
+          "recommendations" in r.json() and "routine_templates" in r.json(),
+          str(r.json()))
+
+    r = client.get("/routines/media-scenes")
+    check("/routines/media-scenes returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/routines/media-scenes exposes scene templates",
+          "scene_templates" in r.json() and "display_routes" in r.json(),
+          str(r.json()))
+
+    r = client.get("/routines/sleep-wake")
+    check("/routines/sleep-wake returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/routines/sleep-wake exposes sleep/wake templates",
+          "routine_templates" in r.json() and "guardrails" in r.json(),
+          str(r.json()))
+
+    r = client.get("/routines/proactive-plan")
+    check("/routines/proactive-plan returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/routines/proactive-plan is approval-first",
+          r.json().get("policy", {}).get("approval_first") is True
+          and r.json().get("policy", {}).get("auto_execute") is False,
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")

@@ -78,6 +78,14 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "backup_entities": _keyword_entity_count(graph, ("backup",)),
         "unavailable": unavailable,
     }
+    routine_counts = {
+        "locks": security_counts["locks"],
+        "covers": _domain_count(graph, "cover"),
+        "lights": _domain_count(graph, "light"),
+        "climate": _domain_count(graph, "climate"),
+        "media_players": media_counts["media_players"],
+        "modes": len(config.devices.modes),
+    }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -381,6 +389,66 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "The endpoint returns source brains for UI drill-down and debugging.",
             ],
             "next": "Add user-specific briefing preferences, quiet-hour delivery windows, and approved scheduled briefing routines.",
+        },
+        {
+            "id": "security_routine_advisor",
+            "title": "Security Routine Advisor",
+            "status": "ready" if routine_counts["locks"] or routine_counts["covers"] else "partial",
+            "score": 100 if routine_counts["locks"] or routine_counts["covers"] else 75,
+            "evidence": [
+                f"{routine_counts['locks']} lock(s) and {routine_counts['covers']} cover(s) available for security routines.",
+                "Advisor drafts secure-house, arrival-check, and night-lockup routine templates.",
+                "Security-disabling actions remain confirmation/PIN gated.",
+            ],
+            "next": "Connect alarm panels, Frigate/Nest event detail, and trusted-source policies to richer security routines.",
+        },
+        {
+            "id": "comfort_energy_optimizer",
+            "title": "Comfort + Energy Optimizer",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                f"{routine_counts['lights']} light(s) and {routine_counts['climate']} climate device(s) visible/configured.",
+                "Optimizer combines lights, fans, climate, helpers, presence, and environment signals into reviewable suggestions.",
+                "Energy/comfort changes remain proposal-first unless routed through a guarded user command.",
+            ],
+            "next": "Add learned user comfort bands by room and season.",
+        },
+        {
+            "id": "media_scene_advisor",
+            "title": "Media Scene Advisor",
+            "status": "ready" if routine_counts["media_players"] else "partial",
+            "score": 100 if routine_counts["media_players"] else 78,
+            "evidence": [
+                f"{routine_counts['media_players']} media player route(s) available.",
+                "Scene advisor drafts movie mode, focus mode, and music-everywhere style plans.",
+                "Music scenes preserve assistant-owner music account boundaries.",
+            ],
+            "next": "Add live source/app launch adapters for TVs and streaming boxes.",
+        },
+        {
+            "id": "sleep_wake_routine_brain",
+            "title": "Sleep + Wake Routine Brain",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                f"{routine_counts['modes']} configured house mode(s) available for quiet/sleep behavior.",
+                "Sleep/wake brain exposes sleep timer, bedtime shutdown, and morning wakeup templates.",
+                "Future changes remain automation drafts and avoid unlocking/opening security devices automatically.",
+            ],
+            "next": "Add per-user bedtime/wake preferences and room-specific wake scenes.",
+        },
+        {
+            "id": "proactive_action_plan",
+            "title": "Proactive Action Plan",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Action plan combines security, comfort/energy, media scenes, sleep/wake, and maintenance into approval-first proposals.",
+                "The plan explicitly marks auto_execute false so Jarvis suggests before changing the house.",
+                "House State includes the plan for dashboard and chat drill-down.",
+            ],
+            "next": "Let owners turn selected proposal types into scheduled monitor notifications.",
         },
         {
             "id": "ha_native_ui",

@@ -114,19 +114,27 @@ from .situational_brain import (
     build_maintenance_brain,
     build_presence_zone_brain,
 )
+from .routine_brain import (
+    build_comfort_energy_brain,
+    build_jarvis_phase_77_81,
+    build_media_scene_brain,
+    build_proactive_action_plan,
+    build_security_routine_brain,
+    build_sleep_wake_brain,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.1.5"
+APP_VERSION = "1.1.6"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "media", "security", "rooms", "awareness", "briefings", "openapi.json",
+    "media", "security", "rooms", "awareness", "briefings", "routines", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -1142,6 +1150,36 @@ async def awareness_maintenance():
 @app.get("/briefings/daily")
 async def briefings_daily():
     return await build_daily_briefing(get_config())
+
+
+@app.get("/brain/phase-77-81")
+async def brain_phase_77_81():
+    return await build_jarvis_phase_77_81(get_config())
+
+
+@app.get("/routines/security")
+async def routines_security():
+    return await build_security_routine_brain(get_config())
+
+
+@app.get("/routines/comfort-energy")
+async def routines_comfort_energy():
+    return await build_comfort_energy_brain(get_config())
+
+
+@app.get("/routines/media-scenes")
+async def routines_media_scenes():
+    return await build_media_scene_brain(get_config())
+
+
+@app.get("/routines/sleep-wake")
+async def routines_sleep_wake():
+    return await build_sleep_wake_brain(get_config())
+
+
+@app.get("/routines/proactive-plan")
+async def routines_proactive_plan():
+    return await build_proactive_action_plan(get_config())
 
 
 @app.get("/ai/providers")

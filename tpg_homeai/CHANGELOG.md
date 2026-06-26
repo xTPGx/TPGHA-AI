@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.6
+
+- Added Jarvis phases 77-81 for approval-first routine and scene intelligence.
+- Added security routine advisor for secure-house, arrival-check, and night-lockup routine templates.
+- Added comfort/energy optimizer that combines lights, fans, climate, helpers, presence, and environment context.
+- Added media scene advisor for movie, music-everywhere, and focus-mode style scene planning.
+- Added sleep/wake routine brain for sleep timers, bedtime shutdown, and morning wakeup templates.
+- Added proactive action plan that combines security, comfort, media, sleep/wake, and maintenance proposals without auto-executing.
+- Added `/routines/security`, `/routines/comfort-energy`, `/routines/media-scenes`, `/routines/sleep-wake`, `/routines/proactive-plan`, and `/brain/phase-77-81` endpoints.
+- Fed proactive action planning into House State and expanded Jarvis Brain readiness.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.5
 
 - Added Jarvis phases 72-76 for live situational awareness.

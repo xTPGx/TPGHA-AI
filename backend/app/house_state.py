@@ -20,6 +20,7 @@ from .media_brain import (
     build_room_occupancy_brain,
 )
 from .situational_brain import build_daily_briefing
+from .routine_brain import build_proactive_action_plan
 from .models.schemas import AppConfig, HouseMode
 
 
@@ -94,6 +95,7 @@ async def build_house_state(config: AppConfig, graph: dict[str, Any] | None = No
     camera_security = await build_camera_security_brain(config)
     occupancy_brain = await build_room_occupancy_brain(config)
     daily_briefing = await build_daily_briefing(config)
+    proactive_action_plan = await build_proactive_action_plan(config)
     recommendations = _recommendations(away, security, energy, media, maintenance)
     return {
         "status": "attention" if security else ("active" if media or energy else "calm"),
@@ -104,6 +106,7 @@ async def build_house_state(config: AppConfig, graph: dict[str, Any] | None = No
         "camera_security": camera_security,
         "room_occupancy": occupancy_brain,
         "daily_briefing": daily_briefing,
+        "proactive_action_plan": proactive_action_plan,
         "presence": {
             "known_people": len(people),
             "home": [p.friendly_name or p.entity_id for p in home_people],
