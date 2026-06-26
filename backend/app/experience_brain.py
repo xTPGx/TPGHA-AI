@@ -777,6 +777,24 @@ async def build_jarvis_phase_110(config: AppConfig, version: str) -> dict[str, A
     }
 
 
+async def build_jarvis_phase_111(config: AppConfig, version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 111,
+        "setup_support_diagnostics": {
+            "surface": "Setup page",
+            "source_endpoint": "/ops/diagnostics",
+            "safe_for_support": True,
+            "secrets_redacted": True,
+            "shows_counts": True,
+            "shows_degraded_reasons": True,
+            "copy_json_available": True,
+        },
+        "guardrail": "Phase 111 only exposes redacted diagnostics in Setup; it does not expose secrets or execute device actions.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

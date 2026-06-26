@@ -9,6 +9,8 @@ export default function Setup() {
   const [completion, setCompletion] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
   const [runbook, setRunbook] = useState<any>(null);
+  const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [diagnosticsMessage, setDiagnosticsMessage] = useState("");
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -18,12 +20,13 @@ export default function Setup() {
 
   const load = async () => {
     try {
-      const [h, c, done, releaseChecklist, releaseRunbook, v, runtime, assets] = await Promise.all([
+      const [h, c, done, releaseChecklist, releaseRunbook, supportPack, v, runtime, assets] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
         api.releaseChecklist(),
         api.releaseRunbook(),
+        api.opsDiagnostics(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -33,6 +36,7 @@ export default function Setup() {
       setCompletion(done);
       setRelease(releaseChecklist);
       setRunbook(releaseRunbook);
+      setDiagnostics(supportPack);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -130,6 +134,16 @@ export default function Setup() {
 
   const ready = checks.filter((check) => check.ok).length;
 
+  const copyDiagnostics = async () => {
+    if (!diagnostics) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2));
+      setDiagnosticsMessage("Diagnostics copied.");
+    } catch {
+      setDiagnosticsMessage("Clipboard unavailable.");
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -149,6 +163,7 @@ export default function Setup() {
 
       <ReleaseBlockersPanel release={release} completion={completion} />
       <OperationalRunbookPanel runbook={runbook} />
+      <DiagnosticsPanel diagnostics={diagnostics} message={diagnosticsMessage} onCopy={copyDiagnostics} />
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {checks.map((check) => (
@@ -165,6 +180,69 @@ export default function Setup() {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+function DiagnosticsPanel({
+  diagnostics,
+  message,
+  onCopy,
+}: {
+  diagnostics: any;
+  message: string;
+  onCopy: () => void;
+}) {
+  if (!diagnostics) return null;
+  const counts = diagnostics.counts || {};
+  const routes = diagnostics.routes || {};
+  const degraded = diagnostics.degraded_reasons || [];
+  return (
+    <div className="card mb-6">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Support diagnostics</div>
+          <div className="text-sm text-slate-400">
+            Redacted status pack for release troubleshooting and support handoff.
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className={`badge ${diagnostics.safe_for_support ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+            {diagnostics.safe_for_support ? "safe for support" : "review before sharing"}
+          </span>
+          <button className="btn-ghost" onClick={onCopy}>Copy JSON</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <DiagStat label="Mode" value={diagnostics.mode || "unknown"} />
+        <DiagStat label="Status" value={diagnostics.status || "unknown"} />
+        <DiagStat label="HA states" value={counts.states_visible ?? "—"} />
+        <DiagStat label="Pending" value={counts.discovery_pending ?? "—"} />
+      </div>
+      {(degraded.length > 0 || diagnostics.config_error) && (
+        <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <div className="font-semibold">Needs attention</div>
+          {diagnostics.config_error && <div className="mt-1">{diagnostics.config_error}</div>}
+          {degraded.map((reason: string) => <div key={reason} className="mt-1">{reason}</div>)}
+        </div>
+      )}
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+        {Object.entries(routes).map(([label, route]) => (
+          <a key={label} href={String(route)} className="rounded border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm text-slate-300 hover:border-brand/60">
+            {label.replace(/_/g, " ")} · {String(route)}
+          </a>
+        ))}
+      </div>
+      {message && <div className="mt-3 text-sm text-slate-400">{message}</div>}
+    </div>
+  );
+}
+
+function DiagStat({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+      <div className="mb-1 text-xs uppercase text-slate-500">{label}</div>
+      <div className="text-xl font-semibold text-slate-100">{value}</div>
     </div>
   );
 }

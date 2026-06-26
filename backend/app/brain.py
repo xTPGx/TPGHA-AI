@@ -840,6 +840,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Connect each runbook section to diagnostics and acceptance evidence shortcuts.",
         },
         {
+            "id": "setup_support_diagnostics",
+            "title": "Setup Support Diagnostics",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page displays the redacted diagnostics support pack.",
+                "Owners can copy a support-safe JSON snapshot without exposing secrets.",
+                "Diagnostics show mode, status, visible HA state count, pending discovery count, config errors, and degraded reasons.",
+            ],
+            "next": "Add downloadable diagnostics bundles if support handoff needs attached files.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

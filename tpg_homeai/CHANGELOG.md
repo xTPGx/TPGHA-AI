@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.15
+
+- Added Jarvis phase 111 Setup support diagnostics panel.
+- Setup now shows the redacted diagnostics pack status, counts, degraded reasons, config errors, route shortcuts, and a copy-JSON action.
+- Added `/brain/phase-111` and Jarvis Brain readiness evidence for the Setup support diagnostics layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.14
 
 - Added Jarvis phase 110 Setup owner runbook panel.

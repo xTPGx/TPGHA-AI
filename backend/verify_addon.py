@@ -592,6 +592,16 @@ def main() -> int:
     check("phase 110 endpoint is exposed",
           "/brain/phase-110" in backend_main,
           "Backend must expose the phase 110 setup owner runbook readiness marker.")
+    check("phase 111 setup support diagnostics are wired",
+          "Support diagnostics" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "api.opsDiagnostics" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "Copy JSON" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_support_diagnostics" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_111" in experience_brain,
+          "Setup must expose redacted support diagnostics for owner troubleshooting.")
+    check("phase 111 endpoint is exposed",
+          "/brain/phase-111" in backend_main,
+          "Backend must expose the phase 111 setup support diagnostics readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1631,6 +1641,16 @@ def main() -> int:
           r.json().get("phase") == 110
           and r.json().get("setup_owner_runbook", {}).get("uses_release_runbook") is True
           and r.json().get("setup_owner_runbook", {}).get("includes_feature_freeze") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-111")
+    check("/brain/phase-111 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-111 has setup support diagnostics marker",
+          r.json().get("phase") == 111
+          and r.json().get("setup_support_diagnostics", {}).get("source_endpoint") == "/ops/diagnostics"
+          and r.json().get("setup_support_diagnostics", {}).get("copy_json_available") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
