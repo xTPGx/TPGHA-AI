@@ -243,7 +243,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.65"
+APP_VERSION = "1.2.66"
 MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_CHAT_IMAGE_TYPES = {
     "image/jpeg",
@@ -1987,6 +1987,7 @@ async def voice_speak(req: VoiceSpeakRequest):
         voice_profile=req.voice_profile,
         target_entity_id=req.target_entity_id,
         force_browser=req.force_browser,
+        include_audio_base64=req.include_audio_base64,
         room=req.room,
         source_device_id=req.source_device_id,
         source_entity_id=req.source_entity_id,

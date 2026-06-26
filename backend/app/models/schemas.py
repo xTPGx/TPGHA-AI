@@ -353,6 +353,7 @@ class VoiceSpeakRequest(BaseModel):
     voice_profile: Optional[VoiceProfile] = None
     target_entity_id: Optional[str] = None
     force_browser: bool = False
+    include_audio_base64: bool = True
     room: Optional[str] = None
     source_device_id: Optional[str] = None
     source_entity_id: Optional[str] = None

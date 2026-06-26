@@ -10,6 +10,7 @@ import base64
 import hashlib
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -281,6 +282,7 @@ async def speak_text(
     voice_profile: Optional[VoiceProfile] = None,
     target_entity_id: Optional[str] = None,
     force_browser: bool = False,
+    include_audio_base64: bool = True,
     room: Optional[str] = None,
     source_device_id: Optional[str] = None,
     source_entity_id: Optional[str] = None,
@@ -306,18 +308,25 @@ async def speak_text(
     if profile["provider"] in {"ha_tts", "piper"}:
         return await _ha_tts_response(profile, text, speak_text_value)
     if profile["provider"] in {"kokoro", "custom"}:
-        return await _endpoint_tts_response(profile, text, speak_text_value)
+        return await _endpoint_tts_response(
+            profile,
+            text,
+            speak_text_value,
+            include_audio_base64=include_audio_base64,
+        )
     if profile["provider"] != "openai":
         return _browser_response(profile, text, speak_text_value, reason=f"Unsupported provider '{profile['provider']}'.")
     if not get_settings().openai_configured:
         return _browser_response(profile, text, speak_text_value, reason="OpenAI API key is not configured.")
 
+    started = time.perf_counter()
     try:
         audio_bytes = await asyncio.to_thread(_openai_speech_bytes, profile, speak_text_value)
     except Exception as exc:  # pragma: no cover - network/sdk dependent
         detail = _safe_error_detail(exc)
         logger.warning("OpenAI TTS failed (%s); using browser fallback.", detail)
         return _browser_response(profile, text, speak_text_value, reason=f"OpenAI TTS failed: {detail}.")
+    latency_ms = int((time.perf_counter() - started) * 1000)
 
     fmt = str(profile.get("response_format") or "mp3")
     content_type = MIME_BY_FORMAT.get(fmt, "audio/mpeg")
@@ -329,10 +338,13 @@ async def speak_text(
         "text": text,
         "speak_text": speak_text_value,
         "content_type": content_type,
-        "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
         "audio_path": f"/voice/audio/{audio_id}",
+        "latency_ms": latency_ms,
+        "audio_bytes": len(audio_bytes),
         "speaker_route": {"requested": bool(profile.get("target_entity_id")), "routed": False},
     }
+    if include_audio_base64:
+        response["audio_base64"] = base64.b64encode(audio_bytes).decode("ascii")
     if profile.get("target_entity_id"):
         response["speaker_route"] = await _route_to_speaker(
             str(profile["target_entity_id"]),
@@ -492,7 +504,12 @@ def _browser_response(profile: dict[str, Any], text: str, speak_text: Optional[s
     }
 
 
-async def _endpoint_tts_response(profile: dict[str, Any], text: str, speak_text: str) -> dict[str, Any]:
+async def _endpoint_tts_response(
+    profile: dict[str, Any],
+    text: str,
+    speak_text: str,
+    include_audio_base64: bool = True,
+) -> dict[str, Any]:
     settings = get_settings()
     provider = str(profile.get("provider") or "custom")
     base_url = str(profile.get("endpoint_url") or "").strip()
@@ -500,12 +517,14 @@ async def _endpoint_tts_response(profile: dict[str, Any], text: str, speak_text:
         base_url = settings.kokoro_tts_base_url if provider == "kokoro" else settings.custom_tts_base_url
     if not base_url:
         return _browser_response(profile, text, speak_text, reason=f"{provider} TTS endpoint is not configured.")
+    started = time.perf_counter()
     try:
         audio_bytes = await _openai_compatible_tts_bytes(profile, speak_text, base_url, settings.custom_tts_api_key if provider == "custom" else "")
     except Exception as exc:  # pragma: no cover - depends on external local service
         detail = _safe_error_detail(exc)
         logger.warning("%s TTS failed (%s); using browser fallback.", provider, detail)
         return _browser_response(profile, text, speak_text, reason=f"{provider} TTS failed: {detail}.")
+    latency_ms = int((time.perf_counter() - started) * 1000)
 
     fmt = str(profile.get("response_format") or "mp3")
     content_type = MIME_BY_FORMAT.get(fmt, "audio/mpeg")
@@ -517,10 +536,13 @@ async def _endpoint_tts_response(profile: dict[str, Any], text: str, speak_text:
         "text": text,
         "speak_text": speak_text,
         "content_type": content_type,
-        "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
         "audio_path": f"/voice/audio/{audio_id}",
+        "latency_ms": latency_ms,
+        "audio_bytes": len(audio_bytes),
         "speaker_route": {"requested": bool(profile.get("target_entity_id")), "routed": False},
     }
+    if include_audio_base64:
+        response["audio_base64"] = base64.b64encode(audio_bytes).decode("ascii")
     if profile.get("target_entity_id"):
         response["speaker_route"] = await _route_to_speaker(
             str(profile["target_entity_id"]),

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.66
+
+- Reduced live mic upload size by capping browser MediaRecorder speech bitrate.
+- Added OpenAI transcription language hinting and transcription latency/byte metrics.
+- Changed Chat voice playback to request path-only generated audio and stream `/voice/audio/...` instead of waiting on large base64 JSON payloads.
+- Added add-on configuration for `openai_transcribe_language`.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.65
 
 - Added sellable local/private voice provider support for Kokoro, custom OpenAI-compatible TTS endpoints, and Home Assistant/Piper TTS.

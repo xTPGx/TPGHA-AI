@@ -19,6 +19,7 @@ if command -v bashio >/dev/null 2>&1; then
   OPENAI_TTS_MODEL="$(bashio::config 'openai_tts_model')"
   OPENAI_TTS_FORMAT="$(bashio::config 'openai_tts_format')"
   OPENAI_TRANSCRIBE_MODEL="$(bashio::config 'openai_transcribe_model')"
+  OPENAI_TRANSCRIBE_LANGUAGE="$(bashio::config 'openai_transcribe_language')"
   OLLAMA_URL="$(bashio::config 'ollama_base_url')"
   OLLAMA_MODEL="$(bashio::config 'ollama_model')"
   KOKORO_TTS_BASE_URL="$(bashio::config 'kokoro_tts_base_url')"
@@ -45,6 +46,7 @@ else
   OPENAI_TTS_MODEL="$(jq -r '.openai_tts_model // "gpt-4o-mini-tts"' "${OPTIONS_FILE}")"
   OPENAI_TTS_FORMAT="$(jq -r '.openai_tts_format // "mp3"' "${OPTIONS_FILE}")"
   OPENAI_TRANSCRIBE_MODEL="$(jq -r '.openai_transcribe_model // "gpt-4o-mini-transcribe"' "${OPTIONS_FILE}")"
+  OPENAI_TRANSCRIBE_LANGUAGE="$(jq -r '.openai_transcribe_language // "en"' "${OPTIONS_FILE}")"
   OLLAMA_URL="$(jq -r '.ollama_base_url // ""' "${OPTIONS_FILE}")"
   OLLAMA_MODEL="$(jq -r '.ollama_model // ""' "${OPTIONS_FILE}")"
   KOKORO_TTS_BASE_URL="$(jq -r '.kokoro_tts_base_url // ""' "${OPTIONS_FILE}")"
@@ -66,7 +68,7 @@ else
 fi
 
 # bashio/jq may yield the literal "null" for empty values.
-for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_CHAT_MODEL OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OLLAMA_URL OLLAMA_MODEL KOKORO_TTS_BASE_URL CUSTOM_TTS_BASE_URL CUSTOM_TTS_API_KEY PIPER_TTS_ENTITY_ID VOICE_PUBLIC_BASE_URL SECURITY_PIN API_TOKEN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
+for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_CHAT_MODEL OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OPENAI_TRANSCRIBE_LANGUAGE OLLAMA_URL OLLAMA_MODEL KOKORO_TTS_BASE_URL CUSTOM_TTS_BASE_URL CUSTOM_TTS_API_KEY PIPER_TTS_ENTITY_ID VOICE_PUBLIC_BASE_URL SECURITY_PIN API_TOKEN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
            SCAN_ON_START SCAN_INTERVAL NOTIFY_NEW NOTIFY_UNAVAIL \
            AUTO_LOW_RISK AUTO_DOMAINS; do
   if [ "$(eval echo \$$var)" = "null" ]; then eval "$var=''"; fi
@@ -92,6 +94,7 @@ export OPENAI_CHAT_MODEL="${OPENAI_CHAT_MODEL:-gpt-4o}"
 export OPENAI_TTS_MODEL="${OPENAI_TTS_MODEL:-gpt-4o-mini-tts}"
 export OPENAI_TTS_FORMAT="${OPENAI_TTS_FORMAT:-mp3}"
 export OPENAI_TRANSCRIBE_MODEL="${OPENAI_TRANSCRIBE_MODEL:-gpt-4o-mini-transcribe}"
+export OPENAI_TRANSCRIBE_LANGUAGE="${OPENAI_TRANSCRIBE_LANGUAGE:-en}"
 export OLLAMA_BASE_URL="${OLLAMA_URL}"
 export OLLAMA_MODEL="${OLLAMA_MODEL}"
 export KOKORO_TTS_BASE_URL="${KOKORO_TTS_BASE_URL}"

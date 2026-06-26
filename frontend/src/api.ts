@@ -16,6 +16,17 @@ const BASES: string[] = env.VITE_API_BASE
       ? [`${ingressBase}/api`, ingressBase]
       : ["/api", ""];
 
+function backendAssetUrl(path: string): string {
+  const value = String(path || "");
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const normalized = value.startsWith("/") ? value : `/${value}`;
+  if (env.VITE_API_BASE) return `${String(env.VITE_API_BASE).replace(/\/$/, "").replace(/\/api$/i, "")}${normalized}`;
+  if (env.DEV) return `/api${normalized}`;
+  if (ingressBase) return `${ingressBase}${normalized}`;
+  return normalized;
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   let lastError: Error | null = null;
   for (const base of BASES) {
@@ -245,6 +256,7 @@ export const api = {
     http<any>("/voice/preview", { method: "POST", body: JSON.stringify(body) }),
   voiceSpeak: (body: Record<string, any>) =>
     http<any>("/voice/speak", { method: "POST", body: JSON.stringify(body) }),
+  voiceAudioUrl: (path: string) => backendAssetUrl(path),
   voiceTranscribe: (blob: Blob, filename = "voice-input.webm") => {
     const form = new FormData();
     form.append("file", blob, filename);

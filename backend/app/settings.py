@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     openai_tts_model: str = Field(default="gpt-4o-mini-tts", alias="OPENAI_TTS_MODEL")
     openai_tts_format: str = Field(default="mp3", alias="OPENAI_TTS_FORMAT")
     openai_transcribe_model: str = Field(default="gpt-4o-mini-transcribe", alias="OPENAI_TRANSCRIBE_MODEL")
+    openai_transcribe_language: str = Field(default="en", alias="OPENAI_TRANSCRIBE_LANGUAGE")
     ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="", alias="OLLAMA_MODEL")
     kokoro_tts_base_url: str = Field(default="", alias="KOKORO_TTS_BASE_URL")
@@ -125,6 +126,7 @@ class Settings(BaseSettings):
             "openai_tts_model": self.openai_tts_model,
             "openai_tts_format": self.openai_tts_format,
             "openai_transcribe_model": self.openai_transcribe_model,
+            "openai_transcribe_language": self.openai_transcribe_language,
             "ollama_configured": bool(self.ollama_base_url and self.ollama_model),
             "ollama_base_url": self.ollama_base_url,
             "ollama_model": self.ollama_model,

@@ -5,6 +5,7 @@ import asyncio
 import io
 import logging
 import re
+import time
 from typing import Any
 
 from .settings import get_settings
@@ -16,6 +17,7 @@ MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 async def transcribe_audio(filename: str, content_type: str, audio_bytes: bytes) -> dict[str, Any]:
     """Transcribe a user microphone recording with OpenAI, returning JSON-safe data."""
+    started = time.perf_counter()
     if not audio_bytes:
         return {
             "success": False,
@@ -39,6 +41,8 @@ async def transcribe_audio(filename: str, content_type: str, audio_bytes: bytes)
             "model": settings.openai_transcribe_model,
             "text": "",
             "error": "OpenAI API key is not configured.",
+            "audio_bytes": len(audio_bytes),
+            "latency_ms": int((time.perf_counter() - started) * 1000),
         }
 
     try:
@@ -48,6 +52,7 @@ async def transcribe_audio(filename: str, content_type: str, audio_bytes: bytes)
             filename or "voice-input.webm",
             content_type or "application/octet-stream",
             settings.openai_transcribe_model,
+            settings.openai_transcribe_language,
         )
     except Exception as exc:  # pragma: no cover - network/sdk dependent
         detail = _safe_error_detail(exc)
@@ -58,33 +63,52 @@ async def transcribe_audio(filename: str, content_type: str, audio_bytes: bytes)
             "model": settings.openai_transcribe_model,
             "text": "",
             "error": f"OpenAI transcription failed: {detail}.",
+            "audio_bytes": len(audio_bytes),
+            "latency_ms": int((time.perf_counter() - started) * 1000),
         }
 
     return {
         "success": True,
         "provider": "openai",
         "model": settings.openai_transcribe_model,
+        "language": settings.openai_transcribe_language,
+        "audio_bytes": len(audio_bytes),
+        "latency_ms": int((time.perf_counter() - started) * 1000),
         "text": text.strip(),
     }
 
 
-def _openai_transcribe(audio_bytes: bytes, filename: str, content_type: str, model: str) -> str:
+def _openai_transcribe(audio_bytes: bytes, filename: str, content_type: str, model: str, language: str = "") -> str:
     from openai import OpenAI
 
     settings = get_settings()
     client = OpenAI(api_key=settings.openai_api_key)
     file_obj = io.BytesIO(audio_bytes)
     file_obj.name = filename
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "file": (filename, audio_bytes, content_type),
+        "response_format": "json",
+    }
+    if language.strip():
+        kwargs["language"] = language.strip()
     try:
-        response = client.audio.transcriptions.create(
-            model=model,
-            file=(filename, audio_bytes, content_type),
-        )
-    except TypeError:
-        response = client.audio.transcriptions.create(
-            model=model,
-            file=file_obj,
-        )
+        response = client.audio.transcriptions.create(**kwargs)
+    except TypeError as exc:
+        retry_kwargs = dict(kwargs)
+        error_text = str(exc)
+        removed = False
+        for key in ("response_format", "language"):
+            if key in retry_kwargs and (key in error_text or "unexpected keyword" in error_text):
+                retry_kwargs.pop(key, None)
+                removed = True
+        if removed:
+            response = client.audio.transcriptions.create(**retry_kwargs)
+        else:
+            response = client.audio.transcriptions.create(
+                model=model,
+                file=file_obj,
+            )
     text = getattr(response, "text", None)
     if isinstance(text, str):
         return text

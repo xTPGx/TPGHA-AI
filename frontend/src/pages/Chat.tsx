@@ -40,6 +40,7 @@ type MicState = "idle" | "recording" | "transcribing";
 type RecorderOptions = { autoStop?: boolean };
 
 const VOICE_RMS_THRESHOLD = 0.016;
+const VOICE_AUDIO_BITS_PER_SECOND = 32000;
 const VOICE_MIN_LISTEN_MS = 650;
 const VOICE_SILENCE_STOP_MS = 760;
 const VOICE_NO_SPEECH_TIMEOUT_MS = 6000;
@@ -965,7 +966,20 @@ export default function Chat() {
       stopBargeInDetection();
     };
     try {
-      const response = await api.voiceSpeak({ assistant, text: message, reply_mode: "auto" });
+      const response = await api.voiceSpeak({
+        assistant,
+        text: message,
+        reply_mode: "auto",
+        include_audio_base64: false,
+      });
+      if (response.audio_path) {
+        const audio = new Audio(api.voiceAudioUrl(response.audio_path));
+        audio.playbackRate = speechRateForProfile(response.profile);
+        audioRef.current = audio;
+        startSpeaking();
+        await playAudio(audio);
+        return;
+      }
       if (response.audio_base64 && response.content_type) {
         const audio = new Audio(`data:${response.content_type};base64,${response.audio_base64}`);
         audio.playbackRate = speechRateForProfile(response.profile);
@@ -1466,7 +1480,11 @@ export default function Chat() {
       mediaChunksRef.current = [];
       discardRecordingRef.current = false;
       const mimeType = getPreferredAudioMimeType();
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const recorderOptions: MediaRecorderOptions = {
+        audioBitsPerSecond: VOICE_AUDIO_BITS_PER_SECOND,
+      };
+      if (mimeType) recorderOptions.mimeType = mimeType;
+      const recorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data?.size) mediaChunksRef.current.push(event.data);

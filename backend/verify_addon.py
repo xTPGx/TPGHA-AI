@@ -272,6 +272,16 @@ def main() -> int:
           and "speechResolveRef" in chat_frontend
           and "localVoiceControlCommand" in chat_frontend,
           "Live voice should submit sooner, keep listening, and let the user interrupt spoken replies without a button.")
+    check("Chat voice latency path avoids oversized payloads",
+          "VOICE_AUDIO_BITS_PER_SECOND = 32000" in chat_frontend
+          and "include_audio_base64: false" in chat_frontend
+          and "voiceAudioUrl" in api_frontend
+          and "audio_path" in chat_frontend
+          and "openai_transcribe_language" in settings_source
+          and "OPENAI_TRANSCRIBE_LANGUAGE" in run_sh
+          and "latency_ms" in voice_source
+          and "latency_ms" in (repo_root / "backend" / "app" / "transcription.py").read_text(encoding="utf-8"),
+          "Live chat should send smaller mic blobs, request path-only TTS audio, and expose timing metrics.")
     check("Live voice fast-lanes non-action conversation",
           "/chat/general" in backend_main
           and "chatGeneral" in api_frontend
