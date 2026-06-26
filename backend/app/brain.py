@@ -1089,7 +1089,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Owners can review cleanup candidates before applying removal.",
                 "The Apply cleanup action uses the same guarded backend endpoint and keeps pinned preferences protected.",
             ],
-            "next": "Add runbook/release export actions into the setup and dashboard surfaces.",
+            "next": "Add runbook/release export actions into the setup surface.",
+        },
+        {
+            "id": "runbook_export_ui",
+            "title": "Runbook Export UI",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/runbook returns an operational Markdown export that includes release checklist status.",
+                "Setup exposes Copy runbook and Download runbook actions beside the owner runbook.",
+                "The export is guidance-only and does not execute device, setup, or Home Assistant actions.",
+            ],
+            "next": "Add release checklist export/copy actions near release blockers.",
         },
         {
             "id": "operational_runbook",

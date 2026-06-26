@@ -808,6 +808,17 @@ def main() -> int:
     check("phase 131 endpoint is exposed",
           "/brain/phase-131" in backend_main,
           "Backend must expose the phase 131 profile cleanup UI marker.")
+    check("phase 132 runbook export UI is wired",
+          "Copy runbook" in setup_frontend
+          and "Download runbook" in setup_frontend
+          and "downloadRunbook" in setup_frontend
+          and "markdown" in experience_brain
+          and "runbook_export_ui" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_132" in experience_brain,
+          "Setup must expose copy/download actions for the operational runbook.")
+    check("phase 132 endpoint is exposed",
+          "/brain/phase-132" in backend_main,
+          "Backend must expose the phase 132 runbook export UI marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1639,6 +1650,10 @@ def main() -> int:
           and "release_checklist" in r.json()
           and any(step.get("id") == "feature_freeze" for step in r.json().get("runbook", [])),
           str(r.json()))
+    check("/release/runbook exposes markdown export",
+          "# TPG HomeAI Operational Runbook" in r.json().get("markdown", "")
+          and "## Release Checklist" in r.json().get("markdown", ""),
+          str(r.json()))
 
     r = client.get("/brain/phase-97")
     check("/brain/phase-97 returns JSON", r.status_code == 200 and is_json(r),
@@ -2288,6 +2303,16 @@ def main() -> int:
           r.json().get("phase") == 131
           and r.json().get("profile_cleanup_ui", {}).get("preview_action") == "Preview cleanup"
           and r.json().get("profile_cleanup_ui", {}).get("apply_action") == "Apply cleanup",
+          str(r.json()))
+
+    r = client.get("/brain/phase-132")
+    check("/brain/phase-132 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-132 has runbook export UI marker",
+          r.json().get("phase") == 132
+          and "markdown" in r.json().get("runbook_export_ui", {}).get("formats", [])
+          and "Copy runbook" in r.json().get("runbook_export_ui", {}).get("setup_page_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

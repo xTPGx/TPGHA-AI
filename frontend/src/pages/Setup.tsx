@@ -9,6 +9,7 @@ export default function Setup() {
   const [completion, setCompletion] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
   const [runbook, setRunbook] = useState<any>(null);
+  const [runbookMessage, setRunbookMessage] = useState("");
   const [gaps, setGaps] = useState<any>(null);
   const [onboarding, setOnboarding] = useState<any>(null);
   const [diagnostics, setDiagnostics] = useState<any>(null);
@@ -207,6 +208,30 @@ export default function Setup() {
     setSupportPacketMessage(`Setup packet downloaded as ${format.toUpperCase()}.`);
   };
 
+  const copyRunbook = async () => {
+    if (!runbook) return;
+    try {
+      await navigator.clipboard.writeText(runbook.markdown || JSON.stringify(runbook, null, 2));
+      setRunbookMessage("Runbook copied.");
+    } catch {
+      setRunbookMessage("Clipboard unavailable.");
+    }
+  };
+
+  const downloadRunbook = (format: "md" | "json") => {
+    if (!runbook) return;
+    const isMarkdown = format === "md";
+    const body = isMarkdown ? runbook.markdown || "" : JSON.stringify(runbook, null, 2);
+    const blob = new Blob([body], { type: isMarkdown ? "text/markdown" : "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tpg-homeai-runbook-${runbook.version || "current"}.${format}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setRunbookMessage(`Runbook downloaded as ${format.toUpperCase()}.`);
+  };
+
   return (
     <div>
       <PageHeader
@@ -235,7 +260,12 @@ export default function Setup() {
       <SidebarAccessPanel report={sidebarAccess} />
       <CapabilityGapsPanel gaps={gaps} />
       <OnboardingPlanPanel onboarding={onboarding} />
-      <OperationalRunbookPanel runbook={runbook} />
+      <OperationalRunbookPanel
+        runbook={runbook}
+        message={runbookMessage}
+        onCopy={copyRunbook}
+        onDownload={downloadRunbook}
+      />
       <DiagnosticsPanel diagnostics={diagnostics} message={diagnosticsMessage} onCopy={copyDiagnostics} />
       <BackupRecoveryPanel backup={backup} />
       <IntegrationReadinessPanel integrations={integrations} />
@@ -749,7 +779,17 @@ function DiagStat({ label, value }: { label: string; value: any }) {
   );
 }
 
-function OperationalRunbookPanel({ runbook }: { runbook: any }) {
+function OperationalRunbookPanel({
+  runbook,
+  message,
+  onCopy,
+  onDownload,
+}: {
+  runbook: any;
+  message: string;
+  onCopy: () => void;
+  onDownload: (format: "md" | "json") => void;
+}) {
   const steps = runbook?.runbook || [];
   if (!steps.length) return null;
   return (
@@ -761,7 +801,12 @@ function OperationalRunbookPanel({ runbook }: { runbook: any }) {
             Update, acceptance, recovery, and feature-freeze steps from the release runbook.
           </div>
         </div>
-        <span className="badge bg-cyan-500/10 text-cyan-200">{steps.length} sections</span>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={onCopy}>Copy runbook</button>
+          <button className="btn-ghost" onClick={() => onDownload("md")}>Download runbook</button>
+          <button className="btn-ghost" onClick={() => onDownload("json")}>Download JSON</button>
+          <span className="badge bg-cyan-500/10 text-cyan-200">{steps.length} sections</span>
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {steps.map((step: any) => (
@@ -778,6 +823,7 @@ function OperationalRunbookPanel({ runbook }: { runbook: any }) {
           </div>
         ))}
       </div>
+      {message && <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
     </div>
   );
 }

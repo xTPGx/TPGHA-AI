@@ -586,7 +586,7 @@ async def build_release_checklist(config: AppConfig, version: str) -> dict[str, 
 
 async def build_operational_runbook(config: AppConfig, version: str) -> dict[str, Any]:
     checklist = await build_release_checklist(config, version)
-    return {
+    runbook = {
         "status": "ready",
         "version": version,
         "runbook": [
@@ -615,6 +615,31 @@ async def build_operational_runbook(config: AppConfig, version: str) -> dict[str
         ],
         "release_checklist": checklist,
     }
+    runbook["markdown"] = _operational_runbook_markdown(runbook)
+    return runbook
+
+
+def _operational_runbook_markdown(runbook: dict[str, Any]) -> str:
+    lines = [
+        f"# TPG HomeAI Operational Runbook {runbook.get('version', '')}".strip(),
+        "",
+        f"Status: {runbook.get('status', 'unknown')}",
+        "",
+        "## Release Checklist",
+    ]
+    checklist = runbook.get("release_checklist", {}) or {}
+    for check in checklist.get("checks", []):
+        mark = "PASS" if check.get("pass") else "NEEDS REVIEW"
+        lines.append(f"- {mark}: {check.get('title')} - {check.get('detail')}")
+    if checklist.get("ship_rule"):
+        lines.extend(["", f"Ship rule: {checklist.get('ship_rule')}"])
+    lines.append("")
+    lines.append("## Runbook")
+    for step in runbook.get("runbook", []):
+        lines.extend(["", f"### {step.get('title')}"])
+        for action in step.get("actions", []):
+            lines.append(f"- {action}")
+    return "\n".join(lines).strip() + "\n"
 
 
 async def build_setup_action_plan(config: AppConfig, version: str) -> dict[str, Any]:
@@ -1199,6 +1224,21 @@ async def build_jarvis_phase_131(version: str) -> dict[str, Any]:
             "owner_visible": True,
         },
         "guardrail": "Phase 131 keeps cleanup explicit in owner profile management and preserves the dry-run-first workflow.",
+    }
+
+
+async def build_jarvis_phase_132(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 132,
+        "runbook_export_ui": {
+            "source_endpoint": "/release/runbook",
+            "formats": ["json", "markdown"],
+            "setup_page_actions": ["Copy runbook", "Download runbook"],
+            "includes_release_checklist": True,
+        },
+        "guardrail": "Phase 132 only exports operational guidance and release gates; it does not execute setup actions.",
     }
 
 

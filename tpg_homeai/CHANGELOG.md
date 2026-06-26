@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.36
+
+- Added Jarvis phase 132 runbook export UI.
+- Added Markdown output to `/release/runbook` with embedded release checklist status.
+- Added Setup-page Copy runbook and Download runbook actions for owner handoff.
+- Added `/brain/phase-132` and Jarvis Brain readiness evidence for runbook export management.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.35
 
 - Added Jarvis phase 131 profile cleanup UI.
