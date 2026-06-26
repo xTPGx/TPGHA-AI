@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.24
+
+- Added Jarvis phase 120 Dashboard owner action plan summary.
+- Dashboard now loads `/ops/setup-action-plan` and shows top owner setup/release actions on the first screen.
+- Added direct Dashboard links from each action to Setup or the relevant management page.
+- Added `/brain/phase-120` and Jarvis Brain readiness evidence for the Dashboard action plan summary.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.23
 
 - Added Jarvis phase 119 Home Assistant sidebar access diagnostics.

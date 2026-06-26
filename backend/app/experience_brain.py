@@ -1011,6 +1011,22 @@ async def build_jarvis_phase_119(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_120(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 120,
+        "dashboard_action_plan_summary": {
+            "surface": "Dashboard",
+            "source_endpoint": "/ops/setup-action-plan",
+            "shows_top_actions": True,
+            "links_to_setup_and_management_pages": True,
+            "keeps_actions_read_only": True,
+        },
+        "guardrail": "Phase 120 only summarizes owner actions on the dashboard; it does not execute setup or management actions.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

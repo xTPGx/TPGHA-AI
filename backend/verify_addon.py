@@ -677,6 +677,15 @@ def main() -> int:
     check("phase 119 endpoint is exposed",
           "/brain/phase-119" in backend_main,
           "Backend must expose the phase 119 sidebar access readiness marker.")
+    check("phase 120 dashboard action plan summary is wired",
+          "Owner action plan" in (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+          and "api.setupActionPlan" in (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+          and "dashboard_action_plan_summary" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_120" in experience_brain,
+          "Dashboard must surface top setup actions from the backend action plan.")
+    check("phase 120 endpoint is exposed",
+          "/brain/phase-120" in backend_main,
+          "Backend must expose the phase 120 dashboard action plan readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1835,6 +1844,16 @@ def main() -> int:
           r.json().get("phase") == 119
           and r.json().get("sidebar_access_diagnostics", {}).get("source_endpoint") == "/ops/sidebar-access"
           and r.json().get("sidebar_access_diagnostics", {}).get("validates_panel_admin_false") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-120")
+    check("/brain/phase-120 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-120 has dashboard action plan marker",
+          r.json().get("phase") == 120
+          and r.json().get("dashboard_action_plan_summary", {}).get("surface") == "Dashboard"
+          and r.json().get("dashboard_action_plan_summary", {}).get("shows_top_actions") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -11,6 +12,7 @@ type Phase = "connecting" | "ok" | "degraded" | "initializing" | "offline" | "mi
 export default function Dashboard() {
   const [health, setHealth] = useState<any>(null);
   const [summary, setSummary] = useState<any>(null);
+  const [actionPlan, setActionPlan] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -30,6 +32,11 @@ export default function Dashboard() {
         setSummary(await api.discoverySummary());
       } catch {
         /* summary is best-effort */
+      }
+      try {
+        setActionPlan(await api.setupActionPlan());
+      } catch {
+        /* setup actions are best-effort */
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -107,6 +114,8 @@ export default function Dashboard() {
         </div>
       )}
 
+      <DashboardActionPlan actionPlan={actionPlan} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card">
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -166,6 +175,36 @@ export default function Dashboard() {
       )}
 
       <DeveloperDetails title="Raw health" data={health} />
+    </div>
+  );
+}
+
+function DashboardActionPlan({ actionPlan }: { actionPlan: any }) {
+  const actions = actionPlan?.top_actions || [];
+  if (!actions.length) return null;
+  const counts = actionPlan.counts || {};
+  return (
+    <div className="card border-brand/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Owner action plan</div>
+          <div className="mt-1 text-sm text-slate-400">
+            {counts.release_blockers || 0} release blockers · {counts.capability_gaps || 0} capability gaps · {counts.onboarding || 0} onboarding item
+          </div>
+        </div>
+        <Link to="/setup" className="btn-ghost">Open Setup</Link>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+        {actions.slice(0, 3).map((action: any) => (
+          <Link key={action.id || `${action.source}-${action.title}`} to={action.target || "/setup"} className="rounded border border-slate-800 bg-slate-950/30 p-3 hover:border-brand/60">
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-semibold text-slate-100">{action.title}</div>
+              <Badge tone={action.severity === "high" || action.severity === "critical" ? "warn" : "slate"}>{action.source}</Badge>
+            </div>
+            <div className="mt-1 text-sm text-slate-400">{action.detail}</div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

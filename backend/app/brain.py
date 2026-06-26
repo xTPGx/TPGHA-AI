@@ -948,6 +948,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add live Supervisor metadata probing if HA exposes add-on panel visibility through the API.",
         },
         {
+            "id": "dashboard_action_plan_summary",
+            "title": "Dashboard Action Plan Summary",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Dashboard loads /ops/setup-action-plan alongside health and discovery.",
+                "Owners see the top setup/release actions on the first screen.",
+                "Each dashboard action links to Setup or the relevant management page and remains read-only.",
+            ],
+            "next": "Add role-scoped dashboard summaries for resident and kiosk health without exposing admin tools.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
