@@ -559,16 +559,21 @@ export default function Chat() {
   useEffect(() => {
     const role = session?.role || "guest";
     let cancelled = false;
-    Promise.all([api.roleActionPolicy(role), api.roleSuggestedPrompts(role)])
+    Promise.all([api.roleActionPolicy(role), api.rolePromptInsights(role)])
       .then(([policy, prompts]) => {
         if (cancelled) return;
         setActionPolicy(policy);
         setSuggestedPrompts(prompts?.prompts || []);
       })
-      .catch(() => {
+      .catch(async () => {
         if (cancelled) return;
         setActionPolicy(null);
-        setSuggestedPrompts([]);
+        try {
+          const prompts = await api.roleSuggestedPrompts(role);
+          if (!cancelled) setSuggestedPrompts(prompts?.prompts || []);
+        } catch {
+          if (!cancelled) setSuggestedPrompts([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -1431,7 +1436,12 @@ function EmptyState({ assistantName, prompts, onPrompt }: { assistantName: strin
             className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
             onClick={() => onPrompt(quickPrompt(prompt.text || String(prompt)))}
           >
-            {prompt.text || String(prompt)}
+            <span className="block">{prompt.text || String(prompt)}</span>
+            {Number(prompt.attempts || 0) > 0 && (
+              <span className="mt-2 block text-xs text-slate-500">
+                {prompt.successes || 0}/{prompt.attempts} useful · {prompt.executions || 0} actions
+              </span>
+            )}
           </button>
         ))}
       </div>

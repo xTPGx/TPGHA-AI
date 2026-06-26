@@ -1109,6 +1109,21 @@ async def build_jarvis_phase_125(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_126(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 126,
+        "prompt_outcome_insights": {
+            "source_endpoint": "/ops/role-prompt-insights",
+            "source_data": "CommandLog",
+            "ranks_prompts_by_success": True,
+            "adds_no_new_private_storage": True,
+        },
+        "guardrail": "Phase 126 ranks starter prompts from existing audit history only; permissions remain unchanged.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

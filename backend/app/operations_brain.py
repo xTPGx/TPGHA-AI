@@ -14,7 +14,7 @@ from .actions.automation_installer import ha_config_root
 from .bootstrap import get_app_state
 from .config_loader import config_error
 from .db.database import get_session
-from .db.models import AcceptanceRun
+from .db.models import AcceptanceRun, CommandLog
 from .discovery import scanner as discovery_scanner
 from .homeassistant.services import safe_get_states
 from .models.schemas import AppConfig
@@ -418,6 +418,59 @@ def build_role_suggested_prompts(role: str = "guest") -> dict[str, Any]:
     }
 
 
+def build_role_prompt_insights(role: str = "guest") -> dict[str, Any]:
+    starter = build_role_suggested_prompts(role)
+    prompts = starter["prompts"]
+    by_key = {_prompt_key(prompt["text"]): prompt for prompt in prompts}
+    stats = {
+        prompt["id"]: {
+            "attempts": 0,
+            "successes": 0,
+            "executions": 0,
+            "last_used": None,
+        }
+        for prompt in prompts
+    }
+    with get_session() as session:
+        rows = session.query(CommandLog).order_by(CommandLog.created_at.desc(), CommandLog.id.desc()).limit(500).all()
+        for row in rows:
+            prompt = by_key.get(_prompt_key(row.message))
+            if not prompt:
+                continue
+            item = stats[prompt["id"]]
+            item["attempts"] += 1
+            if row.success:
+                item["successes"] += 1
+            if row.executed:
+                item["executions"] += 1
+            if item["last_used"] is None and row.created_at:
+                item["last_used"] = row.created_at.isoformat()
+    ranked = []
+    for index, prompt in enumerate(prompts):
+        item = stats[prompt["id"]]
+        score = (item["executions"] * 5) + (item["successes"] * 2) + item["attempts"]
+        ranked.append({
+            **prompt,
+            "rank_score": score,
+            "attempts": item["attempts"],
+            "successes": item["successes"],
+            "executions": item["executions"],
+            "last_used": item["last_used"],
+            "fresh": item["attempts"] == 0,
+            "_index": index,
+        })
+    ranked.sort(key=lambda prompt: (-prompt["rank_score"], prompt["_index"]))
+    for prompt in ranked:
+        prompt.pop("_index", None)
+    return {
+        "status": "ready",
+        "role": starter["role"],
+        "prompts": ranked,
+        "observed_prompts": sum(1 for item in ranked if item["attempts"] > 0),
+        "guardrail": "Prompt insights are read from CommandLog only; they do not store new private data or change permissions.",
+    }
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)
@@ -494,6 +547,10 @@ def _role_capability(capability_id: str, title: str, allowed: bool, detail: str)
 
 def _role_prompt(prompt_id: str, text: str) -> dict[str, str]:
     return {"id": prompt_id, "text": text}
+
+
+def _prompt_key(text: str) -> str:
+    return " ".join(str(text or "").strip().lower().split())
 
 
 def _role_policy_highlights(role: str, capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -1020,6 +1020,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Track which prompts lead to successful actions and rank the best starters first.",
         },
         {
+            "id": "prompt_outcome_insights",
+            "title": "Prompt Outcome Insights",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/role-prompt-insights ranks role-aware starter prompts from recent CommandLog rows.",
+                "Prompt cards include attempt, success, execution, and last-used metadata.",
+                "The insight layer reuses audit history and adds no new private storage.",
+            ],
+            "next": "Use prompt outcomes to suggest follow-up actions after successful scheduled tasks or dashboard drafts.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

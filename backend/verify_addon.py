@@ -739,6 +739,17 @@ def main() -> int:
     check("phase 125 endpoint is exposed",
           "/brain/phase-125" in backend_main,
           "Backend must expose the phase 125 role-aware Chat prompts marker.")
+    check("phase 126 prompt outcome insights are wired",
+          "/ops/role-prompt-insights" in backend_main
+          and "build_role_prompt_insights" in operations_brain
+          and "rolePromptInsights" in api_frontend
+          and "rank_score" in operations_brain
+          and "prompt_outcome_insights" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_126" in experience_brain,
+          "Role-aware Chat prompts must be ranked from CommandLog outcomes.")
+    check("phase 126 endpoint is exposed",
+          "/brain/phase-126" in backend_main,
+          "Backend must expose the phase 126 prompt outcome insights marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2046,6 +2057,26 @@ def main() -> int:
           r.json().get("phase") == 125
           and r.json().get("role_aware_chat_prompts", {}).get("source_endpoint") == "/ops/role-suggested-prompts"
           and r.json().get("role_aware_chat_prompts", {}).get("uses_role_policy") is True,
+          str(r.json()))
+
+    r = client.get("/ops/role-prompt-insights?role=resident")
+    resident_insights = r.json()
+    check("/ops/role-prompt-insights returns ranked resident prompts",
+          r.status_code == 200
+          and is_json(r)
+          and resident_insights.get("role") == "resident"
+          and isinstance(resident_insights.get("prompts"), list)
+          and all("rank_score" in p and "attempts" in p for p in resident_insights.get("prompts", [])),
+          str(resident_insights))
+
+    r = client.get("/brain/phase-126")
+    check("/brain/phase-126 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-126 has prompt outcome marker",
+          r.json().get("phase") == 126
+          and r.json().get("prompt_outcome_insights", {}).get("source_endpoint") == "/ops/role-prompt-insights"
+          and r.json().get("prompt_outcome_insights", {}).get("adds_no_new_private_storage") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

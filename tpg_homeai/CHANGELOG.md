@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.30
+
+- Added Jarvis phase 126 prompt outcome insights.
+- Added `/ops/role-prompt-insights` to rank role-aware starter prompts from recent command audit history.
+- Prompt insight cards now include attempt, success, execution, and last-used metadata without adding new private storage.
+- Chat now loads ranked prompt insights and falls back to plain role prompts if insights are unavailable.
+- Added `/brain/phase-126` and Jarvis Brain readiness evidence for prompt outcome ranking.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.29
 
 - Added Jarvis phase 125 role-aware Chat starter prompts.
