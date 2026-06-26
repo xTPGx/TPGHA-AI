@@ -833,6 +833,19 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
         draft_assets = session.query(HouseAsset).filter(
             HouseAsset.status == "draft"
         ).count()
+        acceptance_rows = session.query(
+            AcceptanceRun.test_id, AcceptanceRun.status
+        ).all()
+
+    passed_acceptance_tests = {
+        row.test_id for row in acceptance_rows if row.status == "passed"
+    }
+    failed_acceptance_tests = {
+        row.test_id
+        for row in acceptance_rows
+        if row.status in {"failed", "blocked"}
+    }
+    required_acceptance_passes = 5
 
     gates = [
         _gate(
@@ -930,6 +943,30 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
                 (active_voice.get("missing_source_identity", 0) > 0, "Paste real HA Assist/Browser Mod source IDs into voice_sources."),
             ]),
             "You can talk to the house from real microphones/panels and get natural replies in the right place.",
+        ),
+        _gate(
+            "live_acceptance_evidence",
+            "Live-House Acceptance Evidence",
+            True,
+            len(passed_acceptance_tests) >= required_acceptance_passes
+            and not failed_acceptance_tests,
+            [
+                f"{len(acceptance_rows)} human acceptance result(s) recorded.",
+                f"{len(passed_acceptance_tests)} unique acceptance test(s) passed.",
+                f"{len(failed_acceptance_tests)} failed or blocked acceptance test(s).",
+                "Acceptance evidence is recorded from the read-only live runner and human-reviewed dry-run checks.",
+            ],
+            _missing([
+                (
+                    len(passed_acceptance_tests) < required_acceptance_passes,
+                    f"Record at least {required_acceptance_passes} passed live-house acceptance checks.",
+                ),
+                (
+                    bool(failed_acceptance_tests),
+                    f"Resolve {len(failed_acceptance_tests)} failed or blocked acceptance check(s).",
+                ),
+            ]),
+            "Enough real-house acceptance checks are passed and no failed/blocked checks remain.",
         ),
         _gate(
             "memory_learning",
@@ -1047,12 +1084,20 @@ def build_completion_status(graph: dict[str, Any], health: dict[str, Any] | None
             "deployment": (
                 "Call Jarvis v1 complete when required gates are complete in the live house: "
                 "HA reachable, security PIN set, pending approvals cleared, OpenAI configured, "
-                "and real voice source IDs mapped."
+                "real voice source IDs mapped, and live-house acceptance evidence recorded."
             ),
             "after_complete": (
                 "After that, freeze feature work and only do bug fixes, device mapping, voice tuning, "
                 "and small quality-of-life polish until a clear v2 requirement appears."
             ),
+        },
+        "acceptance": {
+            "runs": len(acceptance_rows),
+            "unique_passed": len(passed_acceptance_tests),
+            "failed_or_blocked": len(failed_acceptance_tests),
+            "required_passed": required_acceptance_passes,
+            "passed_tests": sorted(passed_acceptance_tests),
+            "failed_or_blocked_tests": sorted(failed_acceptance_tests),
         },
         "gates": gates,
     }

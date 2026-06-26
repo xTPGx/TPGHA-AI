@@ -492,6 +492,11 @@ def main() -> int:
           and "LiveAcceptancePanel" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
           and "Latest evidence" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8"),
           "Brain UI must expose the live acceptance plan and evidence recording.")
+    check("phase 100 completion gates use acceptance evidence",
+          "live_acceptance_evidence" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "required_acceptance_passes" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "failed_or_blocked" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Jarvis completion must require recorded live-house acceptance evidence.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -954,6 +959,11 @@ def main() -> int:
     check("/brain/completion has stop criteria",
           "gates" in r.json() and "complete_spot" in r.json(),
           str(r.json()))
+    completion = r.json()
+    check("/brain/completion includes acceptance evidence gate",
+          any(gate.get("id") == "live_acceptance_evidence" for gate in completion.get("gates", []))
+          and completion.get("acceptance", {}).get("required_passed", 0) >= 5,
+          str(completion))
 
     r = client.get("/brain/house-state?include_registries=false")
     check("/brain/house-state returns JSON", r.status_code == 200 and is_json(r),
@@ -1339,6 +1349,13 @@ def main() -> int:
           r.status_code == 200
           and is_json(r)
           and r.json().get("evidence", {}).get("count", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/brain/completion?include_registries=false")
+    check("/brain/completion counts recorded acceptance evidence",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("acceptance", {}).get("unique_passed", 0) >= 1,
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.4
+
+- Added Jarvis phase 100 completion evidence gating.
+- `/brain/completion` now requires recorded live-house acceptance evidence before declaring house deployment complete.
+- Completion status reports acceptance run counts, unique passed tests, failed/blocked tests, and required pass count.
+- Kept software readiness separate from live-house deployment readiness so the system does not falsely claim "complete" before real validation.
+- Added verifier coverage for the new acceptance evidence completion gate.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.3
 
 - Added Jarvis phase 99 live acceptance UI.
