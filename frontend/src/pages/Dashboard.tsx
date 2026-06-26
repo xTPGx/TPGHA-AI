@@ -224,11 +224,29 @@ function DashboardRoleSummary({ summary, session }: { summary: any; session: any
           </Link>
         ))}
       </div>
+      {summary.acceptance && (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <MiniEvidence label="Acceptance scope" value={summary.acceptance.scope || "profile"} />
+          <MiniEvidence label="Passed checks" value={summary.acceptance.passed ?? 0} />
+          <MiniEvidence label="Failed/blocked" value={summary.acceptance.failed_or_blocked ?? 0} warn={summary.acceptance.failed_or_blocked > 0} />
+        </div>
+      )}
       {!summary.permissions?.admin_actions_visible && (
         <div className="mt-4 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
           Owner setup, discovery mapping, dashboards, users, and system configuration stay hidden unless Home Assistant grants admin/manager access.
         </div>
       )}
+    </div>
+  );
+}
+
+function MiniEvidence({ label, value, warn }: { label: string; value: any; warn?: boolean }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+      <div className="text-xs uppercase text-slate-500">{label}</div>
+      <div className={`mt-1 text-lg font-semibold ${warn ? "text-amber-300" : "text-slate-100"}`}>
+        {value}
+      </div>
     </div>
   );
 }

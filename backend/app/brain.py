@@ -972,6 +972,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add live per-user acceptance evidence directly to the role-scoped dashboard cards.",
         },
         {
+            "id": "role_dashboard_acceptance_evidence",
+            "title": "Role Dashboard Acceptance Evidence",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/role-dashboard includes an acceptance object with scope, pass count, failed/blocked count, and latest evidence.",
+                "Owner dashboards see house-wide acceptance evidence while residents/shared panels see only matching profile evidence.",
+                "Dashboard renders acceptance scope and counts as read-only status under the role summary.",
+            ],
+            "next": "Let owners launch role-specific acceptance runs from the dashboard after live-house test execution controls are hardened.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

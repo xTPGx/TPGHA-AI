@@ -697,6 +697,16 @@ def main() -> int:
     check("phase 121 endpoint is exposed",
           "/brain/phase-121" in backend_main,
           "Backend must expose the phase 121 role-scoped dashboard readiness marker.")
+    check("phase 122 role dashboard acceptance evidence is wired",
+          "acceptance" in operations_brain
+          and "AcceptanceRun" in operations_brain
+          and "MiniEvidence" in (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+          and "role_dashboard_acceptance_evidence" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_122" in experience_brain,
+          "Dashboard role summaries must include read-only acceptance evidence counts.")
+    check("phase 122 endpoint is exposed",
+          "/brain/phase-122" in backend_main,
+          "Backend must expose the phase 122 role dashboard acceptance evidence marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1867,6 +1877,18 @@ def main() -> int:
           and r.json().get("dashboard_action_plan_summary", {}).get("shows_top_actions") is True,
           str(r.json()))
 
+    r = client.post("/experience/live-acceptance/results", json={
+        "test_id": "resident_chat_acceptance",
+        "status": "passed",
+        "assistant": "chatty",
+        "user": "jordie",
+        "notes": "Verifier recorded profile-scoped resident acceptance evidence.",
+        "evidence": {"source": "verify_addon", "role": "resident", "mutating": False},
+    })
+    check("/experience/live-acceptance/results records resident evidence",
+          r.status_code == 200 and is_json(r) and r.json().get("recorded") is True,
+          f"status={r.status_code} payload={r.text}")
+
     r = client.get("/ops/role-dashboard?role=admin&user=shawn")
     check("/ops/role-dashboard returns owner summary",
           r.status_code == 200 and is_json(r),
@@ -1874,6 +1896,10 @@ def main() -> int:
     check("/ops/role-dashboard admin exposes owner actions",
           r.json().get("permissions", {}).get("admin_actions_visible") is True
           and r.json().get("permissions", {}).get("can_manage_dashboards") is True,
+          str(r.json()))
+    check("/ops/role-dashboard admin shows house acceptance evidence",
+          r.json().get("acceptance", {}).get("scope") == "house"
+          and r.json().get("acceptance", {}).get("passed", 0) >= 1,
           str(r.json()))
 
     r = client.get("/ops/role-dashboard?role=resident&user=jordie")
@@ -1885,6 +1911,11 @@ def main() -> int:
           and r.json().get("permissions", {}).get("can_manage_dashboards") is False
           and r.json().get("permissions", {}).get("can_create_scheduled_tasks") is True,
           str(r.json()))
+    check("/ops/role-dashboard resident shows profile acceptance evidence",
+          r.json().get("acceptance", {}).get("scope") == "profile"
+          and r.json().get("acceptance", {}).get("passed", 0) >= 1
+          and r.json().get("acceptance", {}).get("latest", {}).get("user") == "jordie",
+          str(r.json()))
 
     r = client.get("/brain/phase-121")
     check("/brain/phase-121 returns JSON",
@@ -1894,6 +1925,16 @@ def main() -> int:
           r.json().get("phase") == 121
           and r.json().get("role_scoped_dashboard", {}).get("source_endpoint") == "/ops/role-dashboard"
           and r.json().get("role_scoped_dashboard", {}).get("admin_actions_visible_only_to_owner_scope") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-122")
+    check("/brain/phase-122 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-122 has role dashboard acceptance marker",
+          r.json().get("phase") == 122
+          and r.json().get("role_dashboard_acceptance_evidence", {}).get("source_endpoint") == "/ops/role-dashboard"
+          and r.json().get("role_dashboard_acceptance_evidence", {}).get("shows_passed_and_failed_blocked_counts") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

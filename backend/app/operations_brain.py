@@ -6,12 +6,15 @@ into deployment guidance that is safe to show in the UI or hand to support.
 from __future__ import annotations
 
 import datetime as dt
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from .actions.automation_installer import ha_config_root
 from .bootstrap import get_app_state
 from .config_loader import config_error
+from .db.database import get_session
+from .db.models import AcceptanceRun
 from .discovery import scanner as discovery_scanner
 from .homeassistant.services import safe_get_states
 from .models.schemas import AppConfig
@@ -313,7 +316,12 @@ async def build_role_dashboard_summary(config: AppConfig, role: str = "guest", u
     discovery = await discovery_scanner.summary()
     is_owner_scope = normalized_role in {"admin", "manager"}
     is_shared = normalized_role in {"kiosk", "guest"}
-    cards = _owner_dashboard_cards(discovery) if is_owner_scope else _resident_dashboard_cards(normalized_role, user, assistant)
+    acceptance = _dashboard_acceptance_evidence(normalized_role, user)
+    cards = (
+        _owner_dashboard_cards(discovery, acceptance)
+        if is_owner_scope
+        else _resident_dashboard_cards(normalized_role, user, assistant, acceptance)
+    )
     return {
         "status": "ready",
         "role": normalized_role,
@@ -336,6 +344,7 @@ async def build_role_dashboard_summary(config: AppConfig, role: str = "guest", u
             "can_chat": True,
             "can_use_house_controls": normalized_role in {"admin", "manager", "resident", "kiosk"},
         },
+        "acceptance": acceptance,
         "cards": cards,
         "guardrails": [
             "Dashboard owner setup actions are hidden unless the resolved HA user is admin/manager.",
@@ -441,7 +450,53 @@ def _assistant_for_user(config: AppConfig, user_id: str) -> Any | None:
     return next((assistant for assistant in config.assistants.assistants if assistant.owner.lower() == wanted), None)
 
 
-def _owner_dashboard_cards(discovery: dict[str, Any]) -> list[dict[str, Any]]:
+def _dashboard_acceptance_evidence(role: str, user: Any | None) -> dict[str, Any]:
+    with get_session() as session:
+        rows = (
+            session.query(AcceptanceRun)
+            .order_by(AcceptanceRun.created_at.desc())
+            .limit(200)
+            .all()
+        )
+    aliases = _user_match_values(user)
+    scoped_rows = rows if role in {"admin", "manager"} else [
+        row for row in rows
+        if (row.user or "").strip().lower() in aliases
+    ]
+    counts = Counter(row.status for row in scoped_rows)
+    latest = scoped_rows[0] if scoped_rows else None
+    failed_or_blocked = counts.get("failed", 0) + counts.get("blocked", 0)
+    return {
+        "scope": "house" if role in {"admin", "manager"} else "profile",
+        "recorded": len(scoped_rows),
+        "passed": counts.get("passed", 0),
+        "failed_or_blocked": failed_or_blocked,
+        "status_counts": dict(counts),
+        "latest": {
+            "test_id": latest.test_id,
+            "status": latest.status,
+            "user": latest.user,
+            "assistant": latest.assistant,
+            "created_at": latest.created_at.isoformat() if latest.created_at else None,
+        } if latest else None,
+        "needs_evidence": len(scoped_rows) == 0,
+    }
+
+
+def _user_match_values(user: Any | None) -> set[str]:
+    if not user:
+        return set()
+    values = {
+        user.id,
+        user.name,
+        str(user.ha_username or ""),
+        str(user.ha_user_id or ""),
+    }
+    values.update(str(alias) for alias in (user.aliases or []))
+    return {value.strip().lower() for value in values if value and value.strip()}
+
+
+def _owner_dashboard_cards(discovery: dict[str, Any], acceptance: dict[str, Any]) -> list[dict[str, Any]]:
     pending = int(discovery.get("pending_count") or 0)
     unavailable = int(discovery.get("unavailable_count") or 0)
     return [
@@ -462,14 +517,14 @@ def _owner_dashboard_cards(discovery: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "id": "brain_readiness",
             "title": "Jarvis readiness",
-            "detail": "Open the Brain view for acceptance evidence, role checks, and release gates.",
+            "detail": f"{acceptance['passed']} passed and {acceptance['failed_or_blocked']} failed/blocked acceptance checks are recorded.",
             "target": "/jarvis",
-            "tone": "slate",
+            "tone": "good" if acceptance["passed"] and not acceptance["failed_or_blocked"] else "warn",
         },
     ]
 
 
-def _resident_dashboard_cards(role: str, user: Any | None, assistant: Any | None) -> list[dict[str, Any]]:
+def _resident_dashboard_cards(role: str, user: Any | None, assistant: Any | None, acceptance: dict[str, Any]) -> list[dict[str, Any]]:
     assistant_name = assistant.name if assistant else ("Jarvis" if role in {"kiosk", "guest"} else "your assistant")
     owner = user.name if user else ("shared panel" if role in {"kiosk", "guest"} else "this profile")
     return [
@@ -486,6 +541,13 @@ def _resident_dashboard_cards(role: str, user: Any | None, assistant: Any | None
             "detail": "You can ask Jarvis to create safe schedules like turning lights off at 10 PM.",
             "target": "/chat",
             "tone": "good",
+        },
+        {
+            "id": "acceptance_evidence",
+            "title": "Profile acceptance",
+            "detail": f"{acceptance['passed']} passed and {acceptance['failed_or_blocked']} failed/blocked checks recorded for this profile scope.",
+            "target": "/jarvis" if role == "resident" else "/chat",
+            "tone": "good" if acceptance["passed"] and not acceptance["failed_or_blocked"] else "slate",
         },
         {
             "id": "protected_changes",

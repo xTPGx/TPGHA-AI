@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.26
+
+- Added Jarvis phase 122 role dashboard acceptance evidence.
+- `/ops/role-dashboard` now includes read-only acceptance evidence counts and latest result metadata.
+- Owner dashboards now see house-wide acceptance evidence; resident/shared dashboards see profile-scoped evidence.
+- Dashboard now renders acceptance scope, passed checks, and failed/blocked checks inside the role summary.
+- Added `/brain/phase-122` and Jarvis Brain readiness evidence for role dashboard acceptance status.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.25
 
 - Added Jarvis phase 121 role-scoped Dashboard summaries.

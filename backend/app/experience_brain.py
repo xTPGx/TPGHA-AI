@@ -1043,6 +1043,23 @@ async def build_jarvis_phase_121(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_122(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 122,
+        "role_dashboard_acceptance_evidence": {
+            "surface": "Dashboard",
+            "source_endpoint": "/ops/role-dashboard",
+            "owner_scope": "admin/manager sees house-wide acceptance evidence.",
+            "resident_scope": "resident/kiosk/guest sees profile-scoped acceptance evidence.",
+            "shows_passed_and_failed_blocked_counts": True,
+            "keeps_evidence_read_only": True,
+        },
+        "guardrail": "Phase 122 reports acceptance evidence on the dashboard without allowing dashboard users to mutate evidence.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []
