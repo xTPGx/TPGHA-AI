@@ -1284,6 +1284,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release recommendation export actions for owner handoff packets.",
         },
         {
+            "id": "release_recommendation_export",
+            "title": "Release Recommendation Export",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/recommendations/export combines recommendations and history into Markdown.",
+                "Export packets include active recommendations, hidden state, owner notes, and state-change history.",
+                "Owner Dashboard exposes copy and download actions for recommendation packets.",
+            ],
+            "next": "Add release packet bundling that includes checklist, decisions, metrics, recommendations, and runbook together.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

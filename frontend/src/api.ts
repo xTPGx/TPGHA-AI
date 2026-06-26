@@ -234,6 +234,7 @@ export const api = {
   releaseRecommendations: () => http<any>("/release/status-history/recommendations"),
   releaseRecommendationStates: () => http<any>("/release/status-history/recommendations/states"),
   releaseRecommendationHistory: () => http<any>("/release/status-history/recommendations/history"),
+  releaseRecommendationExport: () => http<any>("/release/status-history/recommendations/export"),
   updateReleaseRecommendationState: (id: string, body: Record<string, any>) =>
     http<any>(`/release/status-history/recommendations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
   saveReleaseStatusSnapshot: () =>

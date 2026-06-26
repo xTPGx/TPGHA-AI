@@ -944,6 +944,27 @@ def list_release_recommendation_history(limit: int = 50) -> dict[str, Any]:
     }
 
 
+def build_release_recommendation_export(limit: int = 50) -> dict[str, Any]:
+    recommendations = build_release_owner_recommendations(limit=limit)
+    history = list_release_recommendation_history(limit=limit)
+    markdown = "\n".join([
+        "# TPG HomeAI Release Recommendation Packet",
+        "",
+        "## Recommendations",
+        (recommendations.get("markdown") or "").strip(),
+        "",
+        "## History",
+        (history.get("markdown") or "").strip(),
+        "",
+    ]).strip() + "\n"
+    return {
+        "status": "ready",
+        "recommendations": recommendations,
+        "history": history,
+        "markdown": markdown,
+    }
+
+
 def save_release_recommendation_state(recommendation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     recommendation_id = str(recommendation_id or "")[:128]
     if not recommendation_id:
@@ -2177,6 +2198,21 @@ async def build_jarvis_phase_147(version: str) -> dict[str, Any]:
             "dashboard_surface": "Recent recommendation history",
         },
         "guardrail": "Phase 147 records recommendation state-change history without modifying release snapshots or command audit logs.",
+    }
+
+
+async def build_jarvis_phase_148(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 148,
+        "release_recommendation_export": {
+            "endpoint": "/release/status-history/recommendations/export",
+            "format": "markdown",
+            "includes": ["active_recommendations", "hidden_state", "state_change_history"],
+            "dashboard_actions": ["Copy recommendation packet", "Download recommendation packet"],
+        },
+        "guardrail": "Phase 148 exports release recommendation evidence without changing owner state, snapshots, or live-house data.",
     }
 
 

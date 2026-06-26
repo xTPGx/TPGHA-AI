@@ -326,6 +326,33 @@ export default function Dashboard() {
     setReleaseMessage("Decision digest downloaded.");
   };
 
+  const copyRecommendationPacket = async () => {
+    try {
+      const packet = await api.releaseRecommendationExport();
+      await navigator.clipboard.writeText(packet.markdown || JSON.stringify(packet, null, 2));
+      setReleaseMessage("Recommendation packet copied.");
+    } catch (e: any) {
+      setReleaseMessage(`Recommendation copy failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const downloadRecommendationPacket = async () => {
+    try {
+      const packet = await api.releaseRecommendationExport();
+      const body = packet.markdown || JSON.stringify(packet, null, 2);
+      const blob = new Blob([body], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `tpg-homeai-release-recommendations-${release?.version || "current"}.md`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setReleaseMessage("Recommendation packet downloaded.");
+    } catch (e: any) {
+      setReleaseMessage(`Recommendation download failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const changeReleaseDecisionFilter = async (decision: ReleaseDecisionFilter) => {
     setReleaseDecisionFilter(decision);
     try {
@@ -443,6 +470,8 @@ export default function Dashboard() {
             onAnnotateSnapshot={annotateReleaseSnapshot}
             onCopyDecisionDigest={copyDecisionDigest}
             onDownloadDecisionDigest={downloadDecisionDigest}
+            onCopyRecommendationPacket={copyRecommendationPacket}
+            onDownloadRecommendationPacket={downloadRecommendationPacket}
             onDecisionFilter={changeReleaseDecisionFilter}
             onSearchTermChange={setReleaseSearchTerm}
             onSearch={searchReleaseHistory}
@@ -637,6 +666,8 @@ function DashboardReleaseStatus({
   onAnnotateSnapshot,
   onCopyDecisionDigest,
   onDownloadDecisionDigest,
+  onCopyRecommendationPacket,
+  onDownloadRecommendationPacket,
   onDecisionFilter,
   onSearchTermChange,
   onSearch,
@@ -666,6 +697,8 @@ function DashboardReleaseStatus({
   onAnnotateSnapshot: (snapshotId: number, decision: "shipped" | "held") => void;
   onCopyDecisionDigest: () => void;
   onDownloadDecisionDigest: () => void;
+  onCopyRecommendationPacket: () => void;
+  onDownloadRecommendationPacket: () => void;
   onDecisionFilter: (decision: ReleaseDecisionFilter) => void;
   onSearchTermChange: (value: string) => void;
   onSearch: () => void;
@@ -696,6 +729,8 @@ function DashboardReleaseStatus({
           <Button variant="ghost" onClick={onDownloadHistory} disabled={!comparison}>Download release history</Button>
           <Button variant="ghost" onClick={onCopyDecisionDigest} disabled={!decisionDigest}>Copy decision digest</Button>
           <Button variant="ghost" onClick={onDownloadDecisionDigest} disabled={!decisionDigest}>Download decision digest</Button>
+          <Button variant="ghost" onClick={onCopyRecommendationPacket}>Copy recommendation packet</Button>
+          <Button variant="ghost" onClick={onDownloadRecommendationPacket}>Download recommendation packet</Button>
           <Button variant="ghost" onClick={onPreviewPrune} disabled={!snapshots.length}>Preview prune history</Button>
           <Button variant="ghost" onClick={onPrune} disabled={snapshots.length <= 20}>Prune old snapshots</Button>
           <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>

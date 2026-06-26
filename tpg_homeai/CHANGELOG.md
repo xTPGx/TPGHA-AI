@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.52
+
+- Added Jarvis phase 148 release recommendation export packet.
+- Added `/release/status-history/recommendations/export` with recommendation and history Markdown.
+- Added owner Dashboard actions to copy and download the recommendation packet.
+- Added `/brain/phase-148` readiness marker.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.51
 
 - Added Jarvis phase 147 release recommendation history.

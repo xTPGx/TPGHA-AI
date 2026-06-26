@@ -204,10 +204,12 @@ from .experience_brain import (
     build_jarvis_phase_145,
     build_jarvis_phase_146,
     build_jarvis_phase_147,
+    build_jarvis_phase_148,
     build_release_decision_digest,
     build_release_health_warnings,
     build_release_history_comparison,
     build_release_owner_recommendations,
+    build_release_recommendation_export,
     build_release_status_metrics,
     filter_release_status_snapshots,
     list_live_acceptance_results,
@@ -234,7 +236,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.51"
+APP_VERSION = "1.2.52"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1661,6 +1663,11 @@ async def brain_phase_147():
     return await build_jarvis_phase_147(APP_VERSION)
 
 
+@app.get("/brain/phase-148")
+async def brain_phase_148():
+    return await build_jarvis_phase_148(APP_VERSION)
+
+
 @app.get("/experience/interaction-quality")
 async def experience_interaction_quality():
     return build_interaction_quality_report(get_config())
@@ -1764,6 +1771,11 @@ async def release_status_history_recommendation_states():
 @app.get("/release/status-history/recommendations/history")
 async def release_status_history_recommendation_history(limit: int = 50):
     return list_release_recommendation_history(limit=limit)
+
+
+@app.get("/release/status-history/recommendations/export")
+async def release_status_history_recommendation_export(limit: int = 50):
+    return build_release_recommendation_export(limit=limit)
 
 
 @app.patch("/release/status-history/recommendations/{recommendation_id}")

@@ -1002,6 +1002,18 @@ def main() -> int:
     check("phase 147 endpoint is exposed",
           "/brain/phase-147" in backend_main,
           "Backend must expose the phase 147 recommendation history marker.")
+    check("phase 148 release recommendation export is wired",
+          "/release/status-history/recommendations/export" in backend_main
+          and "build_release_recommendation_export" in experience_brain
+          and "Copy recommendation packet" in dashboard_frontend
+          and "Download recommendation packet" in dashboard_frontend
+          and "api.releaseRecommendationExport" in dashboard_frontend
+          and "release_recommendation_export" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_148" in experience_brain,
+          "Owners need a copy/download packet for release recommendation handoff.")
+    check("phase 148 endpoint is exposed",
+          "/brain/phase-148" in backend_main,
+          "Backend must expose the phase 148 recommendation export marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2819,6 +2831,23 @@ def main() -> int:
     check("/brain/phase-147 has release recommendation history marker",
           r.json().get("phase") == 147
           and r.json().get("release_recommendation_history", {}).get("endpoint") == "/release/status-history/recommendations/history",
+          str(r.json()))
+
+    r = client.get("/release/status-history/recommendations/export")
+    check("/release/status-history/recommendations/export returns handoff packet",
+          r.status_code == 200
+          and is_json(r)
+          and "# TPG HomeAI Release Recommendation Packet" in r.json().get("markdown", "")
+          and "recommendations" in r.json()
+          and "history" in r.json(),
+          str(r.json()))
+    r = client.get("/brain/phase-148")
+    check("/brain/phase-148 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-148 has release recommendation export marker",
+          r.json().get("phase") == 148
+          and r.json().get("release_recommendation_export", {}).get("endpoint") == "/release/status-history/recommendations/export",
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
