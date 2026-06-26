@@ -1044,6 +1044,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Allow users to dismiss or pin useful follow-up patterns per assistant profile.",
         },
         {
+            "id": "chat_followup_preferences",
+            "title": "Chat Follow-Up Preferences",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "FollowupPreference rows store pinned and dismissed follow-up chips per user and assistant.",
+                "/ops/chat-followups/preferences exposes preference list/save APIs for the active Chat profile.",
+                "Chat can pin useful follow-up patterns or hide noisy suggestions without changing role permissions.",
+            ],
+            "next": "Add automatic stale-preference cleanup and owner export of profile tuning data.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

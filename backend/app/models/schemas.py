@@ -453,6 +453,15 @@ class AcceptanceResultRequest(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 
+class FollowupPreferenceRequest(BaseModel):
+    user: str = ""
+    assistant: str = ""
+    followup_id: str = ""
+    text: str = ""
+    state: Literal["pinned", "dismissed"] = "pinned"
+    source_intent: str = ""
+
+
 class HAEntity(BaseModel):
     entity_id: str
     state: str

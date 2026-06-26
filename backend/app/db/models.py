@@ -156,6 +156,26 @@ class ArchivedConversation(Base):
     archived_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+class FollowupPreference(Base):
+    """Per-profile follow-up prompt preference.
+
+    These rows personalize Chat suggestion chips without changing the audit
+    log or granting any new action permissions.
+    """
+
+    __tablename__ = "followup_preference"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    user: Mapped[str] = mapped_column(String(64), default="", index=True)
+    assistant: Mapped[str] = mapped_column(String(64), default="", index=True)
+    followup_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    state: Mapped[str] = mapped_column(String(32), default="pinned")
+    source_intent: Mapped[str] = mapped_column(String(64), default="")
+
+
 class AcceptanceRun(Base):
     """Human-run live-house acceptance evidence.
 

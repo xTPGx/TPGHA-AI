@@ -249,6 +249,18 @@ export const api = {
     if (assistant) params.set("assistant", assistant);
     return http<any>(`/ops/chat-followups?${params.toString()}`);
   },
+  chatFollowupPreferences: (user?: string, assistant?: string) => {
+    const params = new URLSearchParams();
+    if (user) params.set("user", user);
+    if (assistant) params.set("assistant", assistant);
+    const qs = params.toString();
+    return http<any>(`/ops/chat-followups/preferences${qs ? `?${qs}` : ""}`);
+  },
+  saveChatFollowupPreference: (body: Record<string, any>) =>
+    http<any>("/ops/chat-followups/preferences", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

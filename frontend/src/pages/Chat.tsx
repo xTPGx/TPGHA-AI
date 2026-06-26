@@ -700,6 +700,37 @@ export default function Chat() {
     }
   };
 
+  const saveFollowupPreference = async (followup: any, state: "pinned" | "dismissed") => {
+    const textValue = String(followup?.text || followup || "").trim();
+    if (!textValue) return;
+    const followupId = String(followup?.id || textValue).trim();
+    const previous = followups;
+    if (state === "dismissed") {
+      setFollowups((current) => current.filter((item) => String(item?.text || item) !== textValue));
+    } else {
+      setFollowups((current) => [
+        { ...followup, id: followupId, text: textValue, preference: "pinned" },
+        ...current.filter((item) => String(item?.text || item) !== textValue),
+      ].slice(0, 4));
+    }
+    try {
+      await api.saveChatFollowupPreference({
+        user,
+        assistant,
+        followup_id: followupId,
+        text: textValue,
+        state,
+        source_intent: followup?.source_intent || "chat",
+      });
+      const role = session?.role || "guest";
+      const response = await api.chatFollowups(role, user, assistant);
+      setFollowups(response?.followups || []);
+    } catch (e: any) {
+      setFollowups(previous);
+      setError(e.message || String(e));
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem("tpg.panelMode", panelMode ? "1" : "0");
   }, [panelMode]);
@@ -1203,7 +1234,11 @@ export default function Chat() {
 
             <div className="shrink-0 border-t border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:px-6">
               {followups.length > 0 && (
-                <ChatFollowups followups={followups} onPrompt={(prompt) => void send(prompt)} />
+                <ChatFollowups
+                  followups={followups}
+                  onPrompt={(prompt) => void send(prompt)}
+                  onPreference={(followup, state) => void saveFollowupPreference(followup, state)}
+                />
               )}
               {panelMode && (
                 <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-xs">
@@ -1257,18 +1292,45 @@ export default function Chat() {
   );
 }
 
-function ChatFollowups({ followups, onPrompt }: { followups: any[]; onPrompt: (prompt: string) => void }) {
+function ChatFollowups({
+  followups,
+  onPrompt,
+  onPreference,
+}: {
+  followups: any[];
+  onPrompt: (prompt: string) => void;
+  onPreference: (followup: any, state: "pinned" | "dismissed") => void;
+}) {
   return (
     <div className="mx-auto mb-2 flex max-w-3xl gap-2 overflow-x-auto pb-1">
       {followups.slice(0, 4).map((followup) => (
-        <button
+        <div
           key={followup.id || followup.text}
-          className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
-          onClick={() => onPrompt(followup.text || String(followup))}
-          title={followup.source_intent ? `Based on ${followup.source_intent}` : "Suggested follow-up"}
+          className="group flex shrink-0 items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-100"
         >
-          {followup.text || String(followup)}
-        </button>
+          <button
+            className="min-w-0 px-3 py-1.5"
+            onClick={() => onPrompt(followup.text || String(followup))}
+            title={followup.source_intent ? `Based on ${followup.source_intent}` : "Suggested follow-up"}
+          >
+            {followup.preference === "pinned" && <span className="mr-1 text-sky-300">Pinned</span>}
+            {followup.text || String(followup)}
+          </button>
+          <button
+            className="border-l border-white/10 px-2 py-1.5 text-[11px] text-slate-500 opacity-0 transition hover:text-sky-200 group-hover:opacity-100"
+            onClick={() => onPreference(followup, "pinned")}
+            title="Pin this follow-up for this assistant profile"
+          >
+            Pin
+          </button>
+          <button
+            className="border-l border-white/10 px-2 py-1.5 text-[11px] text-slate-500 opacity-0 transition hover:text-rose-200 group-hover:opacity-100"
+            onClick={() => onPreference(followup, "dismissed")}
+            title="Hide this follow-up for this assistant profile"
+          >
+            Hide
+          </button>
+        </div>
       ))}
     </div>
   );

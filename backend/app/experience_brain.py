@@ -1139,6 +1139,22 @@ async def build_jarvis_phase_127(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_128(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 128,
+        "chat_followup_preferences": {
+            "source_endpoint": "/ops/chat-followups/preferences",
+            "source_table": "FollowupPreference",
+            "profile_scoped": True,
+            "supports_pin": True,
+            "supports_dismiss": True,
+        },
+        "guardrail": "Phase 128 personalizes Chat suggestion chips per user and assistant without changing action permissions.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

@@ -48,6 +48,7 @@ from .models.schemas import (
     ConfirmRequest,
     DashboardDraftRequest,
     DraftUpdateRequest,
+    FollowupPreferenceRequest,
     ConversationNoteRequest,
     IgnoreRequest,
     MapRequest,
@@ -130,11 +131,13 @@ from .operations_brain import (
     build_integration_readiness_matrix,
     build_jarvis_phase_82_86,
     build_chat_followups,
+    list_chat_followup_preferences,
     build_onboarding_wizard_plan,
     build_role_prompt_insights,
     build_role_action_policy,
     build_role_dashboard_summary,
     build_role_suggested_prompts,
+    save_chat_followup_preference,
     build_sidebar_access_diagnostics,
 )
 from .governance_brain import (
@@ -178,6 +181,7 @@ from .experience_brain import (
     build_jarvis_phase_125,
     build_jarvis_phase_126,
     build_jarvis_phase_127,
+    build_jarvis_phase_128,
     list_live_acceptance_results,
     build_live_acceptance_report,
     build_live_acceptance_runner,
@@ -194,7 +198,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.31"
+APP_VERSION = "1.2.32"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1319,6 +1323,23 @@ async def ops_chat_followups(role: str = "guest", user: str = "", assistant: str
     return build_chat_followups(role, user=user, assistant=assistant)
 
 
+@app.get("/ops/chat-followups/preferences")
+async def ops_chat_followup_preferences(user: str = "", assistant: str = ""):
+    return list_chat_followup_preferences(user=user, assistant=assistant)
+
+
+@app.post("/ops/chat-followups/preferences")
+async def ops_save_chat_followup_preference(payload: FollowupPreferenceRequest):
+    return save_chat_followup_preference(
+        user=payload.user,
+        assistant=payload.assistant,
+        followup_id=payload.followup_id,
+        text=payload.text,
+        state=payload.state,
+        source_intent=payload.source_intent,
+    )
+
+
 @app.get("/brain/phase-87-91")
 async def brain_phase_87_91():
     return await build_jarvis_phase_87_91(get_config())
@@ -1487,6 +1508,11 @@ async def brain_phase_126():
 @app.get("/brain/phase-127")
 async def brain_phase_127():
     return await build_jarvis_phase_127(APP_VERSION)
+
+
+@app.get("/brain/phase-128")
+async def brain_phase_128():
+    return await build_jarvis_phase_128(APP_VERSION)
 
 
 @app.get("/experience/interaction-quality")

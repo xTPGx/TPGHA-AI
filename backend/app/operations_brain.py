@@ -14,7 +14,7 @@ from .actions.automation_installer import ha_config_root
 from .bootstrap import get_app_state
 from .config_loader import config_error
 from .db.database import get_session
-from .db.models import AcceptanceRun, CommandLog
+from .db.models import AcceptanceRun, CommandLog, FollowupPreference
 from .discovery import scanner as discovery_scanner
 from .homeassistant.services import safe_get_states
 from .models.schemas import AppConfig
@@ -475,6 +475,13 @@ def build_chat_followups(role: str = "guest", user: str = "", assistant: str = "
     policy = build_role_action_policy(role)
     can_manage = any(c.get("id") == "dashboard_authoring" and c.get("allowed") for c in policy.get("capabilities", []))
     can_schedule = any(c.get("id") == "scheduled_tasks" and c.get("allowed") for c in policy.get("capabilities", []))
+    preferences = _load_followup_preferences(user, assistant)
+    pinned = [_followup_preference_to_followup(row) for row in preferences if row.state == "pinned"]
+    dismissed_keys = {
+        _followup_preference_key(row.followup_id, row.text)
+        for row in preferences
+        if row.state == "dismissed"
+    }
     rows: list[CommandLog] = []
     with get_session() as session:
         query = session.query(CommandLog)
@@ -505,14 +512,84 @@ def build_chat_followups(role: str = "guest", user: str = "", assistant: str = "
         followups.append(_followup("safe_schedule", "Create scheduled task. Turn off all lights at 10PM.", "starter"))
     if not followups:
         followups.append(_followup("brainstorm", "Help me brainstorm what to automate next.", "starter"))
+    followups = [
+        item for item in followups
+        if _followup_preference_key(item.get("id", ""), item.get("text", "")) not in dismissed_keys
+    ]
     return {
         "status": "ready",
         "role": policy["role"],
         "user": user,
         "assistant": assistant,
-        "followups": _dedupe_followups(followups)[:4],
-        "source": "CommandLog",
-        "guardrail": "Follow-ups are suggestions only; any action still goes through preview, policy, and confirmation.",
+        "followups": _dedupe_followups(pinned + followups)[:4],
+        "preferences": {
+            "pinned": sum(1 for row in preferences if row.state == "pinned"),
+            "dismissed": sum(1 for row in preferences if row.state == "dismissed"),
+        },
+        "source": "CommandLog+FollowupPreference",
+        "guardrail": "Follow-ups are suggestions only; preferences change visibility, not permissions or execution policy.",
+    }
+
+
+def list_chat_followup_preferences(user: str = "", assistant: str = "") -> dict[str, Any]:
+    rows = _load_followup_preferences(user, assistant)
+    preferences = [_followup_preference_dict(row) for row in rows]
+    return {
+        "status": "ready",
+        "user": user,
+        "assistant": assistant,
+        "preferences": preferences,
+        "counts": {
+            "total": len(preferences),
+            "pinned": sum(1 for item in preferences if item["state"] == "pinned"),
+            "dismissed": sum(1 for item in preferences if item["state"] == "dismissed"),
+        },
+        "guardrail": "Follow-up preferences are profile-scoped UI hints. Server-side role policy still controls every action.",
+    }
+
+
+def save_chat_followup_preference(
+    *,
+    user: str = "",
+    assistant: str = "",
+    followup_id: str = "",
+    text: str = "",
+    state: str = "pinned",
+    source_intent: str = "",
+) -> dict[str, Any]:
+    normalized_state = state if state in {"pinned", "dismissed"} else "pinned"
+    normalized_id = (followup_id or _prompt_key(text) or "followup").strip()[:128]
+    with get_session() as session:
+        row = (
+            session.query(FollowupPreference)
+            .filter(
+                FollowupPreference.user == (user or ""),
+                FollowupPreference.assistant == (assistant or ""),
+                FollowupPreference.followup_id == normalized_id,
+            )
+            .first()
+        )
+        now = dt.datetime.now(dt.timezone.utc)
+        if row is None:
+            row = FollowupPreference(
+                user=user or "",
+                assistant=assistant or "",
+                followup_id=normalized_id,
+                created_at=now,
+            )
+            session.add(row)
+        row.updated_at = now
+        row.text = text or row.text or normalized_id.replace("_", " ")
+        row.state = normalized_state
+        row.source_intent = source_intent or row.source_intent or "manual"
+        session.commit()
+        session.refresh(row)
+        item = _followup_preference_dict(row)
+    return {
+        "status": "ready",
+        "saved": True,
+        "preference": item,
+        "guardrail": "Saved follow-up preferences only personalize suggestion chips.",
     }
 
 
@@ -612,6 +689,46 @@ def _dedupe_followups(followups: list[dict[str, str]]) -> list[dict[str, str]]:
         seen.add(key)
         out.append(followup)
     return out
+
+
+def _load_followup_preferences(user: str = "", assistant: str = "") -> list[FollowupPreference]:
+    with get_session() as session:
+        return (
+            session.query(FollowupPreference)
+            .filter(
+                FollowupPreference.user == (user or ""),
+                FollowupPreference.assistant == (assistant or ""),
+            )
+            .order_by(FollowupPreference.updated_at.desc(), FollowupPreference.id.desc())
+            .limit(100)
+            .all()
+        )
+
+
+def _followup_preference_dict(row: FollowupPreference) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user": row.user,
+        "assistant": row.assistant,
+        "followup_id": row.followup_id,
+        "text": row.text,
+        "state": row.state,
+        "source_intent": row.source_intent,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _followup_preference_to_followup(row: FollowupPreference) -> dict[str, str]:
+    return {
+        "id": row.followup_id,
+        "text": row.text,
+        "source_intent": row.source_intent or "pinned",
+        "preference": row.state,
+    }
+
+
+def _followup_preference_key(followup_id: str, text: str) -> tuple[str, str]:
+    return ((followup_id or "").strip().lower(), _prompt_key(text))
 
 
 def _role_policy_highlights(role: str, capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -761,6 +761,20 @@ def main() -> int:
     check("phase 127 endpoint is exposed",
           "/brain/phase-127" in backend_main,
           "Backend must expose the phase 127 contextual followups marker.")
+    check("phase 128 chat followup preferences are wired",
+          "class FollowupPreference" in (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
+          and "/ops/chat-followups/preferences" in backend_main
+          and "save_chat_followup_preference" in operations_brain
+          and "list_chat_followup_preferences" in operations_brain
+          and "saveChatFollowupPreference" in api_frontend
+          and "chatFollowupPreferences" in api_frontend
+          and "onPreference" in chat_frontend
+          and "chat_followup_preferences" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_128" in experience_brain,
+          "Chat follow-up chips must be pinnable/dismissible per user and assistant.")
+    check("phase 128 endpoint is exposed",
+          "/brain/phase-128" in backend_main,
+          "Backend must expose the phase 128 followup preference marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2096,7 +2110,7 @@ def main() -> int:
           and is_json(r)
           and isinstance(r.json().get("followups"), list)
           and len(r.json().get("followups", [])) >= 1
-          and r.json().get("source") == "CommandLog",
+          and r.json().get("source") == "CommandLog+FollowupPreference",
           str(r.json()))
 
     r = client.get("/brain/phase-127")
@@ -2107,6 +2121,65 @@ def main() -> int:
           r.json().get("phase") == 127
           and r.json().get("contextual_chat_followups", {}).get("source_endpoint") == "/ops/chat-followups"
           and r.json().get("contextual_chat_followups", {}).get("role_aware") is True,
+          str(r.json()))
+
+    r = client.post("/ops/chat-followups/preferences", json={
+        "user": "shawn",
+        "assistant": "atlas",
+        "followup_id": "verify_pinned_followup",
+        "text": "Review my pinned follow-up preference.",
+        "state": "pinned",
+        "source_intent": "verify",
+    })
+    check("/ops/chat-followups/preferences saves pinned followup",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("preference", {}).get("state") == "pinned",
+          str(r.json()))
+
+    r = client.get("/ops/chat-followups/preferences?user=shawn&assistant=atlas")
+    check("/ops/chat-followups/preferences lists profile preferences",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("counts", {}).get("pinned", 0) >= 1,
+          str(r.json()))
+
+    r = client.get("/ops/chat-followups?role=resident&user=shawn&assistant=atlas")
+    check("/ops/chat-followups ranks pinned preferences first",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("followups", [{}])[0].get("id") == "verify_pinned_followup",
+          str(r.json()))
+
+    r = client.post("/ops/chat-followups/preferences", json={
+        "user": "shawn",
+        "assistant": "atlas",
+        "followup_id": "verify_pinned_followup",
+        "text": "Review my pinned follow-up preference.",
+        "state": "dismissed",
+        "source_intent": "verify",
+    })
+    check("/ops/chat-followups/preferences saves dismissed followup",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("preference", {}).get("state") == "dismissed",
+          str(r.json()))
+
+    r = client.get("/ops/chat-followups?role=resident&user=shawn&assistant=atlas")
+    check("/ops/chat-followups hides dismissed preferences",
+          r.status_code == 200
+          and is_json(r)
+          and all(item.get("id") != "verify_pinned_followup" for item in r.json().get("followups", [])),
+          str(r.json()))
+
+    r = client.get("/brain/phase-128")
+    check("/brain/phase-128 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-128 has followup preference marker",
+          r.json().get("phase") == 128
+          and r.json().get("chat_followup_preferences", {}).get("source_endpoint") == "/ops/chat-followups/preferences"
+          and r.json().get("chat_followup_preferences", {}).get("supports_pin") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

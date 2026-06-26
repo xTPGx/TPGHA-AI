@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.32
+
+- Added Jarvis phase 128 Chat follow-up preferences.
+- Added `FollowupPreference` persistence for per-user/per-assistant pinned and dismissed follow-up chips.
+- Added `/ops/chat-followups/preferences` list/save APIs and wired `/ops/chat-followups` to honor pinned and hidden prompts.
+- Chat follow-up chips now include lightweight Pin and Hide controls without changing action permissions.
+- Added `/brain/phase-128` and Jarvis Brain readiness evidence for profile-scoped follow-up tuning.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.31
 
 - Added Jarvis phase 127 contextual Chat follow-ups.
