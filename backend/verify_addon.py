@@ -512,6 +512,15 @@ def main() -> int:
           and "Copy report" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
           and "Download Markdown" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8"),
           "Brain UI must let owners copy or download the live acceptance report.")
+    check("phase 103 role acceptance matrix exists",
+          "build_role_acceptance_matrix" in experience_brain
+          and "build_jarvis_phase_103" in experience_brain
+          and "role_acceptance_matrix" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Role acceptance must define owner/admin, resident, kiosk/shared, and guest boundaries.")
+    check("phase 103 endpoints are exposed",
+          "/experience/role-acceptance" in backend_main
+          and "/brain/phase-103" in backend_main,
+          "Backend must expose role acceptance and phase 103 summary endpoints.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1383,6 +1392,28 @@ def main() -> int:
           r.json().get("phase") == 101
           and "acceptance_report" in r.json()
           and "markdown" in r.json().get("acceptance_report", {}),
+          str(r.json()))
+
+    r = client.get("/experience/role-acceptance")
+    check("/experience/role-acceptance returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    role_acceptance = r.json()
+    role_check_ids = {check_item.get("id") for check_item in role_acceptance.get("checks", [])}
+    check("/experience/role-acceptance exposes role checks",
+          {"owner_admin_full_access", "resident_self_service", "kiosk_shared_remote", "assistant_owner_mapping"}.issubset(role_check_ids)
+          and "user_matrix" in role_acceptance
+          and "blockers" in role_acceptance,
+          str(role_acceptance))
+
+    r = client.get("/brain/phase-103")
+    check("/brain/phase-103 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-103 has role acceptance section",
+          r.json().get("phase") == 103
+          and "role_acceptance" in r.json()
+          and "checks" in r.json().get("role_acceptance", {}),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -1,4 +1,4 @@
-"""Experience and release acceptance brains for Jarvis phases 92-101."""
+"""Experience and release acceptance brains for Jarvis phases 92-103."""
 from __future__ import annotations
 
 import datetime as dt
@@ -68,6 +68,109 @@ def build_voice_acceptance_plan(config: AppConfig) -> dict[str, Any]:
             _acceptance("safe_security", "Try lock/unlock security flows and verify unlock/open/disarm requires confirmation/PIN."),
         ],
         "blockers": _voice_blockers(counts),
+    }
+
+
+def build_role_acceptance_matrix(config: AppConfig) -> dict[str, Any]:
+    users = config.assistants.users
+    assistants = config.assistants.assistants
+    role_counts = Counter(user.role for user in users)
+    assistant_owner_ids = {assistant.owner for assistant in assistants}
+    users_without_assistant = [
+        user.id for user in users
+        if user.role not in {"kiosk", "guest"} and user.id not in assistant_owner_ids
+    ]
+    checks = [
+        _role_acceptance_check(
+            "owner_admin_full_access",
+            "Owner/Admin full control",
+            role_counts.get("admin", 0) > 0,
+            "admin",
+            [
+                "Can use general chat and house controls.",
+                "Can manage users, rooms, permissions, discovery, dashboards, and setup.",
+                "Can draft and install dashboards and approved automations.",
+            ],
+            "At least one HA admin/owner must sync into TPG HomeAI as admin.",
+        ),
+        _role_acceptance_check(
+            "resident_self_service",
+            "Resident self-service",
+            role_counts.get("resident", 0) > 0,
+            "resident",
+            [
+                "Can use their own assistant, chat history, notes, and memory preferences.",
+                "Can control allowed devices and create scheduled tasks.",
+                "Cannot create dashboards, manage users, or change system settings.",
+            ],
+            "Sync at least one non-admin HA user as resident for household validation.",
+        ),
+        _role_acceptance_check(
+            "kiosk_shared_remote",
+            "Kiosk/shared house remote",
+            role_counts.get("kiosk", 0) > 0,
+            "kiosk",
+            [
+                "Uses the shared Jarvis/house profile instead of a personal notebook.",
+                "Can act as a room remote or wall panel for allowed house actions.",
+                "Cannot access owner management, dashboards, users, or permissions.",
+            ],
+            "Create or sync a kiosk/shared HA user for wall tablets and shared iPads.",
+        ),
+        _role_acceptance_check(
+            "guest_limited_access",
+            "Guest limited access",
+            True,
+            "guest",
+            [
+                "Guest is supported as an optional constrained role.",
+                "Guest can chat and use explicitly allowed controls only.",
+                "Guest cannot manage system, dashboard, memory, or security-disabling actions.",
+            ],
+            "",
+            optional=True,
+        ),
+        _role_acceptance_check(
+            "assistant_owner_mapping",
+            "Personal assistant mapping",
+            not users_without_assistant,
+            "all",
+            [
+                f"{len(assistants)} assistant profile(s) configured.",
+                "Non-kiosk household users should have a matching assistant/profile for personal history.",
+                "Kiosk/shared users intentionally use the shared Jarvis profile.",
+            ],
+            "Create assistant profiles for: " + ", ".join(users_without_assistant),
+        ),
+        _role_acceptance_check(
+            "ha_authority_sync",
+            "Home Assistant authority sync",
+            any(user.access_source == "home_assistant" for user in users),
+            "all",
+            [
+                "Home Assistant remains the access authority.",
+                "HA admins map to TPG admin/owner access.",
+                "HA non-admins map to resident/kiosk/guest self-service access.",
+            ],
+            "Run Sync from HA users after creating or changing Home Assistant users.",
+        ),
+    ]
+    required = [check for check in checks if check["required"]]
+    ready = sum(1 for check in required if check["pass"])
+    blockers = [check["blocker"] for check in required if not check["pass"] and check["blocker"]]
+    return {
+        "status": "ready" if ready == len(required) else "attention",
+        "score": int(round((ready / max(1, len(required))) * 100)),
+        "counts": {
+            "users": len(users),
+            "assistants": len(assistants),
+            "roles": dict(role_counts),
+            "ha_synced": sum(1 for user in users if user.access_source == "home_assistant"),
+            "users_without_assistant": len(users_without_assistant),
+        },
+        "checks": checks,
+        "blockers": blockers,
+        "user_matrix": [_role_user_card(user, assistant_owner_ids) for user in users],
     }
 
 
@@ -442,6 +545,17 @@ async def build_jarvis_phase_101(config: AppConfig, version: str) -> dict[str, A
     }
 
 
+async def build_jarvis_phase_103(config: AppConfig, version: str) -> dict[str, Any]:
+    role_acceptance = build_role_acceptance_matrix(config)
+    return {
+        "status": role_acceptance["status"],
+        "version": version,
+        "phase": 103,
+        "role_acceptance": role_acceptance,
+        "guardrail": "Phase 103 validates role boundaries without granting permissions outside Home Assistant authority.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -521,6 +635,44 @@ def _live_acceptance_report_markdown(report: dict[str, Any], tests: list[dict[st
         "Call live-house deployment complete only after enough required checks pass and no failed or blocked checks remain.",
     ])
     return "\n".join(lines)
+
+
+def _role_acceptance_check(
+    identifier: str,
+    title: str,
+    passed: bool,
+    role: str,
+    expectations: list[str],
+    blocker: str,
+    optional: bool = False,
+) -> dict[str, Any]:
+    return {
+        "id": identifier,
+        "title": title,
+        "role": role,
+        "required": not optional,
+        "pass": bool(passed),
+        "status": "pass" if passed else ("optional" if optional else "attention"),
+        "expectations": expectations,
+        "blocker": "" if passed or optional else blocker,
+    }
+
+
+def _role_user_card(user: Any, assistant_owner_ids: set[str]) -> dict[str, Any]:
+    return {
+        "id": user.id,
+        "name": user.name,
+        "role": user.role,
+        "ha_username": user.ha_username,
+        "ha_is_admin": user.ha_is_admin,
+        "access_source": user.access_source,
+        "has_personal_assistant": user.id in assistant_owner_ids,
+        "can_use_general_chat": True,
+        "can_create_scheduled_tasks": user.role in {"admin", "manager", "resident", "kiosk"},
+        "can_create_dashboards": user.role in {"admin", "manager"},
+        "can_manage_users": user.role == "admin",
+        "can_manage_system": user.role in {"admin", "manager"},
+    }
 
 
 def _interaction_recommendations(total: int, failed: list[CommandLog], confusion: list[CommandLog]) -> list[str]:

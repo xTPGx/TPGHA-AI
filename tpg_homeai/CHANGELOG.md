@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.7
+
+- Added Jarvis phase 103 role acceptance matrix.
+- Added `/experience/role-acceptance` and `/brain/phase-103`.
+- Defined owner/admin, resident, kiosk/shared, and guest acceptance boundaries.
+- Added Brain readiness visibility for role-boundary acceptance across real Home Assistant logins.
+- Added verifier coverage for phase 103 endpoints and role-matrix payloads.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.6
 
 - Added Jarvis phase 102 acceptance report export controls.

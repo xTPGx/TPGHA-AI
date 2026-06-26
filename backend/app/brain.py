@@ -589,6 +589,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add UI badges showing exactly why each menu item is visible or hidden for the current user.",
         },
         {
+            "id": "role_acceptance_matrix",
+            "title": "Role Acceptance Matrix",
+            "status": "ready" if governance_counts["admins"] and governance_counts["non_admins"] else "partial",
+            "score": 100 if governance_counts["admins"] and governance_counts["non_admins"] else 78,
+            "evidence": [
+                "Role acceptance defines owner/admin, resident, kiosk/shared, and guest boundaries.",
+                "Residents can chat, control allowed devices, and create scheduled tasks without dashboard/system access.",
+                "Kiosk/shared profiles use the shared Jarvis profile for room remotes and wall panels.",
+                f"{governance_counts['admins']} admin/owner profile(s) and {governance_counts['non_admins']} non-admin profile(s) are available for real-login validation.",
+            ],
+            "next": "Run owner, resident, and kiosk acceptance checks from real Home Assistant logins.",
+        },
+        {
             "id": "memory_quality_recall",
             "title": "Memory Quality + Recall",
             "status": "ready" if governance_counts["approved_memories"] else "partial",
