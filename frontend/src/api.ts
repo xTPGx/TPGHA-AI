@@ -225,6 +225,7 @@ export const api = {
   releaseChecklist: () => http<any>("/release/checklist"),
   releaseRunbook: () => http<any>("/release/runbook"),
   opsDiagnostics: () => http<any>("/ops/diagnostics"),
+  backupReadiness: () => http<any>("/ops/backup-readiness"),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

@@ -795,6 +795,23 @@ async def build_jarvis_phase_111(config: AppConfig, version: str) -> dict[str, A
     }
 
 
+async def build_jarvis_phase_112(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 112,
+        "setup_backup_recovery": {
+            "surface": "Setup page",
+            "source_endpoint": "/ops/backup-readiness",
+            "shows_automation_path": True,
+            "shows_backup_pattern": True,
+            "shows_config_database_paths": True,
+            "shows_recommendations": True,
+        },
+        "guardrail": "Phase 112 only surfaces backup and recovery readiness; it does not write Home Assistant configuration.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

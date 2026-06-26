@@ -852,6 +852,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add downloadable diagnostics bundles if support handoff needs attached files.",
         },
         {
+            "id": "setup_backup_recovery",
+            "title": "Setup Backup Recovery",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page displays backup and recovery readiness from the operations brain.",
+                "Owners can see Home Assistant config/database paths, automations.yaml, and timestamped backup pattern.",
+                "Recovery recommendations are shown before generated automations or device mappings are installed.",
+            ],
+            "next": "Add downloadable recovery notes if support handoff needs a one-file bundle.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

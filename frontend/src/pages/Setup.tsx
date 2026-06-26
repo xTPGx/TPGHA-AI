@@ -11,6 +11,7 @@ export default function Setup() {
   const [runbook, setRunbook] = useState<any>(null);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [diagnosticsMessage, setDiagnosticsMessage] = useState("");
+  const [backup, setBackup] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -20,13 +21,14 @@ export default function Setup() {
 
   const load = async () => {
     try {
-      const [h, c, done, releaseChecklist, releaseRunbook, supportPack, v, runtime, assets] = await Promise.all([
+      const [h, c, done, releaseChecklist, releaseRunbook, supportPack, backupReadiness, v, runtime, assets] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
         api.releaseChecklist(),
         api.releaseRunbook(),
         api.opsDiagnostics(),
+        api.backupReadiness(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -37,6 +39,7 @@ export default function Setup() {
       setRelease(releaseChecklist);
       setRunbook(releaseRunbook);
       setDiagnostics(supportPack);
+      setBackup(backupReadiness);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -164,6 +167,7 @@ export default function Setup() {
       <ReleaseBlockersPanel release={release} completion={completion} />
       <OperationalRunbookPanel runbook={runbook} />
       <DiagnosticsPanel diagnostics={diagnostics} message={diagnosticsMessage} onCopy={copyDiagnostics} />
+      <BackupRecoveryPanel backup={backup} />
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {checks.map((check) => (
@@ -180,6 +184,55 @@ export default function Setup() {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+function BackupRecoveryPanel({ backup }: { backup: any }) {
+  if (!backup) return null;
+  const automation = backup.automations_yaml || {};
+  const recommendations = backup.recommendations || [];
+  return (
+    <div className={`card mb-6 ${backup.status === "ready" ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Backup and recovery</div>
+          <div className="text-sm text-slate-400">
+            Recovery readiness before generated automations or device mappings touch Home Assistant.
+          </div>
+        </div>
+        <span className={`badge ${backup.status === "ready" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {backup.status}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+          <div className="text-sm font-semibold text-slate-100">Home Assistant paths</div>
+          <div className="mt-2 space-y-1 text-sm text-slate-400">
+            <div>Config: <span className="font-mono text-slate-200">{backup.config_dir || backup.ha_config_root || "unknown"}</span></div>
+            <div>Database: <span className="font-mono text-slate-200">{backup.database || "unknown"}</span></div>
+            <div>Automations: <span className="font-mono text-slate-200">{automation.path || "unknown"}</span></div>
+          </div>
+        </div>
+        <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+          <div className="text-sm font-semibold text-slate-100">Automation recovery</div>
+          <div className="mt-2 space-y-1 text-sm text-slate-400">
+            <div>File exists: <span className={automation.exists ? "text-emerald-200" : "text-amber-200"}>{automation.exists ? "yes" : "not yet"}</span></div>
+            <div>Backup pattern: <span className="font-mono text-slate-200">{automation.backup_pattern || "unknown"}</span></div>
+            <div>Backup entities: <span className="text-slate-200">{backup.backup_entities?.length || 0}</span></div>
+          </div>
+        </div>
+      </div>
+      {recommendations.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm text-slate-300">
+          {recommendations.map((item: string) => (
+            <li key={item} className="flex gap-2">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

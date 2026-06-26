@@ -602,6 +602,15 @@ def main() -> int:
     check("phase 111 endpoint is exposed",
           "/brain/phase-111" in backend_main,
           "Backend must expose the phase 111 setup support diagnostics readiness marker.")
+    check("phase 112 setup backup recovery is wired",
+          "Backup and recovery" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "api.backupReadiness" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_backup_recovery" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_112" in experience_brain,
+          "Setup must surface backup/recovery readiness from the operations brain.")
+    check("phase 112 endpoint is exposed",
+          "/brain/phase-112" in backend_main,
+          "Backend must expose the phase 112 setup backup recovery readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1651,6 +1660,16 @@ def main() -> int:
           r.json().get("phase") == 111
           and r.json().get("setup_support_diagnostics", {}).get("source_endpoint") == "/ops/diagnostics"
           and r.json().get("setup_support_diagnostics", {}).get("copy_json_available") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-112")
+    check("/brain/phase-112 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-112 has setup backup recovery marker",
+          r.json().get("phase") == 112
+          and r.json().get("setup_backup_recovery", {}).get("source_endpoint") == "/ops/backup-readiness"
+          and r.json().get("setup_backup_recovery", {}).get("shows_backup_pattern") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

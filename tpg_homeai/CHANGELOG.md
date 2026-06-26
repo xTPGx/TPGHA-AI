@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.16
+
+- Added Jarvis phase 112 Setup backup/recovery readiness panel.
+- Setup now shows HA config/database paths, automations.yaml state, timestamped backup pattern, backup entity count, and recovery recommendations.
+- Added `/brain/phase-112` and Jarvis Brain readiness evidence for the Setup backup recovery layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.15
 
 - Added Jarvis phase 111 Setup support diagnostics panel.
