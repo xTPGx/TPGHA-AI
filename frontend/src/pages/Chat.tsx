@@ -39,11 +39,20 @@ type SpeechRecognitionCtor = new () => {
 type MicState = "idle" | "recording" | "transcribing";
 type RecorderOptions = { autoStop?: boolean };
 
-const VOICE_RMS_THRESHOLD = 0.018;
-const VOICE_MIN_LISTEN_MS = 900;
-const VOICE_SILENCE_STOP_MS = 1200;
-const VOICE_NO_SPEECH_TIMEOUT_MS = 9000;
+const VOICE_RMS_THRESHOLD = 0.016;
+const VOICE_MIN_LISTEN_MS = 650;
+const VOICE_SILENCE_STOP_MS = 760;
+const VOICE_NO_SPEECH_TIMEOUT_MS = 6000;
 const VOICE_MAX_TURN_MS = 45000;
+const VOICE_RESUME_DELAY_MS = 300;
+const VOICE_BARGE_RMS_THRESHOLD = 0.034;
+const VOICE_BARGE_MIN_MS = 180;
+const VOICE_BARGE_GRACE_MS = 550;
+
+const FAST_VOICE_GENERAL_PATTERN =
+  /\b(good\s+morning|good\s+night|hello|hey|what|why|how|should|recommend|advice|input|think|brainstorm|explain|review|compare|help\s+me|find|search|weather|tell\s+me|talk|idea|ideas|plan|project|remember|note)\b/i;
+const FORCE_GUARDED_VOICE_PATTERN =
+  /\b(turn\s+(?:on|off|up|down)|power\s+(?:on|off)|lock|unlock|open|close|set\s+(?:the\s+)?(?:light|fan|thermostat|temperature|volume|brightness|speed)|play|pause|mute|unmute|dim|brighten|schedule|scheduled\s+task|automation|timer|reminder|dashboard|delete|install|run|activate|disable|enable|arm|disarm|start|stop)\b/i;
 
 function TrashIcon() {
   return (
@@ -167,6 +176,22 @@ function microphoneErrorMessage(error: any) {
     return "Microphone capture was interrupted before audio was recorded. Try again and keep the page open.";
   }
   return message ? `Microphone recording failed: ${message}` : microphoneUnavailableMessage();
+}
+
+function localVoiceControlCommand(text: string) {
+  const cleaned = text
+    .toLowerCase()
+    .replace(/\b(hey|ok|okay|atlas|jarvis|chatty|computer)\b/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (["stop", "cancel", "be quiet", "quiet", "hold on", "wait"].includes(cleaned)) {
+    return "pause";
+  }
+  if (["end voice", "end conversation", "stop listening", "turn off mic"].includes(cleaned)) {
+    return "end";
+  }
+  return "";
 }
 
 async function microphoneReadinessReport() {
@@ -453,6 +478,8 @@ export default function Chat() {
   const mediaChunksRef = useRef<Blob[]>([]);
   const discardRecordingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speechResolveRef = useRef<(() => void) | null>(null);
+  const speakingRef = useRef(false);
   const busyRef = useRef(busy);
   const micStateRef = useRef<MicState>(micState);
   const voiceConversationActiveRef = useRef(false);
@@ -461,6 +488,13 @@ export default function Chat() {
   const vadContextRef = useRef<AudioContext | null>(null);
   const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const vadAnalyserRef = useRef<AnalyserNode | null>(null);
+  const bargeStreamRef = useRef<MediaStream | null>(null);
+  const bargeContextRef = useRef<AudioContext | null>(null);
+  const bargeSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const bargeAnalyserRef = useRef<AnalyserNode | null>(null);
+  const bargeFrameRef = useRef<number | null>(null);
+  const bargeVoiceStartedAtRef = useRef(0);
+  const assistantSpeechStartedAtRef = useRef(0);
   const voiceStartedRef = useRef(false);
   const lastVoiceAtRef = useRef(0);
   const recordingStartedAtRef = useRef(0);
@@ -484,6 +518,17 @@ export default function Chat() {
     const base = configured.length ? configured : ["jarvis", "atlas", "chatty", "hey jarvis", "computer"];
     return base.map((w) => String(w || "").trim().toLowerCase()).filter(Boolean);
   }, [selectedAssistant]);
+
+  const speechRateForProfile = (profile?: any) => {
+    const raw = Number(profile?.speed ?? selectedAssistant?.voice?.speed);
+    if (Number.isFinite(raw)) return Math.min(1.35, Math.max(0.85, raw));
+    return assistant === "chatty" ? 1.13 : 1.1;
+  };
+
+  const shouldUseFastVoiceChat = (message: string) => {
+    if (!voiceConversationActiveRef.current) return false;
+    return FAST_VOICE_GENERAL_PATTERN.test(message) && !FORCE_GUARDED_VOICE_PATTERN.test(message);
+  };
 
   const refreshConversations = async (assistantId = assistant, userId = user) => {
     if (!assistantId || !userId) return;
@@ -542,6 +587,95 @@ export default function Chat() {
     }
   };
 
+  const stopBargeInDetection = () => {
+    if (bargeFrameRef.current !== null) {
+      window.cancelAnimationFrame(bargeFrameRef.current);
+      bargeFrameRef.current = null;
+    }
+    try {
+      bargeSourceRef.current?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      bargeAnalyserRef.current?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    const context = bargeContextRef.current;
+    bargeSourceRef.current = null;
+    bargeAnalyserRef.current = null;
+    bargeContextRef.current = null;
+    bargeStreamRef.current?.getTracks().forEach((track) => track.stop());
+    bargeStreamRef.current = null;
+    if (context && context.state !== "closed") {
+      void context.close().catch(() => undefined);
+    }
+  };
+
+  async function startBargeInDetection() {
+    if (!voiceConversationActiveRef.current || !recorderSupported || micStateRef.current !== "idle") return;
+    if (bargeAnalyserRef.current || bargeStreamRef.current) return;
+    const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
+      | typeof AudioContext
+      | undefined;
+    if (!AudioContextCtor) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      if (!speakingRef.current || !voiceConversationActiveRef.current || micStateRef.current !== "idle") {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const context = new AudioContextCtor();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.24;
+      const source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
+      bargeStreamRef.current = stream;
+      bargeContextRef.current = context;
+      bargeSourceRef.current = source;
+      bargeAnalyserRef.current = analyser;
+      bargeVoiceStartedAtRef.current = 0;
+      assistantSpeechStartedAtRef.current = performance.now();
+      const data = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        if (!bargeAnalyserRef.current || !speakingRef.current || !voiceConversationActiveRef.current) return;
+        const now = performance.now();
+        if (now - assistantSpeechStartedAtRef.current < VOICE_BARGE_GRACE_MS) {
+          bargeFrameRef.current = window.requestAnimationFrame(tick);
+          return;
+        }
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 1) {
+          const centered = (data[i] - 128) / 128;
+          sum += centered * centered;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        if (rms >= VOICE_BARGE_RMS_THRESHOLD) {
+          if (!bargeVoiceStartedAtRef.current) bargeVoiceStartedAtRef.current = now;
+          if (now - bargeVoiceStartedAtRef.current >= VOICE_BARGE_MIN_MS) {
+            void interruptSpeechAndListen();
+            return;
+          }
+        } else {
+          bargeVoiceStartedAtRef.current = 0;
+        }
+        bargeFrameRef.current = window.requestAnimationFrame(tick);
+      };
+      bargeFrameRef.current = window.requestAnimationFrame(tick);
+    } catch {
+      stopBargeInDetection();
+    }
+  }
+
   const clearResumeVoiceTimer = () => {
     if (resumeVoiceTimerRef.current !== null) {
       window.clearTimeout(resumeVoiceTimerRef.current);
@@ -549,14 +683,14 @@ export default function Chat() {
     }
   };
 
-  const scheduleResumeVoiceConversation = (delayMs = 650) => {
+  const scheduleResumeVoiceConversation = (delayMs = VOICE_RESUME_DELAY_MS) => {
     if (!voiceConversationActiveRef.current) return;
     clearResumeVoiceTimer();
     resumeVoiceTimerRef.current = window.setTimeout(() => {
       resumeVoiceTimerRef.current = null;
       if (!voiceConversationActiveRef.current) return;
       if (busyRef.current || micStateRef.current !== "idle") {
-        scheduleResumeVoiceConversation(450);
+        scheduleResumeVoiceConversation(250);
         return;
       }
       void startRecorder({ autoStop: true });
@@ -567,7 +701,12 @@ export default function Chat() {
     voiceConversationActiveRef.current = false;
     setVoiceConversationActive(false);
     clearResumeVoiceTimer();
+    speakingRef.current = false;
+    stopBargeInDetection();
     audioRef.current?.pause();
+    audioRef.current = null;
+    speechResolveRef.current?.();
+    speechResolveRef.current = null;
     window.speechSynthesis?.cancel();
     discardRecordingRef.current = true;
     try {
@@ -590,9 +729,29 @@ export default function Chat() {
     setMicState("idle");
   };
 
+  async function interruptSpeechAndListen() {
+    if (!voiceConversationActiveRef.current) return;
+    clearResumeVoiceTimer();
+    speakingRef.current = false;
+    stopBargeInDetection();
+    audioRef.current?.pause();
+    audioRef.current = null;
+    speechResolveRef.current?.();
+    speechResolveRef.current = null;
+    window.speechSynthesis?.cancel();
+    if (micStateRef.current === "idle") {
+      setVoiceError(null);
+      discardRecordingRef.current = false;
+      micStateRef.current = "recording";
+      setMicState("recording");
+      await startRecorder({ autoStop: true });
+    }
+  }
+
   useEffect(() => {
     return () => {
       clearResumeVoiceTimer();
+      stopBargeInDetection();
       stopVoiceActivityDetection();
       recognitionRef.current?.stop();
       try {
@@ -603,6 +762,8 @@ export default function Chat() {
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       audioRef.current?.pause();
+      speechResolveRef.current?.();
+      speechResolveRef.current = null;
       attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       attachmentUrlsRef.current.clear();
       window.speechSynthesis?.cancel();
@@ -738,20 +899,27 @@ export default function Chat() {
       });
   }, [activeTab, conversationId, messages.length]);
 
-  const browserSpeak = (message: string) => new Promise<void>((resolve) => {
+  const browserSpeak = (message: string, profile?: any) => new Promise<void>((resolve) => {
     if ((!speakResponses && !voiceConversationActiveRef.current) || !("speechSynthesis" in window)) {
       resolve();
       return;
     }
+    speechResolveRef.current?.();
+    speechResolveRef.current = null;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
-    utterance.rate = 1;
-    utterance.pitch = assistant === "chatty" ? 1.08 : 0.95;
-    const timeout = window.setTimeout(() => resolve(), Math.min(30000, Math.max(5000, message.length * 70)));
+    utterance.rate = speechRateForProfile(profile);
+    utterance.pitch = assistant === "chatty" ? 1.08 : 1;
+    const timeout = window.setTimeout(() => {
+      speechResolveRef.current = null;
+      resolve();
+    }, Math.min(30000, Math.max(5000, message.length * 70)));
     const done = () => {
       window.clearTimeout(timeout);
+      speechResolveRef.current = null;
       resolve();
     };
+    speechResolveRef.current = done;
     utterance.onend = done;
     utterance.onerror = done;
     window.speechSynthesis.speak(utterance);
@@ -761,6 +929,10 @@ export default function Chat() {
     await new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => resolve(), 45000);
       audio.onended = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+      audio.onpause = () => {
         window.clearTimeout(timeout);
         resolve();
       };
@@ -779,19 +951,37 @@ export default function Chat() {
     if (!speakResponses && !voiceConversationActiveRef.current) return;
     setVoiceError(null);
     audioRef.current?.pause();
+    audioRef.current = null;
+    speechResolveRef.current?.();
+    speechResolveRef.current = null;
     window.speechSynthesis?.cancel();
+    const startSpeaking = () => {
+      speakingRef.current = true;
+      assistantSpeechStartedAtRef.current = performance.now();
+      if (voiceConversationActiveRef.current) void startBargeInDetection();
+    };
+    const finishSpeaking = () => {
+      speakingRef.current = false;
+      stopBargeInDetection();
+    };
     try {
       const response = await api.voiceSpeak({ assistant, text: message, reply_mode: "auto" });
       if (response.audio_base64 && response.content_type) {
         const audio = new Audio(`data:${response.content_type};base64,${response.audio_base64}`);
+        audio.playbackRate = speechRateForProfile(response.profile);
         audioRef.current = audio;
+        startSpeaking();
         await playAudio(audio);
         return;
       }
-      await browserSpeak(response.speak_text || message);
+      startSpeaking();
+      await browserSpeak(response.speak_text || message, response.profile);
     } catch (e: any) {
       setVoiceError(`Voice playback fell back to browser: ${e.message}`);
+      startSpeaking();
       await browserSpeak(message);
+    } finally {
+      finishSpeaking();
     }
   };
 
@@ -898,6 +1088,19 @@ export default function Chat() {
         void refreshConversations();
         return;
       }
+      if (shouldUseFastVoiceChat(userText)) {
+        const response = await api.chatGeneral(assistant, user, userText, conversationId, room || undefined);
+        const reply = response.response || "I'm here.";
+        appendAssistant({
+          text: reply,
+          mode: response.mode || "conversation",
+          kind: "normal",
+          originalText: userText,
+        });
+        speakAssistant(reply);
+        void refreshConversations();
+        return;
+      }
       if (safePreview) {
         const preview = await api.chatPreview(assistant, user, userText, conversationId, room || undefined);
         const command = preview.command as CommandResponse | undefined;
@@ -985,7 +1188,7 @@ export default function Chat() {
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
       setVoiceError(
-        "Always-listening panel mode needs the Web Speech API (Chrome/Android). On iPhone/iPad, use the Mic button (tap to talk).",
+        "Always-listening wake-word panel mode needs the Web Speech API (Chrome/Android). On iPhone/iPad, use live conversation mode or a Home Assistant Assist satellite for true no-touch wake-word listening.",
       );
       setPanelMode(false);
       return;
@@ -1227,6 +1430,19 @@ export default function Chat() {
         return;
       }
       setLastTranscript(transcript);
+      if (voiceConversationActiveRef.current) {
+        const localControl = localVoiceControlCommand(transcript);
+        if (localControl === "end") {
+          stopVoiceConversation();
+          setText("");
+          return;
+        }
+        if (localControl === "pause") {
+          setText("");
+          scheduleResumeVoiceConversation();
+          return;
+        }
+      }
       setText(transcript);
       await send(transcript);
     } catch (e: any) {
@@ -1287,6 +1503,9 @@ export default function Chat() {
     } catch (e: any) {
       voiceConversationActiveRef.current = false;
       setVoiceConversationActive(false);
+      micStateRef.current = "idle";
+      setMicState("idle");
+      setListening(false);
       const name = String(e?.name || "");
       if (name === "NotAllowedError" || name === "SecurityError") {
         setVoiceError(microphoneErrorMessage(e));
@@ -1777,7 +1996,7 @@ function VoiceSessionBar({
         )}
       </div>
       {voiceConversationActive && micState === "recording" && (
-        <div className="mt-2 text-xs text-slate-400">Pause when you are done speaking. I will answer and keep listening.</div>
+        <div className="mt-2 text-xs text-slate-400">Pause when you are done speaking. I will answer, keep listening, and you can cut in while I talk.</div>
       )}
       {lastTranscript && (
         <div className="mt-2 rounded-lg border border-cyan-300/15 bg-black/20 px-3 py-2 text-xs text-slate-400">

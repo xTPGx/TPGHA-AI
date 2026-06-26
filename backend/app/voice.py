@@ -49,21 +49,24 @@ DEFAULT_PROFILES = {
     "atlas": VoiceProfile(
         provider="openai",
         voice="cedar",
+        speed=1.12,
         instructions=(
             "Speak like a calm, confident house intelligence. Natural, concise, "
-            "capable, and warm. Avoid robotic cadence."
+            "capable, warm, and lightly witty. Use contractions. Avoid robotic "
+            "cadence and over-explaining."
         ),
     ),
     "chatty": VoiceProfile(
         provider="openai",
         voice="coral",
+        speed=1.13,
         instructions=(
             "Speak as an intelligent female assistant: conversational, warm, "
             "quick, and composed. Keep smart-home replies brief."
         ),
     ),
-    "neutral": VoiceProfile(provider="browser", voice="alloy"),
-    "bright": VoiceProfile(provider="openai", voice="coral"),
+    "neutral": VoiceProfile(provider="browser", voice="alloy", speed=1.08),
+    "bright": VoiceProfile(provider="openai", voice="coral", speed=1.14),
 }
 
 
@@ -420,16 +423,30 @@ def _openai_speech_bytes(profile: dict[str, Any], text: str) -> bytes:
     instructions = str(profile.get("instructions") or "").strip()
     if instructions and model not in {"tts-1", "tts-1-hd"}:
         kwargs["instructions"] = instructions
+    kwargs["speed"] = _coerce_speed(profile.get("speed"), 1.1)
     try:
         response = _create_openai_speech(client, kwargs)
     except TypeError as exc:
-        if "instructions" not in kwargs or "instructions" not in str(exc):
-            raise
         retry_kwargs = dict(kwargs)
-        retry_kwargs.pop("instructions", None)
-        logger.warning("OpenAI SDK rejected TTS instructions; retrying speech without instructions.")
+        removed: list[str] = []
+        error_text = str(exc)
+        for key in ("instructions", "speed"):
+            if key in retry_kwargs and (key in error_text or "unexpected keyword" in error_text):
+                retry_kwargs.pop(key, None)
+                removed.append(key)
+        if not removed:
+            raise
+        logger.warning("OpenAI SDK rejected TTS args %s; retrying speech without them.", ", ".join(removed))
         response = _create_openai_speech(client, retry_kwargs)
     return _speech_response_bytes(response)
+
+
+def _coerce_speed(value: Any, default: float = 1.1) -> float:
+    try:
+        speed = float(value)
+    except (TypeError, ValueError):
+        speed = default
+    return max(0.75, min(1.35, speed))
 
 
 def _create_openai_speech(client: Any, kwargs: dict[str, Any]) -> Any:

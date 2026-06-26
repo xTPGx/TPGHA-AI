@@ -44,9 +44,11 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import bootstrap as bootstrap_mod  # noqa: E402
 from app import __version__ as backend_package_version  # noqa: E402
+from app.ai.client import pre_route  # noqa: E402
 from app.db.database import get_session, init_db  # noqa: E402
 from app.db.models import MemoryItem, Suggestion  # noqa: E402
 from app.main import APP_VERSION, app  # noqa: E402
+from app.router.intent_router import _strip_assistant_address  # noqa: E402
 
 _PASS = 0
 _FAIL = 0
@@ -107,11 +109,16 @@ def main() -> int:
     users_frontend = (repo_root / "frontend" / "src" / "pages" / "Users.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    schemas_source = (repo_root / "backend" / "app" / "models" / "schemas.py").read_text(encoding="utf-8")
+    voice_source = (repo_root / "backend" / "app" / "voice.py").read_text(encoding="utf-8")
     ai_client_source = (repo_root / "backend" / "app" / "ai" / "client.py").read_text(encoding="utf-8")
     conversation_source = (repo_root / "backend" / "app" / "conversation.py").read_text(encoding="utf-8")
+    router_source = (repo_root / "backend" / "app" / "router" / "intent_router.py").read_text(encoding="utf-8")
     settings_source = (repo_root / "backend" / "app" / "settings.py").read_text(encoding="utf-8")
     db_models = (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
     control_actions = (repo_root / "backend" / "app" / "actions" / "control.py").read_text(encoding="utf-8")
+    fan_actions = (repo_root / "backend" / "app" / "actions" / "fans.py").read_text(encoding="utf-8")
+    conversation_context_source = (repo_root / "backend" / "app" / "router" / "conversation_context.py").read_text(encoding="utf-8")
     climate_actions = (repo_root / "backend" / "app" / "actions" / "climate.py").read_text(encoding="utf-8")
     device_adapters = (repo_root / "backend" / "app" / "device_adapters.py").read_text(encoding="utf-8")
     discovery_classifier = (repo_root / "backend" / "app" / "discovery" / "classifier.py").read_text(encoding="utf-8")
@@ -255,6 +262,41 @@ def main() -> int:
           and "scheduleResumeVoiceConversation" in chat_frontend
           and "Pause when you are done speaking" in chat_frontend,
           "Voice mode should auto-send after a pause, speak the answer, and re-arm listening without push-to-stop turns.")
+    check("Chat live voice supports faster turns and barge-in",
+          "VOICE_SILENCE_STOP_MS = 760" in chat_frontend
+          and "VOICE_RESUME_DELAY_MS = 300" in chat_frontend
+          and "startBargeInDetection" in chat_frontend
+          and "VOICE_BARGE_RMS_THRESHOLD" in chat_frontend
+          and "interruptSpeechAndListen" in chat_frontend
+          and "speechResolveRef" in chat_frontend
+          and "localVoiceControlCommand" in chat_frontend,
+          "Live voice should submit sooner, keep listening, and let the user interrupt spoken replies without a button.")
+    check("Live voice fast-lanes non-action conversation",
+          "/chat/general" in backend_main
+          and "chatGeneral" in api_frontend
+          and "shouldUseFastVoiceChat" in chat_frontend
+          and "FAST_VOICE_GENERAL_PATTERN" in chat_frontend
+          and "FORCE_GUARDED_VOICE_PATTERN" in chat_frontend,
+          "Clearly conversational voice turns should avoid the guarded action-preview round trip.")
+    check("Assistant voice pacing is configurable",
+          "speed: float = 1.1" in schemas_source
+          and "speed=1.12" in voice_source
+          and '"speed"' in voice_source
+          and "speechRateForProfile" in chat_frontend
+          and "playbackRate" in chat_frontend,
+          "Assistant voices should support natural speed in OpenAI TTS and browser playback.")
+    check("Voice command routing strips wake-word prefixes",
+          "_strip_assistant_address" in router_source
+          and "wake_words" in router_source
+          and "message = _strip_assistant_address(message, assistant_name)" in router_source,
+          "Commands like 'Atlas, set office fan speed four' should not poison target resolution.")
+    check("Fan speed parsing avoids arbitrary preset fallback",
+          "_FAN_LEVEL_NUMBER_WORDS" in ai_client_source
+          and "_FAN_LEVEL_NUMBER_WORDS" in conversation_context_source
+          and "return \"\"" in fan_actions
+          and "return \"\"" in control_actions
+          and "sleep" in fan_actions,
+          "Numeric fan levels should map to speed intent and must not pick unrelated presets like sleep by index.")
     check("frontend no longer sends stale cached HA identity",
           "clientUser: freshUser || {}" in ha_auth
           and "cachedStorageUserIgnored" in ha_auth,
@@ -3524,6 +3566,26 @@ def main() -> int:
     check("/chat general weather uses conversation mode",
           body.get("mode") == "conversation" and body.get("success") is True,
           str(body))
+
+    r = client.post("/chat/general", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "Good morning, what should I improve in my smart home next?",
+        "conversation_id": "verify-fast-voice",
+    })
+    check("/chat/general fast conversation returns JSON",
+          r.status_code == 200 and is_json(r) and r.json().get("mode") == "conversation",
+          f"status={r.status_code} body={r.text}")
+
+    cleaned_voice_command = _strip_assistant_address("Atlas, set office fan speed four", "atlas")
+    routed_voice_command = pre_route(cleaned_voice_command)
+    check("wake-word fan level command parses cleanly",
+          cleaned_voice_command == "set office fan speed four"
+          and routed_voice_command is not None
+          and routed_voice_command.name == "set_fan_percentage"
+          and routed_voice_command.arguments.get("target") == "office fan"
+          and routed_voice_command.arguments.get("percentage") == 80,
+          f"cleaned={cleaned_voice_command!r} routed={routed_voice_command}")
 
     r = client.post("/chat", json={
         "assistant": "atlas",

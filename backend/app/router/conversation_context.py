@@ -26,6 +26,9 @@ _FAN_LEVEL_WORDS = {
     "high": 75, "max": 100, "maximum": 100, "full": 100,
     "turbo": 100, "boost": 100,
 }
+_FAN_LEVEL_NUMBER_WORDS = {
+    "one": 20, "two": 40, "three": 60, "four": 80, "five": 100,
+}
 
 
 def context_key(assistant: str, user: Optional[str], conversation_id: Optional[str]) -> str:
@@ -240,6 +243,9 @@ def _fan_percentage(text: str) -> Optional[int]:
         return max(0, min(100, value))
     for word, value in _FAN_LEVEL_WORDS.items():
         if re.search(rf"\b{re.escape(word)}\b", text):
+            return value
+    for word, value in _FAN_LEVEL_NUMBER_WORDS.items():
+        if re.search(rf"\b(speed|level|power)\s+(to\s+)?{word}\b", text):
             return value
     if re.search(r"\b(down|lower|slower|decrease|reduce)\b", text):
         return 25

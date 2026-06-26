@@ -149,6 +149,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ assistant, user, message, conversation_id, room }),
     }),
+  chatGeneral: (assistant: string, user: string, message: string, conversation_id?: string, room?: string) =>
+    http<any>("/chat/general", {
+      method: "POST",
+      body: JSON.stringify({ assistant, user, message, conversation_id, room }),
+    }),
   chatWithAttachments: (body: {
     assistant: string;
     user: string;

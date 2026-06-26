@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.64
+
+- Tuned live voice pause capture, no-speech recovery, and re-listen timing for faster hands-free turns.
+- Added automatic live voice barge-in so a user can interrupt spoken replies without pressing another button.
+- Added a fast general-conversation route for clearly non-action voice turns while keeping device, security, automation, and dashboard requests guarded.
+- Added voice speed/personality pacing across OpenAI TTS and browser playback.
+- Hardened wake-word stripping and fan level parsing so commands like "Atlas, set office fan speed four" target the fan correctly and do not choose unrelated presets like sleep.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.63
 
 - Added live voice conversation mode in Chat: Mic starts a session, silence auto-sends the turn, replies speak, and listening re-arms until the user ends it.

@@ -344,8 +344,7 @@ def _preset_for_percentage(percentage: int, preset_modes: list[str]) -> str:
     for original, lower in normalized:
         if any(word == lower or word in lower for word in bucket):
             return original
-    index = round((max(1, min(100, percentage)) - 1) / 99 * (len(normalized) - 1))
-    return normalized[index][0]
+    return ""
 
 
 async def control_device(ctx: ActionContext, params: dict[str, Any]) -> ActionResult:

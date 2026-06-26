@@ -216,6 +216,10 @@ class AIClient:
             f"You are speaking with {owner}. Personality: {personality}\n\n"
             "You are not only a Home Assistant command parser. You can answer normal "
             "questions, brainstorm, advise, explain, plan, and help with smart-home design. "
+            "When the user asks for your opinion or asks where something should go, lead "
+            "with the recommendation first. Give the answer like a capable advisor, not a "
+            "generic options list. Use short paragraphs by default; only use bullets when "
+            "they genuinely make the answer clearer. "
             "When the user asks for physical home changes, do not claim you changed the "
             "house unless a backend tool result says so. Suggest safe next steps or ask "
             "for missing specifics. If the user asks for dashboards, rooms, zones, entity "
@@ -223,6 +227,8 @@ class AIClient:
             "entities/config and what data is still needed. When house inventory is provided, "
             "reason from it directly and name the specific rooms, entities, weak spots, and "
             "unknowns you see. Do not ask the user to list devices already shown in context. "
+            "If the user is frustrated, do not apologize at length. Acknowledge it briefly, "
+            "state the corrected understanding, and move forward. "
             "If context is incomplete, identify the exact missing mapping instead of giving "
             "generic advice. Be natural, useful, and direct.\n\n"
             f"House context:\n{house_context or 'No live house context available.'}\n\n"
@@ -415,6 +421,9 @@ _FAN_LEVEL_WORDS = {
     "medium": 50, "mid": 50, "normal": 50,
     "high": 75, "max": 100, "maximum": 100, "full": 100,
     "turbo": 100, "boost": 100,
+}
+_FAN_LEVEL_NUMBER_WORDS = {
+    "one": 20, "two": 40, "three": 60, "four": 80, "five": 100,
 }
 
 
@@ -700,11 +709,13 @@ def _fan_target(message: str) -> str:
     t = message.lower()
     t = re.sub(r"\b(turn|switch|shut)\s+(on|off)\b", " ", t)
     t = re.sub(r"\b(turn\s+up|speed\s+up|turn\s+down|slow\s+down|increase|decrease|boost|higher|lower|faster|slower|reduce)\b", " ", t)
+    t = re.sub(r"\b(can|could|would|will|you|please|hey|ok|okay|i|want|wanted|need|needs|to|me|for)\b", " ", t)
     t = re.sub(r"\bset\b", " ", t)
     t = re.sub(r"\bto\b", " ", t)
     t = re.sub(r"\bthe\b", " ", t)
+    t = re.sub(r"\boff\b", " ", t)
     t = re.sub(r"\b(speed|level|power)\b", " ", t)
-    t = re.sub(r"\b(minimum|min|lowest|low|medium|mid|normal|high|max|maximum|full|turbo|boost)\b", " ", t)
+    t = re.sub(r"\b(minimum|min|lowest|low|medium|mid|normal|high|max|maximum|full|turbo|boost|one|two|three|four|five)\b", " ", t)
     t = re.sub(r"\bpercent(age)?\b", " ", t)
     t = re.sub(r"\d+\s*%?", " ", t)
     t = re.sub(r"[?.!,]", " ", t)
@@ -721,6 +732,9 @@ def _fan_level_value(text: str) -> Optional[int]:
         return max(0, min(100, value))
     for word, value in _FAN_LEVEL_WORDS.items():
         if re.search(rf"\b{re.escape(word)}\b", text):
+            return value
+    for word, value in _FAN_LEVEL_NUMBER_WORDS.items():
+        if re.search(rf"\b(speed|level|power)\s+(to\s+)?{word}\b", text):
             return value
     return None
 

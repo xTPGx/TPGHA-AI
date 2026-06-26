@@ -132,6 +132,40 @@ def source_identity_override(
     return (None, None)
 
 
+def _strip_assistant_address(message: str, assistant_name: Optional[str]) -> str:
+    """Remove a leading wake word/name before command routing.
+
+    Voice transcripts commonly arrive as "Atlas, turn on the office light".
+    Keeping "Atlas" in the command can poison target resolution, especially for
+    short commands like fan speed changes.
+    """
+
+    original = (message or "").strip()
+    if not original:
+        return original
+    names: set[str] = {"jarvis", "atlas", "chatty", "computer"}
+    if assistant_name:
+        names.add(str(assistant_name).strip().lower())
+    try:
+        config = get_config()
+        for assistant in getattr(config.assistants, "assistants", []) or []:
+            values = [
+                assistant.id,
+                assistant.name,
+                *(assistant.aliases or []),
+                *(assistant.wake_words or []),
+            ]
+            names.update(str(value).strip().lower() for value in values if str(value).strip())
+    except Exception:  # pragma: no cover - config fallback only
+        pass
+    escaped = sorted((re.escape(name) for name in names if name), key=len, reverse=True)
+    if not escaped:
+        return original
+    pattern = rf"^\s*(?:hey|ok|okay)?\s*(?:{'|'.join(escaped)})\s*[,.:;!?-]*\s+"
+    cleaned = re.sub(pattern, "", original, flags=re.I).strip()
+    return cleaned or original
+
+
 async def build_context(
     assistant_name: Optional[str],
     user_name: Optional[str],
@@ -216,6 +250,7 @@ async def handle_command(
     *,
     allow_multi_step: bool = True,
 ) -> CommandResponse:
+    message = _strip_assistant_address(message, assistant_name)
     # Multi-step: "dim the lights and play jazz" -> run each clause in order,
     # each independently gated (trust, confirmation, confidence).
     if allow_multi_step:
@@ -375,6 +410,7 @@ async def handle_preview(
     service calls are recorded instead of sent, and confirmation tokens are not
     armed. This gives the UI/HA a reliable "what would happen?" layer.
     """
+    message = _strip_assistant_address(message, assistant_name)
     ctx = await build_context(assistant_name, user_name, command_context)
 
     if ctx.assistant is None:

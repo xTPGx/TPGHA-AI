@@ -243,7 +243,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.63"
+APP_VERSION = "1.2.64"
 MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_CHAT_IMAGE_TYPES = {
     "image/jpeg",
@@ -842,6 +842,31 @@ async def chat(req: ChatRequest):
         "mode": mode,
         "response": resp.message,
         "command": resp.model_dump(),
+    }
+
+
+@app.post("/chat/general")
+async def chat_general(req: ChatRequest):
+    """Fast path for pure conversation/advice turns.
+
+    Used by live voice when the utterance is clearly not a device/security/
+    automation command. Actionable requests stay on /chat/preview + /chat.
+    """
+    src_assistant, src_user = intent_router.source_identity_override(
+        get_config(), _command_context(req)
+    )
+    general = await answer_general(
+        src_assistant or req.assistant,
+        req.user or src_user,
+        req.message,
+        conversation_id=req.conversation_id,
+    )
+    return {
+        "success": True,
+        "mode": general.get("mode", "conversation"),
+        "response": general.get("response", ""),
+        "data": general.get("data", {}),
+        "provider": general.get("provider"),
     }
 
 

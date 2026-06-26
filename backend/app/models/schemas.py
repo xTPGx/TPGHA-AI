@@ -80,6 +80,7 @@ class VoiceProfile(_CfgBase):
     model: str = "gpt-4o-mini-tts"
     voice: str = "alloy"
     instructions: str = ""
+    speed: float = 1.1
     response_format: Literal["mp3", "opus", "aac", "flac", "wav", "pcm"] = "mp3"
     output: Literal["browser", "media_player"] = "browser"
     target_entity_id: Optional[str] = None
