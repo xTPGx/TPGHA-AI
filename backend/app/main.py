@@ -160,6 +160,7 @@ from .experience_brain import (
     build_jarvis_phase_113,
     build_jarvis_phase_114,
     build_jarvis_phase_115,
+    build_jarvis_phase_116,
     list_live_acceptance_results,
     build_live_acceptance_report,
     build_live_acceptance_runner,
@@ -174,7 +175,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.19"
+APP_VERSION = "1.2.20"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1367,6 +1368,11 @@ async def brain_phase_114():
 @app.get("/brain/phase-115")
 async def brain_phase_115():
     return await build_jarvis_phase_115(APP_VERSION)
+
+
+@app.get("/brain/phase-116")
+async def brain_phase_116():
+    return await build_jarvis_phase_116(APP_VERSION)
 
 
 @app.get("/experience/interaction-quality")

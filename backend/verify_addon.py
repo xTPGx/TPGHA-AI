@@ -638,6 +638,15 @@ def main() -> int:
     check("phase 115 endpoint is exposed",
           "/brain/phase-115" in backend_main,
           "Backend must expose the phase 115 setup onboarding path readiness marker.")
+    check("phase 116 setup owner action checklist is wired",
+          "Owner action checklist" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "buildOwnerActions" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_owner_action_checklist" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_116" in experience_brain,
+          "Setup must deduplicate owner actions and link them to management pages.")
+    check("phase 116 endpoint is exposed",
+          "/brain/phase-116" in backend_main,
+          "Backend must expose the phase 116 owner action checklist readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1727,6 +1736,16 @@ def main() -> int:
           r.json().get("phase") == 115
           and r.json().get("setup_onboarding_path", {}).get("source_endpoint") == "/ops/onboarding"
           and r.json().get("setup_onboarding_path", {}).get("shows_next_step") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-116")
+    check("/brain/phase-116 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-116 has owner action checklist marker",
+          r.json().get("phase") == 116
+          and r.json().get("setup_owner_action_checklist", {}).get("links_to_management_pages") is True
+          and r.json().get("setup_owner_action_checklist", {}).get("limits_to_top_actions") == 6,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

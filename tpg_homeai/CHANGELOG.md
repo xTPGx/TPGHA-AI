@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.20
+
+- Added Jarvis phase 116 Setup owner action checklist.
+- Setup now deduplicates release gates, capability gaps, and onboarding next-step guidance into direct links to the relevant management pages.
+- Added `/brain/phase-116` and Jarvis Brain readiness evidence for the owner action checklist layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.19
 
 - Added Jarvis phase 115 Setup owner onboarding path.

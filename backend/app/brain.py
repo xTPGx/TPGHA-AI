@@ -900,6 +900,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add setup task launchers after each action has safe idempotent backend support.",
         },
         {
+            "id": "setup_owner_action_checklist",
+            "title": "Setup Owner Action Checklist",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page shows a deduplicated owner action checklist above detailed readiness panels.",
+                "Actions are built from release gates, capability gaps, and the onboarding next step.",
+                "Each action links to the most relevant management page.",
+            ],
+            "next": "Add action completion tracking once setup actions become transactional.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

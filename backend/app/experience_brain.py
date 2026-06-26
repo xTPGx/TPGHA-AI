@@ -860,6 +860,22 @@ async def build_jarvis_phase_115(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_116(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 116,
+        "setup_owner_action_checklist": {
+            "surface": "Setup page",
+            "sources": ["release/checklist", "ops/capability-gaps", "ops/onboarding"],
+            "deduplicates_actions": True,
+            "links_to_management_pages": True,
+            "limits_to_top_actions": 6,
+        },
+        "guardrail": "Phase 116 only links owners to existing management pages; it does not perform setup actions automatically.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

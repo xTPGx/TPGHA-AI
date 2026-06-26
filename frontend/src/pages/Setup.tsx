@@ -188,6 +188,7 @@ export default function Setup() {
       </div>
 
       <ReleaseBlockersPanel release={release} completion={completion} />
+      <OwnerActionChecklistPanel release={release} gaps={gaps} onboarding={onboarding} />
       <CapabilityGapsPanel gaps={gaps} />
       <OnboardingPlanPanel onboarding={onboarding} />
       <OperationalRunbookPanel runbook={runbook} />
@@ -212,6 +213,114 @@ export default function Setup() {
       </div>
     </div>
   );
+}
+
+function OwnerActionChecklistPanel({ release, gaps, onboarding }: { release: any; gaps: any; onboarding: any }) {
+  const actions = buildOwnerActions(release, gaps, onboarding);
+  if (!actions.length) return null;
+  return (
+    <div className="card mb-6 border-brand/30">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Owner action checklist</div>
+          <div className="text-sm text-slate-400">
+            Direct shortcuts to the next pages most likely to clear setup blockers.
+          </div>
+        </div>
+        <span className="badge bg-brand/10 text-brand">{actions.length} actions</span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {actions.map((action) => (
+          <Link key={`${action.source}-${action.title}`} to={action.to} className="rounded border border-slate-800 bg-slate-950/30 p-3 hover:border-brand/60">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold text-slate-100">{action.title}</div>
+                <div className="mt-1 text-sm text-slate-400">{action.detail}</div>
+              </div>
+              <span className="badge bg-slate-800 text-slate-200">{action.source}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildOwnerActions(release: any, gaps: any, onboarding: any) {
+  const actions: Array<{ title: string; detail: string; to: string; source: string }> = [];
+  const failedChecks = (release?.checks || []).filter((check: any) => !check.ok);
+  for (const check of failedChecks) {
+    actions.push({
+      title: check.title,
+      detail: check.detail || "Release gate needs owner attention.",
+      to: ownerTargetForCheck(check.id),
+      source: "release",
+    });
+  }
+  for (const gap of gaps?.open_gaps || []) {
+    actions.push({
+      title: gap.title,
+      detail: gap.recommendation,
+      to: ownerTargetForGap(gap.id),
+      source: gap.severity || "gap",
+    });
+  }
+  const nextStep = onboarding?.next_step;
+  if (nextStep) {
+    actions.push({
+      title: nextStep.title,
+      detail: nextStep.detail,
+      to: ownerTargetForStep(nextStep.id),
+      source: "next",
+    });
+  }
+  return actions
+    .filter((action, index, all) => all.findIndex((candidate) => candidate.title === action.title && candidate.to === action.to) === index)
+    .slice(0, 6);
+}
+
+function ownerTargetForCheck(id: string) {
+  const targets: Record<string, string> = {
+    ha_connected: "/ha",
+    openai_configured: "/assistants",
+    security_pin: "/permissions",
+    voice_acceptance: "/assistants",
+    device_acceptance: "/discovery",
+    interaction_quality: "/",
+    version_aligned: "/",
+  };
+  return targets[id] || "/jarvis";
+}
+
+function ownerTargetForGap(id: string) {
+  const targets: Record<string, string> = {
+    home_assistant_connection: "/ha",
+    openai_key: "/assistants",
+    security_pin: "/permissions",
+    voice_sources: "/assistants",
+    wake_words: "/assistants",
+    rooms: "/rooms",
+    pending_discovery: "/discovery",
+    music_assistant: "/music",
+    weather: "/entities",
+    dashboard_assets: "/house-knowledge",
+  };
+  return targets[id] || "/setup";
+}
+
+function ownerTargetForStep(id: string) {
+  const targets: Record<string, string> = {
+    connect_ha: "/ha",
+    sync_users: "/users",
+    approve_discovery: "/discovery",
+    map_rooms: "/rooms",
+    configure_security: "/permissions",
+    configure_voice: "/assistants",
+    configure_music: "/music",
+    upload_house_assets: "/house-knowledge",
+    test_commands: "/tester",
+  };
+  return targets[id] || "/setup";
 }
 
 function BackupRecoveryPanel({ backup }: { backup: any }) {
