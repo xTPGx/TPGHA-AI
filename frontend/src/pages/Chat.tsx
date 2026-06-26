@@ -37,6 +37,13 @@ type SpeechRecognitionCtor = new () => {
 };
 
 type MicState = "idle" | "recording" | "transcribing";
+type RecorderOptions = { autoStop?: boolean };
+
+const VOICE_RMS_THRESHOLD = 0.018;
+const VOICE_MIN_LISTEN_MS = 900;
+const VOICE_SILENCE_STOP_MS = 1200;
+const VOICE_NO_SPEECH_TIMEOUT_MS = 9000;
+const VOICE_MAX_TURN_MS = 45000;
 
 function TrashIcon() {
   return (
@@ -433,6 +440,7 @@ export default function Chat() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [lastTranscript, setLastTranscript] = useState("");
+  const [voiceConversationActive, setVoiceConversationActive] = useState(false);
   const [panelMode, setPanelMode] = useState(() => readPanelMode());
   const [panelListening, setPanelListening] = useState(false);
   const [panelHeard, setPanelHeard] = useState("");
@@ -445,6 +453,17 @@ export default function Chat() {
   const mediaChunksRef = useRef<Blob[]>([]);
   const discardRecordingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const busyRef = useRef(busy);
+  const micStateRef = useRef<MicState>(micState);
+  const voiceConversationActiveRef = useRef(false);
+  const resumeVoiceTimerRef = useRef<number | null>(null);
+  const vadFrameRef = useRef<number | null>(null);
+  const vadContextRef = useRef<AudioContext | null>(null);
+  const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const vadAnalyserRef = useRef<AnalyserNode | null>(null);
+  const voiceStartedRef = useRef(false);
+  const lastVoiceAtRef = useRef(0);
+  const recordingStartedAtRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentUrlsRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -499,8 +518,82 @@ export default function Chat() {
     setHistoryOpen(false);
   };
 
+  const stopVoiceActivityDetection = () => {
+    if (vadFrameRef.current !== null) {
+      window.cancelAnimationFrame(vadFrameRef.current);
+      vadFrameRef.current = null;
+    }
+    try {
+      vadSourceRef.current?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      vadAnalyserRef.current?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    const context = vadContextRef.current;
+    vadSourceRef.current = null;
+    vadAnalyserRef.current = null;
+    vadContextRef.current = null;
+    if (context && context.state !== "closed") {
+      void context.close().catch(() => undefined);
+    }
+  };
+
+  const clearResumeVoiceTimer = () => {
+    if (resumeVoiceTimerRef.current !== null) {
+      window.clearTimeout(resumeVoiceTimerRef.current);
+      resumeVoiceTimerRef.current = null;
+    }
+  };
+
+  const scheduleResumeVoiceConversation = (delayMs = 650) => {
+    if (!voiceConversationActiveRef.current) return;
+    clearResumeVoiceTimer();
+    resumeVoiceTimerRef.current = window.setTimeout(() => {
+      resumeVoiceTimerRef.current = null;
+      if (!voiceConversationActiveRef.current) return;
+      if (busyRef.current || micStateRef.current !== "idle") {
+        scheduleResumeVoiceConversation(450);
+        return;
+      }
+      void startRecorder({ autoStop: true });
+    }, delayMs);
+  };
+
+  const stopVoiceConversation = () => {
+    voiceConversationActiveRef.current = false;
+    setVoiceConversationActive(false);
+    clearResumeVoiceTimer();
+    audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
+    discardRecordingRef.current = true;
+    try {
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      /* ignore */
+    }
+    mediaChunksRef.current = [];
+    stopVoiceActivityDetection();
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    setListening(false);
+    setMicState("idle");
+  };
+
   useEffect(() => {
     return () => {
+      clearResumeVoiceTimer();
+      stopVoiceActivityDetection();
       recognitionRef.current?.stop();
       try {
         panelRecognitionRef.current?.stop();
@@ -515,6 +608,14 @@ export default function Chat() {
       window.speechSynthesis?.cancel();
     };
   }, []);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  useEffect(() => {
+    micStateRef.current = micState;
+  }, [micState]);
 
   useEffect(() => {
     if (!forceScrollRef.current && !stickToBottomRef.current) return;
@@ -637,17 +738,45 @@ export default function Chat() {
       });
   }, [activeTab, conversationId, messages.length]);
 
-  const browserSpeak = (message: string) => {
-    if (!speakResponses || !("speechSynthesis" in window)) return;
+  const browserSpeak = (message: string) => new Promise<void>((resolve) => {
+    if ((!speakResponses && !voiceConversationActiveRef.current) || !("speechSynthesis" in window)) {
+      resolve();
+      return;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.rate = 1;
     utterance.pitch = assistant === "chatty" ? 1.08 : 0.95;
+    const timeout = window.setTimeout(() => resolve(), Math.min(30000, Math.max(5000, message.length * 70)));
+    const done = () => {
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    utterance.onend = done;
+    utterance.onerror = done;
     window.speechSynthesis.speak(utterance);
+  });
+
+  const playAudio = async (audio: HTMLAudioElement) => {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => resolve(), 45000);
+      audio.onended = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+      audio.onerror = () => {
+        window.clearTimeout(timeout);
+        reject(new Error("Generated audio playback failed."));
+      };
+      audio.play().catch((error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      });
+    });
   };
 
   const speak = async (message: string) => {
-    if (!speakResponses) return;
+    if (!speakResponses && !voiceConversationActiveRef.current) return;
     setVoiceError(null);
     audioRef.current?.pause();
     window.speechSynthesis?.cancel();
@@ -656,14 +785,21 @@ export default function Chat() {
       if (response.audio_base64 && response.content_type) {
         const audio = new Audio(`data:${response.content_type};base64,${response.audio_base64}`);
         audioRef.current = audio;
-        await audio.play();
+        await playAudio(audio);
         return;
       }
-      browserSpeak(response.speak_text || message);
+      await browserSpeak(response.speak_text || message);
     } catch (e: any) {
       setVoiceError(`Voice playback fell back to browser: ${e.message}`);
-      browserSpeak(message);
+      await browserSpeak(message);
     }
+  };
+
+  const speakAssistant = (message: string) => {
+    void (async () => {
+      await speak(message);
+      scheduleResumeVoiceConversation();
+    })();
   };
 
   const appendAssistant = (msg: Omit<Msg, "id" | "role">) => {
@@ -725,7 +861,7 @@ export default function Chat() {
       command,
       originalText: message,
     });
-    void speak(response);
+    speakAssistant(response);
     void refreshConversations();
   };
 
@@ -758,7 +894,7 @@ export default function Chat() {
           kind: "normal",
           originalText: userText,
         });
-        void speak(reply);
+        speakAssistant(reply);
         void refreshConversations();
         return;
       }
@@ -768,7 +904,7 @@ export default function Chat() {
         if (shouldPauseForReview(command)) {
           const response = preview.response || command?.message || "Preview ready.";
           appendAssistant({ text: response, mode: preview.mode, kind: "preview", command, originalText: userText });
-          void speak(response);
+          speakAssistant(response);
           return;
         }
       }
@@ -939,7 +1075,7 @@ export default function Chat() {
       const pin = needsPin ? window.prompt("Enter security PIN") || "" : undefined;
       const r = await api.confirm(token, pin);
       appendAssistant({ text: r.message || "Confirmed.", mode: r.executed ? "confirmed" : "confirmation", command: r });
-      void speak(r.message || "Confirmed.");
+      speakAssistant(r.message || "Confirmed.");
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {
@@ -953,7 +1089,7 @@ export default function Chat() {
     try {
       const r = await api.cancelConfirm(token);
       appendAssistant({ text: r.message || "Cancelled.", mode: "cancelled", command: r });
-      void speak(r.message || "Cancelled.");
+      speakAssistant(r.message || "Cancelled.");
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {
@@ -1006,15 +1142,75 @@ export default function Chat() {
   };
 
   const stopRecorderTracks = () => {
+    stopVoiceActivityDetection();
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
   };
 
+  const startVoiceActivityDetection = (stream: MediaStream) => {
+    stopVoiceActivityDetection();
+    const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
+      | typeof AudioContext
+      | undefined;
+    if (!AudioContextCtor) return;
+    const context = new AudioContextCtor();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.18;
+    const source = context.createMediaStreamSource(stream);
+    source.connect(analyser);
+    vadContextRef.current = context;
+    vadSourceRef.current = source;
+    vadAnalyserRef.current = analyser;
+    voiceStartedRef.current = false;
+    recordingStartedAtRef.current = performance.now();
+    lastVoiceAtRef.current = recordingStartedAtRef.current;
+    const data = new Uint8Array(analyser.fftSize);
+
+    const tick = () => {
+      if (!vadAnalyserRef.current || !mediaRecorderRef.current || mediaRecorderRef.current.state !== "recording") return;
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 1) {
+        const centered = (data[i] - 128) / 128;
+        sum += centered * centered;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const now = performance.now();
+      const elapsed = now - recordingStartedAtRef.current;
+      if (rms >= VOICE_RMS_THRESHOLD) {
+        voiceStartedRef.current = true;
+        lastVoiceAtRef.current = now;
+      }
+      const finishedSpeaking =
+        voiceStartedRef.current &&
+        elapsed >= VOICE_MIN_LISTEN_MS &&
+        now - lastVoiceAtRef.current >= VOICE_SILENCE_STOP_MS;
+      const noSpeechYet = !voiceStartedRef.current && elapsed >= VOICE_NO_SPEECH_TIMEOUT_MS;
+      const maxTurnReached = elapsed >= VOICE_MAX_TURN_MS;
+      if (finishedSpeaking || maxTurnReached) {
+        mediaRecorderRef.current.stop();
+        return;
+      }
+      if (noSpeechYet) {
+        discardRecordingRef.current = true;
+        mediaRecorderRef.current.stop();
+        return;
+      }
+      vadFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    vadFrameRef.current = window.requestAnimationFrame(tick);
+  };
+
   const transcribeRecording = async (blob: Blob) => {
     if (blob.size < 64) {
-      setVoiceError("I did not receive enough microphone audio. Try holding the button a little longer.");
+      if (!voiceConversationActiveRef.current) {
+        setVoiceError("I did not receive enough microphone audio. Try holding the button a little longer.");
+      }
       setMicState("idle");
       setListening(false);
+      scheduleResumeVoiceConversation();
       return;
     }
     setMicState("transcribing");
@@ -1024,7 +1220,10 @@ export default function Chat() {
       const response = await api.voiceTranscribe(blob, `voice-input.${extension}`);
       const transcript = String(response.text || "").trim();
       if (!response.success || !transcript) {
-        setVoiceError(response.error || "I could not understand the microphone recording.");
+        if (!voiceConversationActiveRef.current) {
+          setVoiceError(response.error || "I could not understand the microphone recording.");
+        }
+        scheduleResumeVoiceConversation();
         return;
       }
       setLastTranscript(transcript);
@@ -1037,7 +1236,7 @@ export default function Chat() {
     }
   };
 
-  const startRecorder = async () => {
+  async function startRecorder(options: RecorderOptions = {}) {
     if (!recorderSupported) return false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -1066,21 +1265,28 @@ export default function Chat() {
         if (discardRecordingRef.current) {
           discardRecordingRef.current = false;
           mediaChunksRef.current = [];
+          mediaRecorderRef.current = null;
           stopRecorderTracks();
           setMicState("idle");
           setListening(false);
+          scheduleResumeVoiceConversation();
           return;
         }
         const type = recorder.mimeType || mimeType || "audio/webm";
         const blob = new Blob(mediaChunksRef.current, { type });
+        mediaRecorderRef.current = null;
         stopRecorderTracks();
         void transcribeRecording(blob);
       };
-      recorder.start();
+      if (options.autoStop) recorder.start(250);
+      else recorder.start();
+      if (options.autoStop) startVoiceActivityDetection(stream);
       setMicState("recording");
       setListening(true);
       return true;
     } catch (e: any) {
+      voiceConversationActiveRef.current = false;
+      setVoiceConversationActive(false);
       const name = String(e?.name || "");
       if (name === "NotAllowedError" || name === "SecurityError") {
         setVoiceError(microphoneErrorMessage(e));
@@ -1089,10 +1295,18 @@ export default function Chat() {
       setVoiceError(microphoneErrorMessage(e));
       return true;
     }
-  };
+  }
 
   const toggleListening = async () => {
     setVoiceError(null);
+    if (voiceConversationActiveRef.current) {
+      stopVoiceConversation();
+      return;
+    }
+    voiceConversationActiveRef.current = true;
+    setVoiceConversationActive(true);
+    setSpeakResponses(true);
+    clearResumeVoiceTimer();
     if (micState === "recording") {
       if (mediaRecorderRef.current?.state === "recording") {
         mediaRecorderRef.current.stop();
@@ -1105,7 +1319,7 @@ export default function Chat() {
     if (micState === "transcribing") return;
 
     discardRecordingRef.current = false;
-    const recordingStarted = await startRecorder();
+    const recordingStarted = await startRecorder({ autoStop: true });
     if (recordingStarted) return;
 
     if (listening) {
@@ -1115,6 +1329,8 @@ export default function Chat() {
     }
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
+      voiceConversationActiveRef.current = false;
+      setVoiceConversationActive(false);
       setVoiceError(microphoneUnavailableMessage());
       return;
     }
@@ -1134,6 +1350,8 @@ export default function Chat() {
       setText((finalTranscript || interimTranscript).trim());
     };
     recognition.onerror = (event: any) => {
+      voiceConversationActiveRef.current = false;
+      setVoiceConversationActive(false);
       setVoiceError(microphoneErrorMessage(event));
       setMicState("idle");
       setListening(false);
@@ -1149,6 +1367,8 @@ export default function Chat() {
       if (transcript) {
         setLastTranscript(transcript);
         void send(transcript);
+      } else {
+        scheduleResumeVoiceConversation();
       }
     };
     setMicState("recording");
@@ -1158,6 +1378,9 @@ export default function Chat() {
 
   const cancelVoiceInput = () => {
     setVoiceError(null);
+    voiceConversationActiveRef.current = false;
+    setVoiceConversationActive(false);
+    clearResumeVoiceTimer();
     discardRecordingRef.current = true;
     try {
       if (mediaRecorderRef.current?.state === "recording") {
@@ -1176,6 +1399,23 @@ export default function Chat() {
     setListening(false);
     setMicState("idle");
   };
+
+  const micButtonText = voiceConversationActive
+    ? (micState === "transcribing" ? "..." : "End")
+    : micState === "recording"
+      ? "Stop"
+      : micState === "transcribing"
+        ? "..."
+        : "Mic";
+  const micButtonDisabled = (busy && !voiceConversationActive) || micState === "transcribing";
+  const micButtonTitle = voiceConversationActive
+    ? "End live voice conversation"
+    : recorderSupported || speechSupported
+      ? "Start live voice conversation"
+      : "Check microphone availability";
+  const composerPlaceholder = voiceConversationActive
+    ? (micState === "recording" ? "Listening... pause and I will respond" : "Voice conversation active")
+    : "Message TPG HomeAI";
 
   const sidebar = (
     <ConversationRail
@@ -1241,13 +1481,13 @@ export default function Chat() {
               </button>
             )}
             <button
-              className={`chat-icon-btn ${listening ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
+              className={`chat-icon-btn ${voiceConversationActive || listening ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
               onClick={() => void toggleListening()}
-              disabled={busy || micState === "transcribing"}
-              title={recorderSupported || speechSupported ? "Use microphone" : "Check microphone availability"}
-              aria-label="Use microphone"
+              disabled={micButtonDisabled}
+              title={micButtonTitle}
+              aria-label={micButtonTitle}
             >
-              {micState === "recording" ? "Stop" : micState === "transcribing" ? "..." : "Mic"}
+              {micButtonText}
             </button>
           </div>
         </header>
@@ -1270,6 +1510,7 @@ export default function Chat() {
             listening={listening}
             recordingSeconds={recordingSeconds}
             lastTranscript={lastTranscript}
+            voiceConversationActive={voiceConversationActive}
             cancelVoiceInput={cancelVoiceInput}
           />
         )}
@@ -1381,13 +1622,13 @@ export default function Chat() {
                   <PaperclipIcon />
                 </button>
                 <button
-                  className={`chat-icon-btn shrink-0 ${micState === "recording" ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
+                  className={`chat-icon-btn shrink-0 ${voiceConversationActive || micState === "recording" ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
                   onClick={() => void toggleListening()}
-                  disabled={busy || micState === "transcribing"}
-                  title={recorderSupported || speechSupported ? "Hold to talk" : "Check microphone availability"}
-                  aria-label="Use microphone"
+                  disabled={micButtonDisabled}
+                  title={micButtonTitle}
+                  aria-label={micButtonTitle}
                 >
-                  {micState === "recording" ? "Stop" : micState === "transcribing" ? "..." : "Mic"}
+                  {micButtonText}
                 </button>
                 <textarea
                   className="min-h-[3rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"
@@ -1399,7 +1640,7 @@ export default function Chat() {
                       void send();
                     }
                   }}
-                  placeholder={listening ? "Listening... tap Stop to send" : "Message TPG HomeAI"}
+                  placeholder={composerPlaceholder}
                 />
                 <button className="chat-send-btn" onClick={() => void send()} disabled={busy || (!text.trim() && attachments.length === 0)}>
                   {busy ? "..." : "Send"}
@@ -1495,16 +1736,18 @@ function VoiceSessionBar({
   listening,
   recordingSeconds,
   lastTranscript,
+  voiceConversationActive,
   cancelVoiceInput,
 }: {
   micState: MicState;
   listening: boolean;
   recordingSeconds: number;
   lastTranscript: string;
+  voiceConversationActive: boolean;
   cancelVoiceInput: () => void;
 }) {
   const label = micState === "recording"
-    ? `Listening ${recordingSeconds}s`
+    ? `${voiceConversationActive ? "Live conversation" : "Listening"} ${recordingSeconds}s`
     : micState === "transcribing"
       ? "Transcribing"
       : "Last voice input";
@@ -1529,10 +1772,13 @@ function VoiceSessionBar({
             className="ml-auto rounded-md border border-cyan-300/15 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-rose-300/40 hover:bg-rose-500/10 hover:text-rose-100"
             onClick={cancelVoiceInput}
           >
-            Cancel
+            {voiceConversationActive ? "End" : "Cancel"}
           </button>
         )}
       </div>
+      {voiceConversationActive && micState === "recording" && (
+        <div className="mt-2 text-xs text-slate-400">Pause when you are done speaking. I will answer and keep listening.</div>
+      )}
       {lastTranscript && (
         <div className="mt-2 rounded-lg border border-cyan-300/15 bg-black/20 px-3 py-2 text-xs text-slate-400">
           Heard: <span className="text-slate-200">{lastTranscript}</span>

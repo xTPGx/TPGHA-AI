@@ -248,6 +248,13 @@ def main() -> int:
           and "cancelVoiceInput" in chat_frontend
           and "discardRecordingRef" in chat_frontend,
           "Mic input should expose listening/transcribing state and a true cancel path.")
+    check("Chat voice conversation auto-detects pauses",
+          "VOICE_SILENCE_STOP_MS" in chat_frontend
+          and "startVoiceActivityDetection" in chat_frontend
+          and "voiceConversationActive" in chat_frontend
+          and "scheduleResumeVoiceConversation" in chat_frontend
+          and "Pause when you are done speaking" in chat_frontend,
+          "Voice mode should auto-send after a pause, speak the answer, and re-arm listening without push-to-stop turns.")
     check("frontend no longer sends stale cached HA identity",
           "clientUser: freshUser || {}" in ha_auth
           and "cachedStorageUserIgnored" in ha_auth,

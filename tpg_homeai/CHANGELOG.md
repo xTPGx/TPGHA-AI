@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.63
+
+- Added live voice conversation mode in Chat: Mic starts a session, silence auto-sends the turn, replies speak, and listening re-arms until the user ends it.
+- Added browser audio-level pause detection with no-speech cycling so mobile/tablet voice feels conversational instead of push-to-stop.
+- Added verifier coverage for voice pause detection and re-listen session wiring.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.62
 
 - Removed normal-chat developer/debug payload rendering so mobile conversations stay clean like the web app.
