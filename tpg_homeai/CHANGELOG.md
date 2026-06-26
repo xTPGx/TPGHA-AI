@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.22
+
+- Added Jarvis phase 118 setup support packet export.
+- Added `/ops/setup-support-packet` with support-safe JSON and Markdown containing setup actions, diagnostics, backup readiness, and integration readiness.
+- Setup now exposes copy/download controls for the owner support packet.
+- Added `/brain/phase-118` and Jarvis Brain readiness evidence for setup support packet exports.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.21
 
 - Added Jarvis phase 117 backend setup action plan API.

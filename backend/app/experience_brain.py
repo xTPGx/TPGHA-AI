@@ -11,7 +11,13 @@ from .db.models import AcceptanceRun, CommandLog, ConversationNote, Conversation
 from .homeassistant.services import safe_get_states
 from .knowledge import build_house_graph
 from .models.schemas import AcceptanceResultRequest, AppConfig
-from .operations_brain import build_capability_gap_scanner, build_onboarding_wizard_plan
+from .operations_brain import (
+    build_backup_recovery_readiness,
+    build_capability_gap_scanner,
+    build_diagnostics_support_pack,
+    build_integration_readiness_matrix,
+    build_onboarding_wizard_plan,
+)
 from .settings import get_settings
 from .voice import list_voice_source_readiness
 
@@ -660,6 +666,36 @@ async def build_setup_action_plan(config: AppConfig, version: str) -> dict[str, 
     }
 
 
+async def build_setup_support_packet(config: AppConfig, version: str) -> dict[str, Any]:
+    action_plan = await build_setup_action_plan(config, version)
+    diagnostics = await build_diagnostics_support_pack(config, version)
+    backup = await build_backup_recovery_readiness(config)
+    integrations = await build_integration_readiness_matrix(config)
+    generated_at = dt.datetime.now(dt.UTC).isoformat()
+    packet = {
+        "status": action_plan["status"],
+        "version": version,
+        "generated_at": generated_at,
+        "summary": {
+            "actions": action_plan.get("counts", {}).get("actions", 0),
+            "release_blockers": action_plan.get("counts", {}).get("release_blockers", 0),
+            "capability_gaps": action_plan.get("counts", {}).get("capability_gaps", 0),
+            "onboarding": action_plan.get("counts", {}).get("onboarding", 0),
+            "diagnostic_status": diagnostics.get("status"),
+            "backup_status": backup.get("status"),
+            "integration_status": integrations.get("status"),
+        },
+        "actions": action_plan.get("actions", []),
+        "top_actions": action_plan.get("top_actions", []),
+        "diagnostics": diagnostics,
+        "backup_readiness": backup,
+        "integration_matrix": integrations,
+        "markdown": "",
+    }
+    packet["markdown"] = _setup_support_packet_markdown(packet)
+    return packet
+
+
 async def build_jarvis_phase_92_96(config: AppConfig, version: str) -> dict[str, Any]:
     interaction = build_interaction_quality_report(config)
     voice = build_voice_acceptance_plan(config)
@@ -942,6 +978,23 @@ async def build_jarvis_phase_117(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_118(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 118,
+        "setup_support_packet": {
+            "source_endpoint": "/ops/setup-support-packet",
+            "formats": ["json", "markdown"],
+            "includes_action_plan": True,
+            "includes_support_diagnostics": True,
+            "includes_backup_and_integration_readiness": True,
+            "redaction_policy": "uses existing support-safe diagnostics only",
+        },
+        "guardrail": "Phase 118 only exports setup/readiness evidence; it does not expose secrets or execute setup actions.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []
@@ -997,6 +1050,55 @@ def _setup_target_for_step(step_id: str) -> str:
         "upload_house_assets": "/house-knowledge",
         "test_commands": "/tester",
     }.get(step_id, "/setup")
+
+
+def _setup_support_packet_markdown(packet: dict[str, Any]) -> str:
+    summary = packet.get("summary", {}) or {}
+    lines = [
+        "# TPG HomeAI Setup Support Packet",
+        "",
+        f"- Version: {packet.get('version')}",
+        f"- Generated: {packet.get('generated_at')}",
+        f"- Status: {packet.get('status')}",
+        f"- Actions: {summary.get('actions', 0)}",
+        f"- Release blockers: {summary.get('release_blockers', 0)}",
+        f"- Capability gaps: {summary.get('capability_gaps', 0)}",
+        f"- Onboarding items: {summary.get('onboarding', 0)}",
+        f"- Diagnostics: {summary.get('diagnostic_status', 'unknown')}",
+        f"- Backup readiness: {summary.get('backup_status', 'unknown')}",
+        f"- Integration readiness: {summary.get('integration_status', 'unknown')}",
+        "",
+        "## Top Actions",
+        "",
+    ]
+    top_actions = packet.get("top_actions", []) or []
+    if top_actions:
+        for action in top_actions:
+            lines.append(f"- [{str(action.get('severity') or 'normal').upper()}] {action.get('title')}")
+            lines.append(f"  - Detail: {action.get('detail')}")
+            lines.append(f"  - Source: {action.get('source')}")
+            lines.append(f"  - Target: {action.get('target')}")
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Integration Matrix", ""])
+    integrations = packet.get("integration_matrix", {}).get("integrations", []) or []
+    if integrations:
+        for item in integrations:
+            lines.append(f"- [{str(item.get('status') or 'unknown').upper()}] {item.get('name')}")
+            lines.append(f"  - Detail: {item.get('detail')}")
+    else:
+        lines.append("- No integrations reported")
+    lines.extend(["", "## Backup Readiness", ""])
+    backup = packet.get("backup_readiness", {}) or {}
+    for check in backup.get("checks", []) or []:
+        marker = "PASS" if check.get("ok") else "ATTENTION"
+        lines.append(f"- [{marker}] {check.get('title')}: {check.get('detail')}")
+    lines.extend(["", "## Support Diagnostics", ""])
+    diagnostics = packet.get("diagnostics", {}) or {}
+    diag_summary = diagnostics.get("summary", {}) or {}
+    for key, value in diag_summary.items():
+        lines.append(f"- {key}: {value}")
+    return "\n".join(lines)
 
 
 def _command_card(row: CommandLog) -> dict[str, Any]:

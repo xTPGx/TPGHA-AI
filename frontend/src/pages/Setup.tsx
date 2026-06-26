@@ -16,6 +16,8 @@ export default function Setup() {
   const [backup, setBackup] = useState<any>(null);
   const [integrations, setIntegrations] = useState<any>(null);
   const [actionPlan, setActionPlan] = useState<any>(null);
+  const [supportPacket, setSupportPacket] = useState<any>(null);
+  const [supportPacketMessage, setSupportPacketMessage] = useState("");
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -37,6 +39,7 @@ export default function Setup() {
         backupReadiness,
         integrationReadiness,
         setupActionPlan,
+        setupSupportPacket,
         v,
         runtime,
         assets,
@@ -52,6 +55,7 @@ export default function Setup() {
         api.backupReadiness(),
         api.integrationMatrix(),
         api.setupActionPlan(),
+        api.setupSupportPacket(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -67,6 +71,7 @@ export default function Setup() {
       setBackup(backupReadiness);
       setIntegrations(integrationReadiness);
       setActionPlan(setupActionPlan);
+      setSupportPacket(setupSupportPacket);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -174,6 +179,30 @@ export default function Setup() {
     }
   };
 
+  const copySupportPacket = async () => {
+    if (!supportPacket) return;
+    try {
+      await navigator.clipboard.writeText(supportPacket.markdown || JSON.stringify(supportPacket, null, 2));
+      setSupportPacketMessage("Setup packet copied.");
+    } catch {
+      setSupportPacketMessage("Clipboard unavailable.");
+    }
+  };
+
+  const downloadSupportPacket = (format: "md" | "json") => {
+    if (!supportPacket) return;
+    const isMarkdown = format === "md";
+    const body = isMarkdown ? supportPacket.markdown || "" : JSON.stringify(supportPacket, null, 2);
+    const blob = new Blob([body], { type: isMarkdown ? "text/markdown" : "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tpg-homeai-setup-packet-${supportPacket.version || "current"}.${format}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setSupportPacketMessage(`Setup packet downloaded as ${format.toUpperCase()}.`);
+  };
+
   return (
     <div>
       <PageHeader
@@ -193,6 +222,12 @@ export default function Setup() {
 
       <ReleaseBlockersPanel release={release} completion={completion} />
       <OwnerActionChecklistPanel actionPlan={actionPlan} release={release} gaps={gaps} onboarding={onboarding} />
+      <SetupSupportPacketPanel
+        packet={supportPacket}
+        message={supportPacketMessage}
+        onCopy={copySupportPacket}
+        onDownload={downloadSupportPacket}
+      />
       <CapabilityGapsPanel gaps={gaps} />
       <OnboardingPlanPanel onboarding={onboarding} />
       <OperationalRunbookPanel runbook={runbook} />
@@ -253,6 +288,48 @@ function OwnerActionChecklistPanel({ actionPlan, release, gaps, onboarding }: { 
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+function SetupSupportPacketPanel({
+  packet,
+  message,
+  onCopy,
+  onDownload,
+}: {
+  packet: any;
+  message: string;
+  onCopy: () => void;
+  onDownload: (format: "md" | "json") => void;
+}) {
+  if (!packet) return null;
+  const summary = packet.summary || {};
+  return (
+    <div className="card mb-6 border-cyan-500/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Setup support packet</div>
+          <div className="mt-1 text-sm text-slate-400">
+            Portable owner handoff with setup actions, diagnostics, backup readiness, and integration status.
+          </div>
+        </div>
+        <span className={`badge ${packet.status === "ready" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {packet.status}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Actions" value={summary.actions ?? 0} />
+        <Stat label="Blockers" value={summary.release_blockers ?? 0} />
+        <Stat label="Gaps" value={summary.capability_gaps ?? 0} />
+        <Stat label="Integrations" value={summary.integration_status || "unknown"} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="btn" onClick={onCopy}>Copy Markdown</button>
+        <button className="btn-ghost" onClick={() => onDownload("md")}>Download Markdown</button>
+        <button className="btn-ghost" onClick={() => onDownload("json")}>Download JSON</button>
+      </div>
+      {message && <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
     </div>
   );
 }

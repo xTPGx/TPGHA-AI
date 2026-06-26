@@ -657,6 +657,16 @@ def main() -> int:
     check("phase 117 endpoint is exposed",
           "/brain/phase-117" in backend_main,
           "Backend must expose the phase 117 setup action plan readiness marker.")
+    check("phase 118 setup support packet is wired",
+          "/ops/setup-support-packet" in backend_main
+          and "api.setupSupportPacket" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_support_packet" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_setup_support_packet" in experience_brain
+          and "build_jarvis_phase_118" in experience_brain,
+          "Setup must expose a support-safe setup export packet with Markdown and JSON.")
+    check("phase 118 endpoint is exposed",
+          "/brain/phase-118" in backend_main,
+          "Backend must expose the phase 118 setup support packet readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1357,6 +1367,17 @@ def main() -> int:
           and "actions" in r.json().get("counts", {}),
           str(r.json()))
 
+    r = client.get("/ops/setup-support-packet")
+    check("/ops/setup-support-packet returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/setup-support-packet exports markdown and diagnostics",
+          isinstance(r.json().get("markdown"), str)
+          and "TPG HomeAI Setup Support Packet" in r.json().get("markdown", "")
+          and isinstance(r.json().get("actions"), list)
+          and "diagnostics" in r.json()
+          and "integration_matrix" in r.json(),
+          str(r.json()))
+
     r = client.get("/brain/phase-87-91")
     check("/brain/phase-87-91 returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
@@ -1775,6 +1796,16 @@ def main() -> int:
           r.json().get("phase") == 117
           and r.json().get("setup_action_plan_api", {}).get("source_endpoint") == "/ops/setup-action-plan"
           and r.json().get("setup_action_plan_api", {}).get("returns_top_actions") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-118")
+    check("/brain/phase-118 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-118 has setup support packet marker",
+          r.json().get("phase") == 118
+          and r.json().get("setup_support_packet", {}).get("source_endpoint") == "/ops/setup-support-packet"
+          and "markdown" in r.json().get("setup_support_packet", {}).get("formats", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

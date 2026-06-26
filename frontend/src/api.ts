@@ -230,6 +230,7 @@ export const api = {
   backupReadiness: () => http<any>("/ops/backup-readiness"),
   integrationMatrix: () => http<any>("/ops/integration-matrix"),
   setupActionPlan: () => http<any>("/ops/setup-action-plan"),
+  setupSupportPacket: () => http<any>("/ops/setup-support-packet"),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

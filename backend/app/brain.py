@@ -924,6 +924,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Expose safe owner task launchers after idempotent setup actions are available.",
         },
         {
+            "id": "setup_support_packet",
+            "title": "Setup Support Packet",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/setup-support-packet exports the setup action plan, support diagnostics, backup readiness, and integration matrix.",
+                "The packet includes Markdown and JSON formats for support handoff or AI review.",
+                "The export uses existing support-safe diagnostics and does not include secrets.",
+            ],
+            "next": "Add one-click support bundle download once browser download handling is polished across HA mobile clients.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
