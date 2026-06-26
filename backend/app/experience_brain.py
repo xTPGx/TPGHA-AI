@@ -844,6 +844,22 @@ async def build_jarvis_phase_114(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_115(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 115,
+        "setup_onboarding_path": {
+            "surface": "Setup page",
+            "source_endpoint": "/ops/onboarding",
+            "shows_next_step": True,
+            "shows_required_and_recommended_steps": True,
+            "keeps_steps_read_only": True,
+        },
+        "guardrail": "Phase 115 only surfaces ordered setup guidance; it does not auto-complete setup steps.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

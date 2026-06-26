@@ -888,6 +888,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Link each gap hint directly to the relevant in-app page once deep-link routing is settled.",
         },
         {
+            "id": "setup_onboarding_path",
+            "title": "Setup Onboarding Path",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page displays the ordered operations onboarding plan.",
+                "Owners see the next setup step plus required and recommended steps.",
+                "The panel reuses the onboarding API and remains read-only.",
+            ],
+            "next": "Add setup task launchers after each action has safe idempotent backend support.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.19
+
+- Added Jarvis phase 115 Setup owner onboarding path.
+- Setup now shows the operations onboarding status, next step, and required/recommended setup checklist from `/ops/onboarding`.
+- Added `/brain/phase-115` and Jarvis Brain readiness evidence for the Setup onboarding path layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.18
 
 - Added Jarvis phase 114 Setup capability gap panel.

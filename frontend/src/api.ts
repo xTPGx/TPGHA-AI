@@ -225,6 +225,7 @@ export const api = {
   releaseChecklist: () => http<any>("/release/checklist"),
   releaseRunbook: () => http<any>("/release/runbook"),
   capabilityGaps: () => http<any>("/ops/capability-gaps"),
+  onboardingPlan: () => http<any>("/ops/onboarding"),
   opsDiagnostics: () => http<any>("/ops/diagnostics"),
   backupReadiness: () => http<any>("/ops/backup-readiness"),
   integrationMatrix: () => http<any>("/ops/integration-matrix"),

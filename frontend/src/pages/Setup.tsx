@@ -10,6 +10,7 @@ export default function Setup() {
   const [release, setRelease] = useState<any>(null);
   const [runbook, setRunbook] = useState<any>(null);
   const [gaps, setGaps] = useState<any>(null);
+  const [onboarding, setOnboarding] = useState<any>(null);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [diagnosticsMessage, setDiagnosticsMessage] = useState("");
   const [backup, setBackup] = useState<any>(null);
@@ -30,6 +31,7 @@ export default function Setup() {
         releaseChecklist,
         releaseRunbook,
         capabilityGaps,
+        onboardingPlan,
         supportPack,
         backupReadiness,
         integrationReadiness,
@@ -43,6 +45,7 @@ export default function Setup() {
         api.releaseChecklist(),
         api.releaseRunbook(),
         api.capabilityGaps(),
+        api.onboardingPlan(),
         api.opsDiagnostics(),
         api.backupReadiness(),
         api.integrationMatrix(),
@@ -56,6 +59,7 @@ export default function Setup() {
       setRelease(releaseChecklist);
       setRunbook(releaseRunbook);
       setGaps(capabilityGaps);
+      setOnboarding(onboardingPlan);
       setDiagnostics(supportPack);
       setBackup(backupReadiness);
       setIntegrations(integrationReadiness);
@@ -185,6 +189,7 @@ export default function Setup() {
 
       <ReleaseBlockersPanel release={release} completion={completion} />
       <CapabilityGapsPanel gaps={gaps} />
+      <OnboardingPlanPanel onboarding={onboarding} />
       <OperationalRunbookPanel runbook={runbook} />
       <DiagnosticsPanel diagnostics={diagnostics} message={diagnosticsMessage} onCopy={copyDiagnostics} />
       <BackupRecoveryPanel backup={backup} />
@@ -377,6 +382,58 @@ function gapFixHint(id: string) {
     dashboard_assets: "Fix in house assets or Dashboard Builder.",
   };
   return hints[id] || "Review the matching Setup area.";
+}
+
+function OnboardingPlanPanel({ onboarding }: { onboarding: any }) {
+  if (!onboarding) return null;
+  const steps = onboarding.steps || [];
+  const nextStep = onboarding.next_step;
+  return (
+    <div className={`card mb-6 ${onboarding.status === "ready" ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Owner onboarding path</div>
+          <div className="text-sm text-slate-400">
+            Ordered live-house setup steps from the operations brain.
+          </div>
+        </div>
+        <span className={`badge ${onboarding.status === "ready" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {onboarding.status}
+        </span>
+      </div>
+      {nextStep && (
+        <div className="mb-3 rounded border border-brand/30 bg-brand/10 p-3">
+          <div className="text-sm font-semibold text-brand">Next step</div>
+          <div className="mt-1 text-slate-100">{nextStep.title}</div>
+          <div className="mt-1 text-sm text-slate-400">{nextStep.detail}</div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        {steps.map((step: any, index: number) => (
+          <div
+            className={`rounded border p-3 ${
+              step.state === "complete"
+                ? "border-emerald-500/20 bg-emerald-950/10"
+                : "border-amber-500/20 bg-amber-950/10"
+            }`}
+            key={step.id}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Step {index + 1}</div>
+                <div className="mt-1 font-semibold text-slate-100">{step.title}</div>
+              </div>
+              <span className={`badge ${step.state === "complete" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+                {step.required ? "required" : "recommended"}
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-slate-400">{step.detail}</div>
+            <div className="mt-3 text-xs text-slate-500">{step.state}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function DiagnosticsPanel({
