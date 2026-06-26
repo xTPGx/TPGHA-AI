@@ -226,6 +226,7 @@ export const api = {
   releaseRunbook: () => http<any>("/release/runbook"),
   opsDiagnostics: () => http<any>("/ops/diagnostics"),
   backupReadiness: () => http<any>("/ops/backup-readiness"),
+  integrationMatrix: () => http<any>("/ops/integration-matrix"),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

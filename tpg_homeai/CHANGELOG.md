@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.17
+
+- Added Jarvis phase 113 Setup integration readiness matrix.
+- Setup now separates configured integrations from missing/optional integrations across HA, OpenAI, local AI, media, voice, cameras, access, and future Apple/Nabu Casa layers.
+- Added `/brain/phase-113` and Jarvis Brain readiness evidence for the Setup integration matrix layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.16
 
 - Added Jarvis phase 112 Setup backup/recovery readiness panel.

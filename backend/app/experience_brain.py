@@ -812,6 +812,22 @@ async def build_jarvis_phase_112(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_113(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 113,
+        "setup_integration_matrix": {
+            "surface": "Setup page",
+            "source_endpoint": "/ops/integration-matrix",
+            "groups_configured_and_missing": True,
+            "covers_home_assistant_ai_media_voice_camera_access": True,
+            "keeps_optional_integrations_non_blocking": True,
+        },
+        "guardrail": "Phase 113 only reports integration readiness; it does not install integrations or modify Home Assistant.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

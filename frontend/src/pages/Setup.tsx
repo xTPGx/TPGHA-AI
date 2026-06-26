@@ -12,6 +12,7 @@ export default function Setup() {
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [diagnosticsMessage, setDiagnosticsMessage] = useState("");
   const [backup, setBackup] = useState<any>(null);
+  const [integrations, setIntegrations] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -21,7 +22,19 @@ export default function Setup() {
 
   const load = async () => {
     try {
-      const [h, c, done, releaseChecklist, releaseRunbook, supportPack, backupReadiness, v, runtime, assets] = await Promise.all([
+      const [
+        h,
+        c,
+        done,
+        releaseChecklist,
+        releaseRunbook,
+        supportPack,
+        backupReadiness,
+        integrationReadiness,
+        v,
+        runtime,
+        assets,
+      ] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
@@ -29,6 +42,7 @@ export default function Setup() {
         api.releaseRunbook(),
         api.opsDiagnostics(),
         api.backupReadiness(),
+        api.integrationMatrix(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -40,6 +54,7 @@ export default function Setup() {
       setRunbook(releaseRunbook);
       setDiagnostics(supportPack);
       setBackup(backupReadiness);
+      setIntegrations(integrationReadiness);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -168,6 +183,7 @@ export default function Setup() {
       <OperationalRunbookPanel runbook={runbook} />
       <DiagnosticsPanel diagnostics={diagnostics} message={diagnosticsMessage} onCopy={copyDiagnostics} />
       <BackupRecoveryPanel backup={backup} />
+      <IntegrationReadinessPanel integrations={integrations} />
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {checks.map((check) => (
@@ -233,6 +249,61 @@ function BackupRecoveryPanel({ backup }: { backup: any }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function IntegrationReadinessPanel({ integrations }: { integrations: any }) {
+  if (!integrations) return null;
+  const items = integrations.integrations || [];
+  const configured = items.filter((item: any) => item.configured);
+  const missing = items.filter((item: any) => !item.configured);
+  return (
+    <div className={`card mb-6 ${integrations.status === "ready" ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Integration readiness</div>
+          <div className="text-sm text-slate-400">
+            Major Home Assistant, AI, media, voice, camera, and access integrations detected by the operations brain.
+          </div>
+        </div>
+        <span className={`badge ${integrations.status === "ready" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {integrations.configured}/{integrations.total} configured
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <div className="rounded border border-emerald-500/20 bg-emerald-950/10 p-3">
+          <div className="text-sm font-semibold text-emerald-100">Configured</div>
+          <div className="mt-2 space-y-2">
+            {configured.length ? configured.map((item: any) => (
+              <IntegrationRow item={item} key={item.id} tone="ready" />
+            )) : <div className="text-sm text-slate-500">No integrations confirmed yet.</div>}
+          </div>
+        </div>
+        <div className="rounded border border-amber-500/20 bg-amber-950/10 p-3">
+          <div className="text-sm font-semibold text-amber-100">Needs setup or optional</div>
+          <div className="mt-2 space-y-2">
+            {missing.length ? missing.map((item: any) => (
+              <IntegrationRow item={item} key={item.id} tone="missing" />
+            )) : <div className="text-sm text-slate-500">No missing integrations detected.</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationRow({ item, tone }: { item: any; tone: "ready" | "missing" }) {
+  const dot = tone === "ready" ? "bg-emerald-400" : "bg-amber-300";
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-slate-100">{item.name}</div>
+          <div className="mt-1 text-xs text-slate-400">{item.detail}</div>
+        </div>
+        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
+      </div>
     </div>
   );
 }

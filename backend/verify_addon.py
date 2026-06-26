@@ -611,6 +611,15 @@ def main() -> int:
     check("phase 112 endpoint is exposed",
           "/brain/phase-112" in backend_main,
           "Backend must expose the phase 112 setup backup recovery readiness marker.")
+    check("phase 113 setup integration matrix is wired",
+          "Integration readiness" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "api.integrationMatrix" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_integration_matrix" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_113" in experience_brain,
+          "Setup must surface the operations integration matrix for owner readiness triage.")
+    check("phase 113 endpoint is exposed",
+          "/brain/phase-113" in backend_main,
+          "Backend must expose the phase 113 setup integration matrix readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1670,6 +1679,16 @@ def main() -> int:
           r.json().get("phase") == 112
           and r.json().get("setup_backup_recovery", {}).get("source_endpoint") == "/ops/backup-readiness"
           and r.json().get("setup_backup_recovery", {}).get("shows_backup_pattern") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-113")
+    check("/brain/phase-113 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-113 has setup integration matrix marker",
+          r.json().get("phase") == 113
+          and r.json().get("setup_integration_matrix", {}).get("source_endpoint") == "/ops/integration-matrix"
+          and r.json().get("setup_integration_matrix", {}).get("groups_configured_and_missing") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

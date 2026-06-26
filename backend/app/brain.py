@@ -864,6 +864,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add downloadable recovery notes if support handoff needs a one-file bundle.",
         },
         {
+            "id": "setup_integration_matrix",
+            "title": "Setup Integration Matrix",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page displays the operations integration readiness matrix.",
+                "Configured integrations and missing/optional integrations are separated for owner triage.",
+                "The matrix covers Home Assistant, OpenAI, local AI, Music Assistant, Browser Mod, camera providers, Tailscale, Apple hints, and Nabu Casa.",
+            ],
+            "next": "Add setup shortcuts for missing integrations once each provider has a stable install recipe.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
