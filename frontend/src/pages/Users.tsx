@@ -31,6 +31,7 @@ export default function Users() {
   const [editor, setEditor] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState("");
   const [message, setMessage] = useState("");
 
   const load = async () => setCfg(await api.config());
@@ -96,6 +97,29 @@ export default function Users() {
       setMessage(e.message || String(e));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const downloadTuning = async (user: any) => {
+    setExporting(user.id);
+    setMessage("");
+    try {
+      const response = await api.profileTuningExport(user.id);
+      const markdown = response.markdown || "# TPG HomeAI Profile Tuning Export\n";
+      const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `tpg-homeai-profile-${slug(user.id || user.name)}.md`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setMessage(`Downloaded tuning export for ${user.name}.`);
+    } catch (e: any) {
+      setMessage(e.message || String(e));
+    } finally {
+      setExporting("");
     }
   };
 
@@ -204,7 +228,12 @@ export default function Users() {
                     {u.ha_username ? ` · Login: ${u.ha_username}` : ""}
                   </div>
                 </div>
-                <Button variant="ghost" onClick={() => editUser(u)}>Edit</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="ghost" onClick={() => void downloadTuning(u)} disabled={exporting === u.id}>
+                    {exporting === u.id ? "Exporting..." : "Download tuning"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => editUser(u)}>Edit</Button>
+                </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {(u.aliases ?? []).map((a: string) => <Badge key={a}>{a}</Badge>)}

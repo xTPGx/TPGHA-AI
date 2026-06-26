@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.33
+
+- Added Jarvis phase 129 profile tuning export.
+- Added `/ops/profile-tuning-export` to export assistant profile tuning as JSON and Markdown.
+- Profile tuning exports include assistant identity, follow-up preferences, user memories, and recent command outcomes.
+- Added Users-page "Download tuning" actions for profile audit and portability.
+- Added `/brain/phase-129` and Jarvis Brain readiness evidence for profile tuning export.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.32
 
 - Added Jarvis phase 128 Chat follow-up preferences.

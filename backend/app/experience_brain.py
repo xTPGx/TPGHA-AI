@@ -1155,6 +1155,22 @@ async def build_jarvis_phase_128(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_129(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 129,
+        "profile_tuning_export": {
+            "source_endpoint": "/ops/profile-tuning-export",
+            "formats": ["json", "markdown"],
+            "includes_followup_preferences": True,
+            "includes_memories": True,
+            "includes_command_summary": True,
+        },
+        "guardrail": "Phase 129 exports profile tuning context read-only and excludes secrets.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

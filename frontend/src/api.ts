@@ -261,6 +261,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  profileTuningExport: (user?: string, assistant?: string) => {
+    const params = new URLSearchParams();
+    if (user) params.set("user", user);
+    if (assistant) params.set("assistant", assistant);
+    const qs = params.toString();
+    return http<any>(`/ops/profile-tuning-export${qs ? `?${qs}` : ""}`);
+  },
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

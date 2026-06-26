@@ -99,6 +99,7 @@ def main() -> int:
     dashboard_builder_frontend = (repo_root / "frontend" / "src" / "pages" / "DashboardBuilder.tsx").read_text(encoding="utf-8")
     suggestions_frontend = (repo_root / "frontend" / "src" / "pages" / "Suggestions.tsx").read_text(encoding="utf-8")
     device_profiles_frontend = (repo_root / "frontend" / "src" / "pages" / "DeviceProfiles.tsx").read_text(encoding="utf-8")
+    users_frontend = (repo_root / "frontend" / "src" / "pages" / "Users.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     control_actions = (repo_root / "backend" / "app" / "actions" / "control.py").read_text(encoding="utf-8")
@@ -775,6 +776,17 @@ def main() -> int:
     check("phase 128 endpoint is exposed",
           "/brain/phase-128" in backend_main,
           "Backend must expose the phase 128 followup preference marker.")
+    check("phase 129 profile tuning export is wired",
+          "/ops/profile-tuning-export" in backend_main
+          and "build_profile_tuning_export" in operations_brain
+          and "profileTuningExport" in api_frontend
+          and "Download tuning" in users_frontend
+          and "profile_tuning_export" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_129" in experience_brain,
+          "Users must be able to export profile tuning context for audit/portability.")
+    check("phase 129 endpoint is exposed",
+          "/brain/phase-129" in backend_main,
+          "Backend must expose the phase 129 profile tuning export marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2180,6 +2192,24 @@ def main() -> int:
           r.json().get("phase") == 128
           and r.json().get("chat_followup_preferences", {}).get("source_endpoint") == "/ops/chat-followups/preferences"
           and r.json().get("chat_followup_preferences", {}).get("supports_pin") is True,
+          str(r.json()))
+
+    r = client.get("/ops/profile-tuning-export?user=shawn&assistant=atlas")
+    check("/ops/profile-tuning-export returns profile markdown",
+          r.status_code == 200
+          and is_json(r)
+          and "# TPG HomeAI Profile Tuning Export" in r.json().get("markdown", "")
+          and isinstance(r.json().get("command_summary", {}).get("top_intents"), list),
+          str(r.json()))
+
+    r = client.get("/brain/phase-129")
+    check("/brain/phase-129 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-129 has profile tuning export marker",
+          r.json().get("phase") == 129
+          and r.json().get("profile_tuning_export", {}).get("source_endpoint") == "/ops/profile-tuning-export"
+          and "markdown" in r.json().get("profile_tuning_export", {}).get("formats", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

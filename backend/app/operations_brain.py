@@ -14,7 +14,7 @@ from .actions.automation_installer import ha_config_root
 from .bootstrap import get_app_state
 from .config_loader import config_error
 from .db.database import get_session
-from .db.models import AcceptanceRun, CommandLog, FollowupPreference
+from .db.models import AcceptanceRun, CommandLog, FollowupPreference, MemoryItem
 from .discovery import scanner as discovery_scanner
 from .homeassistant.services import safe_get_states
 from .models.schemas import AppConfig
@@ -593,6 +593,70 @@ def save_chat_followup_preference(
     }
 
 
+def build_profile_tuning_export(config: AppConfig, user: str = "", assistant: str = "") -> dict[str, Any]:
+    users_by_id = {item.id: item for item in config.assistants.users}
+    assistants = [
+        item for item in config.assistants.assistants
+        if (not assistant or item.id == assistant)
+        and (not user or item.owner == user or item.id == assistant)
+    ]
+    if assistant and not assistants:
+        assistants = [item for item in config.assistants.assistants if item.id == assistant]
+    assistant_ids = {item.id for item in assistants}
+    with get_session() as session:
+        preference_query = session.query(FollowupPreference)
+        if user:
+            preference_query = preference_query.filter(FollowupPreference.user == user)
+        if assistant:
+            preference_query = preference_query.filter(FollowupPreference.assistant == assistant)
+        preferences = preference_query.order_by(FollowupPreference.updated_at.desc(), FollowupPreference.id.desc()).limit(250).all()
+
+        memory_query = session.query(MemoryItem)
+        if user:
+            memory_query = memory_query.filter(MemoryItem.owner == user)
+        memories = memory_query.order_by(MemoryItem.updated_at.desc(), MemoryItem.id.desc()).limit(250).all()
+
+        command_query = session.query(CommandLog)
+        if user:
+            command_query = command_query.filter(CommandLog.user == user)
+        if assistant_ids:
+            command_query = command_query.filter(CommandLog.assistant.in_(assistant_ids))
+        elif assistant:
+            command_query = command_query.filter(CommandLog.assistant == assistant)
+        commands = command_query.order_by(CommandLog.created_at.desc(), CommandLog.id.desc()).limit(250).all()
+
+    intent_counts = Counter(row.intent or "unknown" for row in commands)
+    command_summary = {
+        "total": len(commands),
+        "successes": sum(1 for row in commands if row.success),
+        "executions": sum(1 for row in commands if row.executed),
+        "top_intents": [{"intent": intent, "count": count} for intent, count in intent_counts.most_common(8)],
+        "latest": [_profile_command_dict(row) for row in commands[:10]],
+    }
+    payload = {
+        "status": "ready",
+        "scope": {"user": user, "assistant": assistant},
+        "profile": _profile_user_dict(users_by_id.get(user)) if user else None,
+        "assistants": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "owner": item.owner,
+                "tone": item.tone,
+                "wake_words": item.wake_words,
+                "voice": item.voice.voice if item.voice else "",
+            }
+            for item in assistants
+        ],
+        "followup_preferences": [_followup_preference_dict(row) for row in preferences],
+        "memories": [_profile_memory_dict(row) for row in memories],
+        "command_summary": command_summary,
+        "guardrail": "Profile tuning export is read-only and excludes secrets. It documents personalization without granting permissions.",
+    }
+    payload["markdown"] = _profile_tuning_markdown(payload)
+    return payload
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)
@@ -729,6 +793,80 @@ def _followup_preference_to_followup(row: FollowupPreference) -> dict[str, str]:
 
 def _followup_preference_key(followup_id: str, text: str) -> tuple[str, str]:
     return ((followup_id or "").strip().lower(), _prompt_key(text))
+
+
+def _profile_user_dict(user: Any | None) -> dict[str, Any] | None:
+    if not user:
+        return None
+    return {
+        "id": user.id,
+        "name": user.name,
+        "role": user.role,
+        "ha_username": user.ha_username,
+        "ha_is_admin": user.ha_is_admin,
+        "access_source": user.access_source,
+        "music_account": user.music_account,
+        "aliases": user.aliases,
+    }
+
+
+def _profile_memory_dict(row: MemoryItem) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "scope": row.scope,
+        "owner": row.owner,
+        "subject": row.subject,
+        "key": row.key,
+        "value": row.value,
+        "source": row.source,
+        "status": row.status,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _profile_command_dict(row: CommandLog) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "assistant": row.assistant,
+        "user": row.user,
+        "intent": row.intent,
+        "success": row.success,
+        "executed": row.executed,
+        "message": row.message,
+        "response": row.response_message,
+    }
+
+
+def _profile_tuning_markdown(payload: dict[str, Any]) -> str:
+    scope = payload.get("scope", {})
+    lines = [
+        "# TPG HomeAI Profile Tuning Export",
+        "",
+        f"- User: {scope.get('user') or 'all'}",
+        f"- Assistant: {scope.get('assistant') or 'all'}",
+        f"- Assistants: {len(payload.get('assistants') or [])}",
+        f"- Follow-up preferences: {len(payload.get('followup_preferences') or [])}",
+        f"- Memories: {len(payload.get('memories') or [])}",
+        f"- Commands sampled: {payload.get('command_summary', {}).get('total', 0)}",
+        "",
+        "## Assistants",
+    ]
+    for assistant in payload.get("assistants") or []:
+        lines.append(f"- {assistant.get('name')} (`{assistant.get('id')}`): tone={assistant.get('tone')}, voice={assistant.get('voice') or 'default'}")
+    lines.extend(["", "## Follow-Up Preferences"])
+    for pref in payload.get("followup_preferences") or []:
+        lines.append(f"- {pref.get('state')}: {pref.get('text')} (`{pref.get('followup_id')}`)")
+    lines.extend(["", "## Memories"])
+    for memory in payload.get("memories") or []:
+        lines.append(f"- {memory.get('status')} {memory.get('scope')}/{memory.get('subject')}: {memory.get('key')} = {memory.get('value')}")
+    lines.extend(["", "## Top Intents"])
+    for item in payload.get("command_summary", {}).get("top_intents", []):
+        lines.append(f"- {item.get('intent')}: {item.get('count')}")
+    lines.extend(["", "## Latest Commands"])
+    for command in payload.get("command_summary", {}).get("latest", []):
+        lines.append(f"- {command.get('created_at')}: {command.get('intent')} | success={command.get('success')} | `{command.get('message')}`")
+    return "\n".join(lines).strip() + "\n"
 
 
 def _role_policy_highlights(role: str, capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:

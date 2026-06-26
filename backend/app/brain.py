@@ -1056,6 +1056,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add automatic stale-preference cleanup and owner export of profile tuning data.",
         },
         {
+            "id": "profile_tuning_export",
+            "title": "Profile Tuning Export",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/profile-tuning-export returns profile-scoped tuning context as JSON and Markdown.",
+                "Exports include assistant identity, follow-up preferences, approved/draft memories, and recent command outcomes.",
+                "The Users page exposes a download action so owners can audit or move profile tuning data.",
+            ],
+            "next": "Add safe stale-preference cleanup with a dry-run report.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
