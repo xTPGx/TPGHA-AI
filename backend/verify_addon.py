@@ -966,6 +966,20 @@ def main() -> int:
     check("phase 144 endpoint is exposed",
           "/brain/phase-144" in backend_main,
           "Backend must expose the phase 144 release recommendation marker.")
+    check("phase 145 release recommendation state is wired",
+          "ReleaseRecommendationState" in (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
+          and "/release/status-history/recommendations/states" in backend_main
+          and "save_release_recommendation_state" in experience_brain
+          and "Acknowledge" in dashboard_frontend
+          and "Snooze" in dashboard_frontend
+          and "Reactivate" in dashboard_frontend
+          and "api.updateReleaseRecommendationState" in dashboard_frontend
+          and "release_recommendation_state" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_145" in experience_brain,
+          "Owners need persisted acknowledge/snooze state for generated release recommendations.")
+    check("phase 145 endpoint is exposed",
+          "/brain/phase-145" in backend_main,
+          "Backend must expose the phase 145 release recommendation state marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2718,6 +2732,29 @@ def main() -> int:
           r.json().get("phase") == 144
           and r.json().get("release_owner_recommendations", {}).get("endpoint") == "/release/status-history/recommendations"
           and "resolve_release_blockers" in r.json().get("release_owner_recommendations", {}).get("actions", []),
+          str(r.json()))
+
+    r = client.patch("/release/status-history/recommendations/resolve_release_blockers", json={"state": "snoozed"})
+    check("/release/status-history/recommendations/{id} stores state",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("updated") is True
+          and r.json().get("state", {}).get("state") == "snoozed",
+          str(r.json()))
+    r = client.get("/release/status-history/recommendations/states")
+    check("/release/status-history/recommendations/states lists stored state",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("states", {}).get("resolve_release_blockers", {}).get("state") == "snoozed",
+          str(r.json()))
+    r = client.get("/brain/phase-145")
+    check("/brain/phase-145 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-145 has release recommendation state marker",
+          r.json().get("phase") == 145
+          and r.json().get("release_recommendation_state", {}).get("states_endpoint") == "/release/status-history/recommendations/states"
+          and "snoozed" in r.json().get("release_recommendation_state", {}).get("states", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

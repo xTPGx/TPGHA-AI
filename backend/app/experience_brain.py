@@ -12,6 +12,7 @@ from .db.models import (
     CommandLog,
     ConversationNote,
     ConversationState,
+    ReleaseRecommendationState,
     ReleaseStatusSnapshot,
     Suggestion,
 )
@@ -845,6 +846,7 @@ def build_release_owner_recommendations(limit: int = 20) -> dict[str, Any]:
     metrics = health.get("metrics", {}) or {}
     warnings = health.get("warnings", []) or []
     warning_ids = {str(warning.get("id") or "") for warning in warnings}
+    states = _release_recommendation_state_map()
     recommendations: list[dict[str, Any]] = []
     if "retained_blockers" in warning_ids:
         recommendations.append({
@@ -891,15 +893,66 @@ def build_release_owner_recommendations(limit: int = 20) -> dict[str, Any]:
             "target": "/dashboard",
             "source_warning": "",
         })
+    for recommendation in recommendations:
+        state = states.get(str(recommendation.get("id") or ""), {})
+        recommendation["state"] = state.get("state") or "active"
+        recommendation["state_updated_at"] = state.get("updated_at")
+        recommendation["state_notes"] = state.get("notes") or ""
+    visible_recommendations = [
+        recommendation for recommendation in recommendations
+        if recommendation.get("state") not in {"acknowledged", "snoozed"}
+    ]
     result = {
-        "status": "attention" if any(item.get("priority") == "high" for item in recommendations) else "ready",
-        "recommendations": recommendations,
+        "status": "attention" if any(item.get("priority") == "high" for item in visible_recommendations) else "ready",
+        "recommendations": visible_recommendations,
+        "all_recommendations": recommendations,
+        "hidden_count": len(recommendations) - len(visible_recommendations),
+        "states": states,
         "health": health,
         "metrics": metrics,
         "markdown": "",
     }
     result["markdown"] = _release_owner_recommendations_markdown(result)
     return result
+
+
+def list_release_recommendation_states() -> dict[str, Any]:
+    states = _release_recommendation_state_map()
+    return {
+        "status": "ready",
+        "count": len(states),
+        "states": states,
+    }
+
+
+def save_release_recommendation_state(recommendation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    recommendation_id = str(recommendation_id or "")[:128]
+    if not recommendation_id:
+        return {"updated": False, "error": "missing_recommendation_id"}
+    state = str(payload.get("state") or "active").strip().lower()[:32]
+    if state not in {"active", "acknowledged", "snoozed"}:
+        return {"updated": False, "error": "invalid_state", "allowed": ["active", "acknowledged", "snoozed"]}
+    notes = str(payload.get("notes") or "")[:1000]
+    now = dt.datetime.now(dt.timezone.utc)
+    with get_session() as session:
+        row = (
+            session.query(ReleaseRecommendationState)
+            .filter(ReleaseRecommendationState.recommendation_id == recommendation_id)
+            .one_or_none()
+        )
+        if not row:
+            row = ReleaseRecommendationState(recommendation_id=recommendation_id)
+            session.add(row)
+        row.state = state
+        row.notes = notes
+        row.updated_at = now
+        session.commit()
+        session.refresh(row)
+        item = _release_recommendation_state_card(row)
+    return {
+        "updated": True,
+        "state": item,
+    }
 
 
 def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1082,7 +1135,26 @@ def _release_owner_recommendations_markdown(result: dict[str, Any]) -> str:
             f"- {str(item.get('priority') or 'normal').upper()}: "
             f"{item.get('title')} - {item.get('detail')}"
         )
+    hidden_count = int(result.get("hidden_count") or 0)
+    if hidden_count:
+        lines.extend(["", f"Hidden by owner state: {hidden_count}"])
     return "\n".join(lines).strip() + "\n"
+
+
+def _release_recommendation_state_map() -> dict[str, Any]:
+    with get_session() as session:
+        rows = session.query(ReleaseRecommendationState).all()
+    return {row.recommendation_id: _release_recommendation_state_card(row) for row in rows}
+
+
+def _release_recommendation_state_card(row: ReleaseRecommendationState) -> dict[str, Any]:
+    return {
+        "recommendation_id": row.recommendation_id,
+        "state": row.state or "active",
+        "notes": row.notes or "",
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
 
 
 def _release_snapshot_delta(latest: dict[str, Any] | None, previous: dict[str, Any] | None) -> dict[str, Any]:
@@ -2009,6 +2081,21 @@ async def build_jarvis_phase_144(version: str) -> dict[str, Any]:
             "dashboard_surface": "Recommended next action",
         },
         "guardrail": "Phase 144 only recommends owner release actions; it does not modify snapshots, gates, or live-house state.",
+    }
+
+
+async def build_jarvis_phase_145(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 145,
+        "release_recommendation_state": {
+            "endpoint": "/release/status-history/recommendations/{recommendation_id}",
+            "states_endpoint": "/release/status-history/recommendations/states",
+            "states": ["active", "acknowledged", "snoozed"],
+            "dashboard_actions": ["Acknowledge", "Snooze", "Reactivate"],
+        },
+        "guardrail": "Phase 145 stores owner handling state for generated recommendations without deleting release evidence.",
     }
 
 

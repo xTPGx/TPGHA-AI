@@ -264,6 +264,20 @@ export default function Dashboard() {
     }
   };
 
+  const updateReleaseRecommendation = async (recommendationId: string, state: "active" | "acknowledged" | "snoozed") => {
+    try {
+      await api.updateReleaseRecommendationState(recommendationId, { state });
+      setReleaseRecommendations(await api.releaseRecommendations());
+      setReleaseMessage(
+        state === "active"
+          ? "Release recommendation reactivated."
+          : `Release recommendation ${state}.`
+      );
+    } catch (e: any) {
+      setReleaseMessage(`Recommendation update failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const copyDecisionDigest = async () => {
     if (!releaseDecisionDigest) return;
     try {
@@ -406,6 +420,7 @@ export default function Dashboard() {
             onSearchTermChange={setReleaseSearchTerm}
             onSearch={searchReleaseHistory}
             onClearSearch={clearReleaseSearch}
+            onRecommendationState={updateReleaseRecommendation}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -596,6 +611,7 @@ function DashboardReleaseStatus({
   onSearchTermChange,
   onSearch,
   onClearSearch,
+  onRecommendationState,
 }: {
   release: any;
   history: any;
@@ -621,11 +637,15 @@ function DashboardReleaseStatus({
   onSearchTermChange: (value: string) => void;
   onSearch: () => void;
   onClearSearch: () => void;
+  onRecommendationState: (recommendationId: string, state: "active" | "acknowledged" | "snoozed") => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
   const snapshots = history?.snapshots || [];
   const topRecommendation = recommendations?.recommendations?.[0];
+  const hiddenRecommendations = (recommendations?.all_recommendations || []).filter(
+    (item: any) => item.state === "acknowledged" || item.state === "snoozed"
+  );
   return (
     <div className={`card ${failed.length ? "border-amber-500/30" : "border-emerald-500/30"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -666,10 +686,38 @@ function DashboardReleaseStatus({
               <div className="font-semibold">Recommended next action</div>
               <div className="mt-1 font-medium text-slate-100">{topRecommendation.title}</div>
               <div className="mt-1 text-sky-100/80">{topRecommendation.detail}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => onRecommendationState(topRecommendation.id, "acknowledged")}
+                >
+                  Acknowledge
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => onRecommendationState(topRecommendation.id, "snoozed")}
+                >
+                  Snooze
+                </Button>
+              </div>
             </div>
             <Badge tone={topRecommendation.priority === "high" ? "warn" : "slate"}>
               {topRecommendation.priority || "normal"}
             </Badge>
+          </div>
+        </div>
+      )}
+      {!!hiddenRecommendations.length && (
+        <div className="mt-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
+          <div className="font-semibold text-slate-200">
+            {hiddenRecommendations.length} release recommendation{hiddenRecommendations.length === 1 ? "" : "s"} acknowledged or snoozed
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {hiddenRecommendations.slice(0, 2).map((item: any) => (
+              <Button key={item.id} variant="ghost" onClick={() => onRecommendationState(item.id, "active")}>
+                Reactivate
+              </Button>
+            ))}
           </div>
         </div>
       )}

@@ -174,6 +174,24 @@ class ReleaseStatusSnapshot(Base):
     payload: Mapped[str] = mapped_column(Text, default="{}")
 
 
+class ReleaseRecommendationState(Base):
+    """Owner state for generated release recommendations.
+
+    Recommendations are derived from release history and can change as the
+    system evolves. This table tracks only the owner's handling state so the
+    release evidence remains immutable.
+    """
+
+    __tablename__ = "release_recommendation_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    recommendation_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    state: Mapped[str] = mapped_column(String(32), default="active")
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+
 class FollowupPreference(Base):
     """Per-profile follow-up prompt preference.
 

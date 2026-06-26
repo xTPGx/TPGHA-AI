@@ -201,6 +201,7 @@ from .experience_brain import (
     build_jarvis_phase_142,
     build_jarvis_phase_143,
     build_jarvis_phase_144,
+    build_jarvis_phase_145,
     build_release_decision_digest,
     build_release_health_warnings,
     build_release_history_comparison,
@@ -208,6 +209,7 @@ from .experience_brain import (
     build_release_status_metrics,
     filter_release_status_snapshots,
     list_live_acceptance_results,
+    list_release_recommendation_states,
     list_release_status_snapshots,
     build_live_acceptance_report,
     build_live_acceptance_runner,
@@ -218,6 +220,7 @@ from .experience_brain import (
     annotate_release_status_snapshot,
     prune_release_status_snapshots,
     search_release_status_snapshots,
+    save_release_recommendation_state,
     build_release_checklist,
     build_setup_action_plan,
     build_setup_support_packet,
@@ -228,7 +231,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.48"
+APP_VERSION = "1.2.49"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1640,6 +1643,11 @@ async def brain_phase_144():
     return await build_jarvis_phase_144(APP_VERSION)
 
 
+@app.get("/brain/phase-145")
+async def brain_phase_145():
+    return await build_jarvis_phase_145(APP_VERSION)
+
+
 @app.get("/experience/interaction-quality")
 async def experience_interaction_quality():
     return build_interaction_quality_report(get_config())
@@ -1733,6 +1741,19 @@ async def release_status_history_health(limit: int = 20):
 @app.get("/release/status-history/recommendations")
 async def release_status_history_recommendations(limit: int = 20):
     return build_release_owner_recommendations(limit=limit)
+
+
+@app.get("/release/status-history/recommendations/states")
+async def release_status_history_recommendation_states():
+    return list_release_recommendation_states()
+
+
+@app.patch("/release/status-history/recommendations/{recommendation_id}")
+async def release_status_history_recommendation_state(recommendation_id: str, payload: dict[str, Any]):
+    result = save_release_recommendation_state(recommendation_id, payload)
+    if not result.get("updated"):
+        raise HTTPException(status_code=400, detail=result)
+    return result
 
 
 @app.post("/release/status-history/prune")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.49
+
+- Added Jarvis phase 145 release recommendation state.
+- Added persisted acknowledge, snooze, and reactivate state for owner release recommendations.
+- Added `/release/status-history/recommendations/states` and recommendation state update endpoints.
+- Added owner Dashboard actions to acknowledge and snooze release recommendations.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.48
 
 - Added Jarvis phase 144 release owner recommendations.

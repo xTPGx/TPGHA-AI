@@ -1248,6 +1248,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release recommendation acknowledge/snooze state so owners can track which action is being handled.",
         },
         {
+            "id": "release_recommendation_state",
+            "title": "Release Recommendation State",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Recommendation state is persisted separately from immutable release snapshots.",
+                "Owners can mark generated recommendations active, acknowledged, or snoozed.",
+                "Owner Dashboard exposes Acknowledge, Snooze, and Reactivate controls.",
+            ],
+            "next": "Add release recommendation notes so owners can explain why an action was snoozed or acknowledged.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
