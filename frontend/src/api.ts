@@ -224,6 +224,7 @@ export const api = {
   liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
   releaseChecklist: () => http<any>("/release/checklist"),
   releaseStatusHistory: () => http<any>("/release/status-history"),
+  releaseHistoryComparison: () => http<any>("/release/status-history/compare"),
   saveReleaseStatusSnapshot: () =>
     http<any>("/release/status-history/snapshot", { method: "POST" }),
   releaseRunbook: () => http<any>("/release/runbook"),

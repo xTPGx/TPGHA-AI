@@ -1140,6 +1140,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release comparison export so owners can compare readiness across multiple versions.",
         },
         {
+            "id": "release_comparison_export",
+            "title": "Release Comparison Export",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/compare returns JSON plus Markdown history comparison output.",
+                "Comparison includes latest snapshot, previous snapshot, and gate/blocker/status deltas.",
+                "Owner Dashboard exposes Copy release history and Download release history actions.",
+            ],
+            "next": "Add release history pruning so long-running installs can manage old snapshots.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

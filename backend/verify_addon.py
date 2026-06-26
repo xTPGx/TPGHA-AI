@@ -856,6 +856,18 @@ def main() -> int:
     check("phase 135 endpoint is exposed",
           "/brain/phase-135" in backend_main,
           "Backend must expose the phase 135 release status history marker.")
+    check("phase 136 release comparison export is wired",
+          "/release/status-history/compare" in backend_main
+          and "build_release_history_comparison" in experience_brain
+          and "Copy release history" in dashboard_frontend
+          and "Download release history" in dashboard_frontend
+          and "api.releaseHistoryComparison" in dashboard_frontend
+          and "release_comparison_export" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_136" in experience_brain,
+          "Owners need Markdown export of release status history comparisons.")
+    check("phase 136 endpoint is exposed",
+          "/brain/phase-136" in backend_main,
+          "Backend must expose the phase 136 release comparison export marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2398,6 +2410,30 @@ def main() -> int:
           r.json().get("phase") == 135
           and r.json().get("release_status_history", {}).get("history_endpoint") == "/release/status-history"
           and "Save status snapshot" in r.json().get("release_status_history", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.post("/release/status-history/snapshot")
+    check("/release/status-history/snapshot records second snapshot",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("recorded") is True,
+          str(r.json()))
+    r = client.get("/release/status-history/compare")
+    check("/release/status-history/compare returns markdown comparison",
+          r.status_code == 200
+          and is_json(r)
+          and "# TPG HomeAI Release History Comparison" in r.json().get("markdown", "")
+          and "delta" in r.json()
+          and r.json().get("count", 0) >= 2,
+          str(r.json()))
+    r = client.get("/brain/phase-136")
+    check("/brain/phase-136 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-136 has release comparison marker",
+          r.json().get("phase") == 136
+          and r.json().get("release_comparison_export", {}).get("source_endpoint") == "/release/status-history/compare"
+          and "Download release history" in r.json().get("release_comparison_export", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

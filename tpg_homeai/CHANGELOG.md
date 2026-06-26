@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.40
+
+- Added Jarvis phase 136 release comparison export.
+- Added `/release/status-history/compare` with JSON and Markdown release history comparison output.
+- Added latest-vs-previous release snapshot delta counts for gates, blockers, and status changes.
+- Added owner Dashboard actions to copy and download release history comparison exports.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.39
 
 - Added Jarvis phase 135 release status history.

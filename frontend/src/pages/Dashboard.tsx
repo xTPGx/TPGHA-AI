@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [actionPlan, setActionPlan] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
   const [releaseHistory, setReleaseHistory] = useState<any>(null);
+  const [releaseComparison, setReleaseComparison] = useState<any>(null);
   const [releaseMessage, setReleaseMessage] = useState("");
   const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
@@ -47,16 +48,19 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
-          const [releaseChecklist, history] = await Promise.all([
+          const [releaseChecklist, history, comparison] = await Promise.all([
             api.releaseChecklist(),
             api.releaseStatusHistory(),
+            api.releaseHistoryComparison(),
           ]);
           setRelease(releaseChecklist);
           setReleaseHistory(history);
+          setReleaseComparison(comparison);
         } else {
           setActionPlan(null);
           setRelease(null);
           setReleaseHistory(null);
+          setReleaseComparison(null);
         }
       } catch {
         setSession(null);
@@ -64,6 +68,7 @@ export default function Dashboard() {
         setActionPlan(null);
         setRelease(null);
         setReleaseHistory(null);
+        setReleaseComparison(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -121,11 +126,39 @@ export default function Dashboard() {
     try {
       const saved = await api.saveReleaseStatusSnapshot();
       if (saved?.checklist) setRelease(saved.checklist);
-      setReleaseHistory(await api.releaseStatusHistory());
+      const [history, comparison] = await Promise.all([
+        api.releaseStatusHistory(),
+        api.releaseHistoryComparison(),
+      ]);
+      setReleaseHistory(history);
+      setReleaseComparison(comparison);
       setReleaseMessage("Release snapshot saved.");
     } catch (e: any) {
       setReleaseMessage(`Snapshot failed: ${e?.message || String(e)}`);
     }
+  };
+
+  const copyReleaseHistory = async () => {
+    if (!releaseComparison) return;
+    try {
+      await navigator.clipboard.writeText(releaseComparison.markdown || JSON.stringify(releaseComparison, null, 2));
+      setReleaseMessage("Release history copied.");
+    } catch {
+      setReleaseMessage("Clipboard unavailable.");
+    }
+  };
+
+  const downloadReleaseHistory = () => {
+    if (!releaseComparison) return;
+    const body = releaseComparison.markdown || JSON.stringify(releaseComparison, null, 2);
+    const blob = new Blob([body], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tpg-homeai-release-history-${release?.version || "current"}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setReleaseMessage("Release history downloaded.");
   };
 
   const ha = health?.home_assistant;
@@ -183,10 +216,13 @@ export default function Dashboard() {
           <DashboardReleaseStatus
             release={release}
             history={releaseHistory}
+            comparison={releaseComparison}
             message={releaseMessage}
             onCopy={copyReleaseChecklist}
             onDownload={downloadReleaseChecklist}
             onSnapshot={saveReleaseSnapshot}
+            onCopyHistory={copyReleaseHistory}
+            onDownloadHistory={downloadReleaseHistory}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -355,17 +391,23 @@ function DashboardActionPlan({ actionPlan }: { actionPlan: any }) {
 function DashboardReleaseStatus({
   release,
   history,
+  comparison,
   message,
   onCopy,
   onDownload,
   onSnapshot,
+  onCopyHistory,
+  onDownloadHistory,
 }: {
   release: any;
   history: any;
+  comparison: any;
   message: string;
   onCopy: () => void;
   onDownload: () => void;
   onSnapshot: () => void;
+  onCopyHistory: () => void;
+  onDownloadHistory: () => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -381,6 +423,8 @@ function DashboardReleaseStatus({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={onSnapshot}>Save status snapshot</Button>
+          <Button variant="ghost" onClick={onCopyHistory} disabled={!comparison}>Copy release history</Button>
+          <Button variant="ghost" onClick={onDownloadHistory} disabled={!comparison}>Download release history</Button>
           <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>
           <Button variant="ghost" onClick={onDownload}>Download release checklist</Button>
           <Link to="/setup" className="btn-ghost">Open Setup</Link>

@@ -633,6 +633,24 @@ def list_release_status_snapshots(limit: int = 20) -> dict[str, Any]:
     }
 
 
+def build_release_history_comparison(limit: int = 10) -> dict[str, Any]:
+    history = list_release_status_snapshots(limit=limit)
+    snapshots = history.get("snapshots", []) or []
+    latest = snapshots[0] if snapshots else None
+    previous = snapshots[1] if len(snapshots) > 1 else None
+    comparison = {
+        "status": "ready" if snapshots else "empty",
+        "count": len(snapshots),
+        "latest": latest,
+        "previous": previous,
+        "delta": _release_snapshot_delta(latest, previous),
+        "snapshots": snapshots,
+        "markdown": "",
+    }
+    comparison["markdown"] = _release_history_comparison_markdown(comparison)
+    return comparison
+
+
 async def record_release_status_snapshot(config: AppConfig, version: str) -> dict[str, Any]:
     checklist = await build_release_checklist(config, version)
     checks = checklist.get("checks", []) or []
@@ -656,6 +674,22 @@ async def record_release_status_snapshot(config: AppConfig, version: str) -> dic
     }
 
 
+def _release_snapshot_delta(latest: dict[str, Any] | None, previous: dict[str, Any] | None) -> dict[str, Any]:
+    if not latest:
+        return {"available": False, "reason": "No release snapshots have been recorded yet."}
+    if not previous:
+        return {"available": False, "reason": "Only one release snapshot is available."}
+    latest_counts = latest.get("counts", {}) or {}
+    previous_counts = previous.get("counts", {}) or {}
+    return {
+        "available": True,
+        "passed_change": int(latest_counts.get("passed") or 0) - int(previous_counts.get("passed") or 0),
+        "blocker_change": int(latest_counts.get("blockers") or 0) - int(previous_counts.get("blockers") or 0),
+        "check_change": int(latest_counts.get("checks") or 0) - int(previous_counts.get("checks") or 0),
+        "status_changed": latest.get("status") != previous.get("status"),
+    }
+
+
 def _release_snapshot_card(row: ReleaseStatusSnapshot) -> dict[str, Any]:
     try:
         payload = json.loads(row.payload or "{}")
@@ -674,6 +708,59 @@ def _release_snapshot_card(row: ReleaseStatusSnapshot) -> dict[str, Any]:
         },
         "blockers": payload.get("blockers", []) or [],
     }
+
+
+def _release_history_comparison_markdown(comparison: dict[str, Any]) -> str:
+    lines = [
+        "# TPG HomeAI Release History Comparison",
+        "",
+        f"Status: {comparison.get('status', 'unknown')}",
+        f"Snapshots: {comparison.get('count', 0)}",
+        "",
+    ]
+    latest = comparison.get("latest") or {}
+    previous = comparison.get("previous") or {}
+    delta = comparison.get("delta") or {}
+    if latest:
+        lines.extend([
+            "## Latest",
+            f"- Version: {latest.get('version') or 'unknown'}",
+            f"- Status: {latest.get('status') or 'unknown'}",
+            f"- Gates: {(latest.get('counts') or {}).get('passed', 0)}/{(latest.get('counts') or {}).get('checks', 0)} passing",
+            f"- Blockers: {(latest.get('counts') or {}).get('blockers', 0)}",
+            "",
+        ])
+    if previous:
+        lines.extend([
+            "## Previous",
+            f"- Version: {previous.get('version') or 'unknown'}",
+            f"- Status: {previous.get('status') or 'unknown'}",
+            f"- Gates: {(previous.get('counts') or {}).get('passed', 0)}/{(previous.get('counts') or {}).get('checks', 0)} passing",
+            f"- Blockers: {(previous.get('counts') or {}).get('blockers', 0)}",
+            "",
+        ])
+    lines.append("## Delta")
+    if delta.get("available"):
+        lines.extend([
+            f"- Passed gate change: {delta.get('passed_change', 0):+d}",
+            f"- Blocker change: {delta.get('blocker_change', 0):+d}",
+            f"- Total gate change: {delta.get('check_change', 0):+d}",
+            f"- Status changed: {delta.get('status_changed')}",
+        ])
+    else:
+        lines.append(f"- {delta.get('reason') or 'Not enough snapshots to compare.'}")
+    snapshots = comparison.get("snapshots", []) or []
+    if snapshots:
+        lines.extend(["", "## Recent Snapshots"])
+        for snapshot in snapshots:
+            counts = snapshot.get("counts", {}) or {}
+            lines.append(
+                f"- v{snapshot.get('version') or 'unknown'}: "
+                f"{snapshot.get('status') or 'unknown'}, "
+                f"{counts.get('passed', 0)}/{counts.get('checks', 0)} gates, "
+                f"{counts.get('blockers', 0)} blockers"
+            )
+    return "\n".join(lines).strip() + "\n"
 
 
 async def build_operational_runbook(config: AppConfig, version: str) -> dict[str, Any]:
@@ -1377,6 +1464,21 @@ async def build_jarvis_phase_135(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Save status snapshot", "View release history"],
         },
         "guardrail": "Phase 135 stores release status snapshots for owner review without changing release gates or device behavior.",
+    }
+
+
+async def build_jarvis_phase_136(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 136,
+        "release_comparison_export": {
+            "source_endpoint": "/release/status-history/compare",
+            "formats": ["json", "markdown"],
+            "dashboard_actions": ["Copy release history", "Download release history"],
+            "requires_snapshots": True,
+        },
+        "guardrail": "Phase 136 exports release readiness history for owner review only; it does not alter release gates.",
     }
 
 
