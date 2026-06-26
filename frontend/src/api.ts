@@ -229,6 +229,7 @@ export const api = {
     http<any>(`/release/status-history/filter?decision=${encodeURIComponent(decision)}`),
   releaseStatusSearch: (query: string, decision = "all") =>
     http<any>(`/release/status-history/search?q=${encodeURIComponent(query)}&decision=${encodeURIComponent(decision)}`),
+  releaseStatusMetrics: () => http<any>("/release/status-history/metrics"),
   saveReleaseStatusSnapshot: () =>
     http<any>("/release/status-history/snapshot", { method: "POST" }),
   pruneReleaseHistory: (keep = 20, dryRun = true) =>

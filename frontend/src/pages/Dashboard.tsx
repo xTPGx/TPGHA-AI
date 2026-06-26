@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [releaseHistory, setReleaseHistory] = useState<any>(null);
   const [releaseComparison, setReleaseComparison] = useState<any>(null);
   const [releaseDecisionDigest, setReleaseDecisionDigest] = useState<any>(null);
+  const [releaseMetrics, setReleaseMetrics] = useState<any>(null);
   const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
   const [releaseSearchTerm, setReleaseSearchTerm] = useState("");
   const [releaseMessage, setReleaseMessage] = useState("");
@@ -59,22 +60,25 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
-          const [releaseChecklist, history, comparison, digest] = await Promise.all([
+          const [releaseChecklist, history, comparison, digest, metrics] = await Promise.all([
             api.releaseChecklist(),
             api.releaseStatusFilter(releaseDecisionFilter),
             api.releaseHistoryComparison(),
             api.releaseDecisionDigest(),
+            api.releaseStatusMetrics(),
           ]);
           setRelease(releaseChecklist);
           setReleaseHistory(history);
           setReleaseComparison(comparison);
           setReleaseDecisionDigest(digest);
+          setReleaseMetrics(metrics);
         } else {
           setActionPlan(null);
           setRelease(null);
           setReleaseHistory(null);
           setReleaseComparison(null);
           setReleaseDecisionDigest(null);
+          setReleaseMetrics(null);
         }
       } catch {
         setSession(null);
@@ -84,6 +88,7 @@ export default function Dashboard() {
         setReleaseHistory(null);
         setReleaseComparison(null);
         setReleaseDecisionDigest(null);
+        setReleaseMetrics(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -141,14 +146,16 @@ export default function Dashboard() {
     try {
       const saved = await api.saveReleaseStatusSnapshot();
       if (saved?.checklist) setRelease(saved.checklist);
-      const [history, comparison, digest] = await Promise.all([
+      const [history, comparison, digest, metrics] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
+        api.releaseStatusMetrics(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
       setReleaseDecisionDigest(digest);
+      setReleaseMetrics(metrics);
       setReleaseMessage("Release snapshot saved.");
     } catch (e: any) {
       setReleaseMessage(`Snapshot failed: ${e?.message || String(e)}`);
@@ -194,14 +201,16 @@ export default function Dashboard() {
   const pruneReleaseHistory = async () => {
     try {
       const result = await api.pruneReleaseHistory(20, false);
-      const [history, comparison, digest] = await Promise.all([
+      const [history, comparison, digest, metrics] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
+        api.releaseStatusMetrics(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
       setReleaseDecisionDigest(digest);
+      setReleaseMetrics(metrics);
       setReleaseMessage(`${result.pruned || 0} old release snapshot${result.pruned === 1 ? "" : "s"} pruned.`);
     } catch (e: any) {
       setReleaseMessage(`Prune failed: ${e?.message || String(e)}`);
@@ -217,14 +226,16 @@ export default function Dashboard() {
           ? "Owner marked this release snapshot as shipped."
           : "Owner marked this release snapshot as held for follow-up.",
       });
-      const [history, comparison, digest] = await Promise.all([
+      const [history, comparison, digest, metrics] = await Promise.all([
         api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
+        api.releaseStatusMetrics(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
       setReleaseDecisionDigest(digest);
+      setReleaseMetrics(metrics);
       setReleaseMessage(`Release snapshot marked ${decision}.`);
     } catch (e: any) {
       setReleaseMessage(`Snapshot annotation failed: ${e?.message || String(e)}`);
@@ -353,6 +364,7 @@ export default function Dashboard() {
             history={releaseHistory}
             comparison={releaseComparison}
             decisionDigest={releaseDecisionDigest}
+            metrics={releaseMetrics}
             decisionFilter={releaseDecisionFilter}
             searchTerm={releaseSearchTerm}
             message={releaseMessage}
@@ -540,6 +552,7 @@ function DashboardReleaseStatus({
   history,
   comparison,
   decisionDigest,
+  metrics,
   decisionFilter,
   searchTerm,
   message,
@@ -562,6 +575,7 @@ function DashboardReleaseStatus({
   history: any;
   comparison: any;
   decisionDigest: any;
+  metrics: any;
   decisionFilter: ReleaseDecisionFilter;
   searchTerm: string;
   message: string;
@@ -622,6 +636,12 @@ function DashboardReleaseStatus({
           {decisionDigest?.counts && (
             <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
               Decisions: {decisionDigest.counts.shipped || 0} shipped, {decisionDigest.counts.held || 0} held, {decisionDigest.counts.unlabeled || 0} unlabeled
+            </div>
+          )}
+          {metrics?.totals && (
+            <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
+              <span className="font-semibold text-slate-200">Release metrics:</span>{" "}
+              {metrics.count || 0} snapshots, {metrics.totals.pass_rate || 0}% pass rate, {metrics.totals.blockers || 0} blockers retained.
             </div>
           )}
           <div className="mb-3 flex flex-wrap gap-2">

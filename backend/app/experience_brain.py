@@ -759,6 +759,38 @@ def search_release_status_snapshots(q: str = "", decision: str = "all", limit: i
     return result
 
 
+def build_release_status_metrics(limit: int = 50) -> dict[str, Any]:
+    history = list_release_status_snapshots(limit=max(1, min(int(limit or 50), 200)))
+    snapshots = history.get("snapshots", []) or []
+    decision_counts = Counter((snapshot.get("decision") or "unlabeled") for snapshot in snapshots)
+    status_counts = Counter((snapshot.get("status") or "unknown") for snapshot in snapshots)
+    blockers = sum(int((snapshot.get("counts") or {}).get("blockers") or 0) for snapshot in snapshots)
+    checks = sum(int((snapshot.get("counts") or {}).get("checks") or 0) for snapshot in snapshots)
+    passed = sum(int((snapshot.get("counts") or {}).get("passed") or 0) for snapshot in snapshots)
+    result = {
+        "status": "ready",
+        "limit": history.get("limit", limit),
+        "count": len(snapshots),
+        "decisions": {
+            "shipped": decision_counts.get("shipped", 0),
+            "held": decision_counts.get("held", 0),
+            "unlabeled": decision_counts.get("unlabeled", 0),
+        },
+        "statuses": dict(status_counts),
+        "totals": {
+            "checks": checks,
+            "passed": passed,
+            "blockers": blockers,
+            "pass_rate": round((passed / checks) * 100, 1) if checks else 0,
+        },
+        "latest": snapshots[0] if snapshots else None,
+        "oldest": snapshots[-1] if snapshots else None,
+        "markdown": "",
+    }
+    result["markdown"] = _release_status_metrics_markdown(result)
+    return result
+
+
 def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     label = str(payload.get("label") or "")[:128]
     decision = str(payload.get("decision") or "")[:32]
@@ -890,6 +922,25 @@ def _release_snapshot_search_haystack(snapshot: dict[str, Any]) -> str:
         blockers,
     ]
     return " ".join(str(value or "") for value in values).lower()
+
+
+def _release_status_metrics_markdown(metrics: dict[str, Any]) -> str:
+    decisions = metrics.get("decisions", {}) or {}
+    totals = metrics.get("totals", {}) or {}
+    lines = [
+        "# TPG HomeAI Release Metrics",
+        "",
+        f"Snapshots reviewed: {metrics.get('count', 0)}",
+        f"Shipped: {decisions.get('shipped', 0)}",
+        f"Held: {decisions.get('held', 0)}",
+        f"Unlabeled: {decisions.get('unlabeled', 0)}",
+        f"Pass rate: {totals.get('pass_rate', 0)}%",
+        f"Total blockers: {totals.get('blockers', 0)}",
+    ]
+    latest = metrics.get("latest") or {}
+    if latest:
+        lines.extend(["", "## Latest Snapshot", _release_decision_line(latest)])
+    return "\n".join(lines).strip() + "\n"
 
 
 def _release_snapshot_delta(latest: dict[str, Any] | None, previous: dict[str, Any] | None) -> dict[str, Any]:
@@ -1773,6 +1824,20 @@ async def build_jarvis_phase_141(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Search release history", "Clear search"],
         },
         "guardrail": "Phase 141 searches saved release snapshots without changing release evidence or live-house state.",
+    }
+
+
+async def build_jarvis_phase_142(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 142,
+        "release_metrics": {
+            "endpoint": "/release/status-history/metrics",
+            "metrics": ["decision_counts", "status_counts", "pass_rate", "blocker_total"],
+            "dashboard_surface": "Release status metrics summary",
+        },
+        "guardrail": "Phase 142 summarizes saved release snapshots without modifying release annotations, gates, or live-house state.",
     }
 
 

@@ -933,6 +933,17 @@ def main() -> int:
     check("phase 141 endpoint is exposed",
           "/brain/phase-141" in backend_main,
           "Backend must expose the phase 141 release decision search marker.")
+    check("phase 142 release status metrics are wired",
+          "/release/status-history/metrics" in backend_main
+          and "build_release_status_metrics" in experience_brain
+          and "Release metrics" in dashboard_frontend
+          and "api.releaseStatusMetrics" in dashboard_frontend
+          and "release_status_metrics" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_142" in experience_brain,
+          "Owners need release rollup metrics across saved snapshots.")
+    check("phase 142 endpoint is exposed",
+          "/brain/phase-142" in backend_main,
+          "Backend must expose the phase 142 release metrics marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2629,6 +2640,25 @@ def main() -> int:
           r.json().get("phase") == 141
           and r.json().get("release_decision_search", {}).get("endpoint") == "/release/status-history/search"
           and "Search release history" in r.json().get("release_decision_search", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.get("/release/status-history/metrics")
+    check("/release/status-history/metrics returns release rollups",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("decisions", {}).get("shipped", 0) >= 1
+          and r.json().get("decisions", {}).get("held", 0) >= 1
+          and "pass_rate" in r.json().get("totals", {})
+          and "# TPG HomeAI Release Metrics" in r.json().get("markdown", ""),
+          str(r.json()))
+    r = client.get("/brain/phase-142")
+    check("/brain/phase-142 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-142 has release metrics marker",
+          r.json().get("phase") == 142
+          and r.json().get("release_metrics", {}).get("endpoint") == "/release/status-history/metrics"
+          and "pass_rate" in r.json().get("release_metrics", {}).get("metrics", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

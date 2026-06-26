@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.46
+
+- Added Jarvis phase 142 release decision rollup metrics.
+- Added `/release/status-history/metrics` with decision counts, status counts, pass rate, and blocker totals.
+- Added Markdown output for release metrics summaries.
+- Added owner Dashboard release metrics summary.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.45
 
 - Added Jarvis phase 141 release decision search.

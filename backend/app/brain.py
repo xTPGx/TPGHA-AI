@@ -1212,6 +1212,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release decision rollup metrics so owners can see trend counts across shipped and held releases.",
         },
         {
+            "id": "release_status_metrics",
+            "title": "Release Status Metrics",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/metrics exposes shipped, held, unlabeled, status, pass-rate, and blocker totals.",
+                "Release metrics export Markdown for owner status reporting.",
+                "Owner Dashboard surfaces release metrics beside history controls.",
+            ],
+            "next": "Add release health trend warnings so owners can see when blockers or held releases are increasing.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
