@@ -676,6 +676,30 @@ def prune_release_status_snapshots(keep: int = 20, dry_run: bool = True) -> dict
     }
 
 
+def build_release_decision_digest(limit: int = 20) -> dict[str, Any]:
+    history = list_release_status_snapshots(limit=limit)
+    snapshots = history.get("snapshots", []) or []
+    shipped = [snapshot for snapshot in snapshots if snapshot.get("decision") == "shipped"]
+    held = [snapshot for snapshot in snapshots if snapshot.get("decision") == "held"]
+    unlabeled = [snapshot for snapshot in snapshots if not snapshot.get("decision")]
+    digest = {
+        "status": "ready",
+        "counts": {
+            "snapshots": len(snapshots),
+            "shipped": len(shipped),
+            "held": len(held),
+            "unlabeled": len(unlabeled),
+        },
+        "latest_shipped": shipped[0] if shipped else None,
+        "latest_held": held[0] if held else None,
+        "held": held,
+        "shipped": shipped,
+        "markdown": "",
+    }
+    digest["markdown"] = _release_decision_digest_markdown(digest)
+    return digest
+
+
 def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     label = str(payload.get("label") or "")[:128]
     decision = str(payload.get("decision") or "")[:32]
@@ -717,6 +741,44 @@ async def record_release_status_snapshot(config: AppConfig, version: str) -> dic
         "snapshot": snapshot,
         "checklist": checklist,
     }
+
+
+def _release_decision_digest_markdown(digest: dict[str, Any]) -> str:
+    counts = digest.get("counts", {}) or {}
+    lines = [
+        "# TPG HomeAI Release Decision Digest",
+        "",
+        f"Snapshots reviewed: {counts.get('snapshots', 0)}",
+        f"Shipped: {counts.get('shipped', 0)}",
+        f"Held: {counts.get('held', 0)}",
+        f"Unlabeled: {counts.get('unlabeled', 0)}",
+        "",
+        "## Held Releases",
+    ]
+    held = digest.get("held", []) or []
+    if held:
+        for snapshot in held:
+            lines.append(_release_decision_line(snapshot))
+    else:
+        lines.append("- None.")
+    lines.extend(["", "## Shipped Releases"])
+    shipped = digest.get("shipped", []) or []
+    if shipped:
+        for snapshot in shipped:
+            lines.append(_release_decision_line(snapshot))
+    else:
+        lines.append("- None.")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _release_decision_line(snapshot: dict[str, Any]) -> str:
+    counts = snapshot.get("counts", {}) or {}
+    label = snapshot.get("label") or snapshot.get("decision") or "unlabeled"
+    return (
+        f"- v{snapshot.get('version') or 'unknown'} {label}: "
+        f"{counts.get('passed', 0)}/{counts.get('checks', 0)} gates, "
+        f"{counts.get('blockers', 0)} blockers"
+    )
 
 
 def _release_snapshot_delta(latest: dict[str, Any] | None, previous: dict[str, Any] | None) -> dict[str, Any]:
@@ -1557,6 +1619,21 @@ async def build_jarvis_phase_138(version: str) -> dict[str, Any]:
             "migration_safe": True,
         },
         "guardrail": "Phase 138 annotates release snapshots only; it does not change release checklist evidence.",
+    }
+
+
+async def build_jarvis_phase_139(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 139,
+        "release_decision_digest": {
+            "endpoint": "/release/status-history/decisions",
+            "formats": ["json", "markdown"],
+            "groups": ["shipped", "held", "unlabeled"],
+            "dashboard_actions": ["Copy decision digest", "Download decision digest"],
+        },
+        "guardrail": "Phase 139 summarizes release decisions without changing snapshots, gates, or live-house state.",
     }
 
 

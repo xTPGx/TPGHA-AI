@@ -896,6 +896,18 @@ def main() -> int:
     check("phase 138 endpoint is exposed",
           "/brain/phase-138" in backend_main,
           "Backend must expose the phase 138 release snapshot annotation marker.")
+    check("phase 139 release decision digest is wired",
+          "/release/status-history/decisions" in backend_main
+          and "build_release_decision_digest" in experience_brain
+          and "Copy decision digest" in dashboard_frontend
+          and "Download decision digest" in dashboard_frontend
+          and "api.releaseDecisionDigest" in dashboard_frontend
+          and "release_decision_digest" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_139" in experience_brain,
+          "Owners need a digest of shipped, held, and unlabeled release decisions.")
+    check("phase 139 endpoint is exposed",
+          "/brain/phase-139" in backend_main,
+          "Backend must expose the phase 139 release decision digest marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2510,6 +2522,23 @@ def main() -> int:
           r.json().get("phase") == 138
           and r.json().get("release_snapshot_annotations", {}).get("migration_safe") is True
           and "Mark held" in r.json().get("release_snapshot_annotations", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.get("/release/status-history/decisions")
+    check("/release/status-history/decisions returns markdown digest",
+          r.status_code == 200
+          and is_json(r)
+          and "# TPG HomeAI Release Decision Digest" in r.json().get("markdown", "")
+          and r.json().get("counts", {}).get("shipped", 0) >= 1,
+          str(r.json()))
+    r = client.get("/brain/phase-139")
+    check("/brain/phase-139 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-139 has release decision digest marker",
+          r.json().get("phase") == 139
+          and r.json().get("release_decision_digest", {}).get("endpoint") == "/release/status-history/decisions"
+          and "Download decision digest" in r.json().get("release_decision_digest", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

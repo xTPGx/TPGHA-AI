@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [release, setRelease] = useState<any>(null);
   const [releaseHistory, setReleaseHistory] = useState<any>(null);
   const [releaseComparison, setReleaseComparison] = useState<any>(null);
+  const [releaseDecisionDigest, setReleaseDecisionDigest] = useState<any>(null);
   const [releaseMessage, setReleaseMessage] = useState("");
   const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
@@ -48,19 +49,22 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
-          const [releaseChecklist, history, comparison] = await Promise.all([
+          const [releaseChecklist, history, comparison, digest] = await Promise.all([
             api.releaseChecklist(),
             api.releaseStatusHistory(),
             api.releaseHistoryComparison(),
+            api.releaseDecisionDigest(),
           ]);
           setRelease(releaseChecklist);
           setReleaseHistory(history);
           setReleaseComparison(comparison);
+          setReleaseDecisionDigest(digest);
         } else {
           setActionPlan(null);
           setRelease(null);
           setReleaseHistory(null);
           setReleaseComparison(null);
+          setReleaseDecisionDigest(null);
         }
       } catch {
         setSession(null);
@@ -69,6 +73,7 @@ export default function Dashboard() {
         setRelease(null);
         setReleaseHistory(null);
         setReleaseComparison(null);
+        setReleaseDecisionDigest(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -126,12 +131,14 @@ export default function Dashboard() {
     try {
       const saved = await api.saveReleaseStatusSnapshot();
       if (saved?.checklist) setRelease(saved.checklist);
-      const [history, comparison] = await Promise.all([
+      const [history, comparison, digest] = await Promise.all([
         api.releaseStatusHistory(),
         api.releaseHistoryComparison(),
+        api.releaseDecisionDigest(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
+      setReleaseDecisionDigest(digest);
       setReleaseMessage("Release snapshot saved.");
     } catch (e: any) {
       setReleaseMessage(`Snapshot failed: ${e?.message || String(e)}`);
@@ -177,12 +184,14 @@ export default function Dashboard() {
   const pruneReleaseHistory = async () => {
     try {
       const result = await api.pruneReleaseHistory(20, false);
-      const [history, comparison] = await Promise.all([
+      const [history, comparison, digest] = await Promise.all([
         api.releaseStatusHistory(),
         api.releaseHistoryComparison(),
+        api.releaseDecisionDigest(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
+      setReleaseDecisionDigest(digest);
       setReleaseMessage(`${result.pruned || 0} old release snapshot${result.pruned === 1 ? "" : "s"} pruned.`);
     } catch (e: any) {
       setReleaseMessage(`Prune failed: ${e?.message || String(e)}`);
@@ -198,16 +207,41 @@ export default function Dashboard() {
           ? "Owner marked this release snapshot as shipped."
           : "Owner marked this release snapshot as held for follow-up.",
       });
-      const [history, comparison] = await Promise.all([
+      const [history, comparison, digest] = await Promise.all([
         api.releaseStatusHistory(),
         api.releaseHistoryComparison(),
+        api.releaseDecisionDigest(),
       ]);
       setReleaseHistory(history);
       setReleaseComparison(comparison);
+      setReleaseDecisionDigest(digest);
       setReleaseMessage(`Release snapshot marked ${decision}.`);
     } catch (e: any) {
       setReleaseMessage(`Snapshot annotation failed: ${e?.message || String(e)}`);
     }
+  };
+
+  const copyDecisionDigest = async () => {
+    if (!releaseDecisionDigest) return;
+    try {
+      await navigator.clipboard.writeText(releaseDecisionDigest.markdown || JSON.stringify(releaseDecisionDigest, null, 2));
+      setReleaseMessage("Decision digest copied.");
+    } catch {
+      setReleaseMessage("Clipboard unavailable.");
+    }
+  };
+
+  const downloadDecisionDigest = () => {
+    if (!releaseDecisionDigest) return;
+    const body = releaseDecisionDigest.markdown || JSON.stringify(releaseDecisionDigest, null, 2);
+    const blob = new Blob([body], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tpg-homeai-release-decisions-${release?.version || "current"}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setReleaseMessage("Decision digest downloaded.");
   };
 
   const ha = health?.home_assistant;
@@ -266,6 +300,7 @@ export default function Dashboard() {
             release={release}
             history={releaseHistory}
             comparison={releaseComparison}
+            decisionDigest={releaseDecisionDigest}
             message={releaseMessage}
             onCopy={copyReleaseChecklist}
             onDownload={downloadReleaseChecklist}
@@ -275,6 +310,8 @@ export default function Dashboard() {
             onPreviewPrune={previewPruneHistory}
             onPrune={pruneReleaseHistory}
             onAnnotateSnapshot={annotateReleaseSnapshot}
+            onCopyDecisionDigest={copyDecisionDigest}
+            onDownloadDecisionDigest={downloadDecisionDigest}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -444,6 +481,7 @@ function DashboardReleaseStatus({
   release,
   history,
   comparison,
+  decisionDigest,
   message,
   onCopy,
   onDownload,
@@ -453,10 +491,13 @@ function DashboardReleaseStatus({
   onPreviewPrune,
   onPrune,
   onAnnotateSnapshot,
+  onCopyDecisionDigest,
+  onDownloadDecisionDigest,
 }: {
   release: any;
   history: any;
   comparison: any;
+  decisionDigest: any;
   message: string;
   onCopy: () => void;
   onDownload: () => void;
@@ -466,6 +507,8 @@ function DashboardReleaseStatus({
   onPreviewPrune: () => void;
   onPrune: () => void;
   onAnnotateSnapshot: (snapshotId: number, decision: "shipped" | "held") => void;
+  onCopyDecisionDigest: () => void;
+  onDownloadDecisionDigest: () => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -483,6 +526,8 @@ function DashboardReleaseStatus({
           <Button variant="ghost" onClick={onSnapshot}>Save status snapshot</Button>
           <Button variant="ghost" onClick={onCopyHistory} disabled={!comparison}>Copy release history</Button>
           <Button variant="ghost" onClick={onDownloadHistory} disabled={!comparison}>Download release history</Button>
+          <Button variant="ghost" onClick={onCopyDecisionDigest} disabled={!decisionDigest}>Copy decision digest</Button>
+          <Button variant="ghost" onClick={onDownloadDecisionDigest} disabled={!decisionDigest}>Download decision digest</Button>
           <Button variant="ghost" onClick={onPreviewPrune} disabled={!snapshots.length}>Preview prune history</Button>
           <Button variant="ghost" onClick={onPrune} disabled={snapshots.length <= 20}>Prune old snapshots</Button>
           <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>
@@ -504,6 +549,11 @@ function DashboardReleaseStatus({
       {!!snapshots.length && (
         <div className="mt-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Release history</div>
+          {decisionDigest?.counts && (
+            <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
+              Decisions: {decisionDigest.counts.shipped || 0} shipped, {decisionDigest.counts.held || 0} held, {decisionDigest.counts.unlabeled || 0} unlabeled
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
             {snapshots.slice(0, 3).map((snapshot: any) => (
               <div key={snapshot.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">

@@ -1176,6 +1176,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release decision digest so owners can see held/shipped reasoning in one summary.",
         },
         {
+            "id": "release_decision_digest",
+            "title": "Release Decision Digest",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/decisions groups snapshots by shipped, held, and unlabeled decisions.",
+                "Decision digest exports Markdown for owner handoff and release notes.",
+                "Owner Dashboard exposes Copy decision digest and Download decision digest actions.",
+            ],
+            "next": "Add release decision filters so owners can quickly inspect held-only or shipped-only history.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

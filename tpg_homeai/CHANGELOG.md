@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.43
+
+- Added Jarvis phase 139 release decision digest.
+- Added `/release/status-history/decisions` with JSON and Markdown grouped by shipped, held, and unlabeled snapshots.
+- Added latest shipped and latest held release decision summaries.
+- Added owner Dashboard actions to copy and download release decision digests.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.42
 
 - Added Jarvis phase 138 release snapshot annotations.

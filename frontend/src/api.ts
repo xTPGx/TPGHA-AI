@@ -231,6 +231,7 @@ export const api = {
     http<any>(`/release/status-history/prune?keep=${encodeURIComponent(String(keep))}&dry_run=${dryRun ? "true" : "false"}`, { method: "POST" }),
   annotateReleaseSnapshot: (id: number, body: Record<string, any>) =>
     http<any>(`/release/status-history/${encodeURIComponent(String(id))}`, { method: "PATCH", body: JSON.stringify(body) }),
+  releaseDecisionDigest: () => http<any>("/release/status-history/decisions"),
   releaseRunbook: () => http<any>("/release/runbook"),
   capabilityGaps: () => http<any>("/ops/capability-gaps"),
   onboardingPlan: () => http<any>("/ops/onboarding"),
