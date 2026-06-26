@@ -8,6 +8,7 @@ export default function Setup() {
   const [cfg, setCfg] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
   const [release, setRelease] = useState<any>(null);
+  const [runbook, setRunbook] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
   const [houseAssets, setHouseAssets] = useState<any>(null);
@@ -17,11 +18,12 @@ export default function Setup() {
 
   const load = async () => {
     try {
-      const [h, c, done, releaseChecklist, v, runtime, assets] = await Promise.all([
+      const [h, c, done, releaseChecklist, releaseRunbook, v, runtime, assets] = await Promise.all([
         api.health(),
         api.config(),
         api.completionStatus(),
         api.releaseChecklist(),
+        api.releaseRunbook(),
         api.voiceDeployment(),
         api.voiceRuntime(),
         api.houseAssets("approved"),
@@ -30,6 +32,7 @@ export default function Setup() {
       setCfg(c);
       setCompletion(done);
       setRelease(releaseChecklist);
+      setRunbook(releaseRunbook);
       setVoice(v);
       setVoiceRuntime(runtime);
       setHouseAssets(assets);
@@ -145,6 +148,7 @@ export default function Setup() {
       </div>
 
       <ReleaseBlockersPanel release={release} completion={completion} />
+      <OperationalRunbookPanel runbook={runbook} />
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {checks.map((check) => (
@@ -159,6 +163,39 @@ export default function Setup() {
               </span>
             </div>
           </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OperationalRunbookPanel({ runbook }: { runbook: any }) {
+  const steps = runbook?.runbook || [];
+  if (!steps.length) return null;
+  return (
+    <div className="card mb-6">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Owner runbook</div>
+          <div className="text-sm text-slate-400">
+            Update, acceptance, recovery, and feature-freeze steps from the release runbook.
+          </div>
+        </div>
+        <span className="badge bg-cyan-500/10 text-cyan-200">{steps.length} sections</span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {steps.map((step: any) => (
+          <div key={step.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+            <div className="font-semibold text-slate-100">{step.title}</div>
+            <ul className="mt-2 space-y-1 text-sm text-slate-300">
+              {(step.actions || []).map((action: string) => (
+                <li key={action} className="flex gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                  <span>{action}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
       </div>
     </div>

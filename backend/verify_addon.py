@@ -583,6 +583,15 @@ def main() -> int:
     check("phase 109 endpoint is exposed",
           "/brain/phase-109" in backend_main,
           "Backend must expose the phase 109 setup release blocker readiness marker.")
+    check("phase 110 setup owner runbook is wired",
+          "Owner runbook" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "api.releaseRunbook" in (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+          and "setup_owner_runbook" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_110" in experience_brain,
+          "Setup must surface the operational runbook from the release API.")
+    check("phase 110 endpoint is exposed",
+          "/brain/phase-110" in backend_main,
+          "Backend must expose the phase 110 setup owner runbook readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1612,6 +1621,16 @@ def main() -> int:
           r.json().get("phase") == 109
           and r.json().get("setup_release_blockers", {}).get("surface") == "Setup page"
           and r.json().get("setup_release_blockers", {}).get("uses_formal_release_checklist") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-110")
+    check("/brain/phase-110 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-110 has setup owner runbook marker",
+          r.json().get("phase") == 110
+          and r.json().get("setup_owner_runbook", {}).get("uses_release_runbook") is True
+          and r.json().get("setup_owner_runbook", {}).get("includes_feature_freeze") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

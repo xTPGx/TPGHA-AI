@@ -761,6 +761,22 @@ async def build_jarvis_phase_109(config: AppConfig, version: str) -> dict[str, A
     }
 
 
+async def build_jarvis_phase_110(config: AppConfig, version: str) -> dict[str, Any]:
+    runbook = await build_operational_runbook(config, version)
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 110,
+        "setup_owner_runbook": {
+            "surface": "Setup page",
+            "sections": [step["id"] for step in runbook.get("runbook", [])],
+            "uses_release_runbook": True,
+            "includes_feature_freeze": any(step.get("id") == "feature_freeze" for step in runbook.get("runbook", [])),
+        },
+        "guardrail": "Phase 110 surfaces operational guidance only; it does not execute updates, tests, or device actions.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,

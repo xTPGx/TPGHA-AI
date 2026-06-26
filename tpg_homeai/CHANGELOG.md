@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.14
+
+- Added Jarvis phase 110 Setup owner runbook panel.
+- Setup now shows update, acceptance, recovery, and feature-freeze steps from the release runbook API.
+- Added `/brain/phase-110` and Jarvis Brain readiness evidence for the Setup owner runbook layer.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.13
 
 - Added Jarvis phase 109 Setup release blocker panel.

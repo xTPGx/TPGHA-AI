@@ -828,6 +828,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add one-click owner runbook steps for clearing each blocker when the workflow stabilizes.",
         },
         {
+            "id": "setup_owner_runbook",
+            "title": "Setup Owner Runbook",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Setup page renders the operational runbook directly under release blockers.",
+                "The panel reuses the release runbook API instead of duplicating instructions in the frontend.",
+                "Owners see update, acceptance, failure recovery, and feature-freeze steps before calling the house complete.",
+            ],
+            "next": "Connect each runbook section to diagnostics and acceptance evidence shortcuts.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
