@@ -215,6 +215,7 @@ Edit `.env`:
 ```ini
 OPENAI_API_KEY=sk-...            # optional; without it a fallback parser is used
 OPENAI_MODEL=gpt-4o-mini
+OPENAI_CHAT_MODEL=gpt-4o
 HOME_ASSISTANT_URL=http://192.168.4.232:8123
 HOME_ASSISTANT_TOKEN=eyJ...      # your long-lived token
 CONFIG_DIR=./config

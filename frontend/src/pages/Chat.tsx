@@ -3,8 +3,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, CommandResponse } from "../api";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
-import DeveloperDetails from "../components/DeveloperDetails";
 import { homeAssistantSessionHints, startHomeAssistantUserBridge } from "../haAuth";
+
+interface ChatAttachmentPreview {
+  id: string;
+  file?: File;
+  name: string;
+  type: string;
+  size: number;
+  previewUrl?: string;
+}
 
 interface Msg {
   id: string;
@@ -14,6 +22,7 @@ interface Msg {
   kind?: "normal" | "preview" | "confirmation";
   command?: CommandResponse;
   originalText?: string;
+  attachments?: ChatAttachmentPreview[];
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -37,6 +46,14 @@ function TrashIcon() {
       <path d="M19 6l-1 14H6L5 6" />
       <path d="M10 11v5" />
       <path d="M14 11v5" />
+    </svg>
+  );
+}
+
+function PaperclipIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
     </svg>
   );
 }
@@ -292,6 +309,15 @@ function transcriptMessages(detail: any): Msg[] {
   });
 }
 
+function attachmentLabel(count: number) {
+  return count === 1 ? "Attached image" : `${count} attached images`;
+}
+
+function attachmentMessage(message: string, attachments: ChatAttachmentPreview[]) {
+  if (message) return message;
+  return attachmentLabel(attachments.length);
+}
+
 function quickPrompt(text: string) {
   return text;
 }
@@ -392,6 +418,7 @@ export default function Chat() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [attachments, setAttachments] = useState<ChatAttachmentPreview[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
   const [detail, setDetail] = useState<any>(null);
   const [note, setNote] = useState({ title: "Session note", body: "" });
@@ -418,6 +445,8 @@ export default function Chat() {
   const mediaChunksRef = useRef<Blob[]>([]);
   const discardRecordingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentUrlsRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
@@ -481,6 +510,8 @@ export default function Chat() {
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       audioRef.current?.pause();
+      attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      attachmentUrlsRef.current.clear();
       window.speechSynthesis?.cancel();
     };
   }, []);
@@ -639,6 +670,49 @@ export default function Chat() {
     setMessages((m) => [...m, { id: id(), role: "assistant", ...msg }]);
   };
 
+  const addFiles = (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+    setError(null);
+    const next: ChatAttachmentPreview[] = [];
+    for (const file of Array.from(fileList)) {
+      if (attachments.length + next.length >= 4) {
+        setError("You can attach up to 4 images at once.");
+        break;
+      }
+      if (!file.type.startsWith("image/")) {
+        setError("Chat attachments currently support images only.");
+        continue;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        setError(`${file.name} is larger than 8 MB.`);
+        continue;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      attachmentUrlsRef.current.add(previewUrl);
+      next.push({
+        id: id(),
+        file,
+        name: file.name || "image",
+        type: file.type || "image/jpeg",
+        size: file.size,
+        previewUrl,
+      });
+    }
+    if (next.length) setAttachments((current) => [...current, ...next].slice(0, 4));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachment = (attachmentId: string) => {
+    setAttachments((current) => {
+      const target = current.find((item) => item.id === attachmentId);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+        attachmentUrlsRef.current.delete(target.previewUrl);
+      }
+      return current.filter((item) => item.id !== attachmentId);
+    });
+  };
+
   const executeChat = async (message: string, appendUser = false, room = panelRoom) => {
     if (appendUser) setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
     const r = await api.chat(assistant, user, message, conversationId, room || undefined);
@@ -657,24 +731,48 @@ export default function Chat() {
 
   const send = async (override?: string, room = panelRoom) => {
     const message = (override ?? text).trim();
-    if (!message) return;
+    const queuedAttachments = override ? [] : attachments;
+    if (!message && queuedAttachments.length === 0) return;
+    const userText = attachmentMessage(message, queuedAttachments);
+    const displayAttachments = queuedAttachments.map(({ file, ...rest }) => rest);
     setText("");
+    if (queuedAttachments.length) setAttachments([]);
     setBusy(true);
     setError(null);
     forceScrollRef.current = true;
-    setMessages((m) => [...m, { id: id(), role: "user", text: message }]);
+    setMessages((m) => [...m, { id: id(), role: "user", text: userText, attachments: displayAttachments }]);
     try {
+      if (queuedAttachments.length > 0) {
+        const response = await api.chatWithAttachments({
+          assistant,
+          user,
+          message,
+          conversation_id: conversationId,
+          room: room || undefined,
+          files: queuedAttachments.map((item) => item.file).filter(Boolean) as File[],
+        });
+        const reply = response.response || "I reviewed the image.";
+        appendAssistant({
+          text: reply,
+          mode: response.mode,
+          kind: "normal",
+          originalText: userText,
+        });
+        void speak(reply);
+        void refreshConversations();
+        return;
+      }
       if (safePreview) {
-        const preview = await api.chatPreview(assistant, user, message, conversationId, room || undefined);
+        const preview = await api.chatPreview(assistant, user, userText, conversationId, room || undefined);
         const command = preview.command as CommandResponse | undefined;
         if (shouldPauseForReview(command)) {
           const response = preview.response || command?.message || "Preview ready.";
-          appendAssistant({ text: response, mode: preview.mode, kind: "preview", command, originalText: message });
+          appendAssistant({ text: response, mode: preview.mode, kind: "preview", command, originalText: userText });
           void speak(response);
           return;
         }
       }
-      await executeChat(message, false, room);
+      await executeChat(userText, false, room);
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {
@@ -1258,7 +1356,30 @@ export default function Chat() {
                   {panelHeard && <span className="w-full truncate text-slate-500">heard: {panelHeard}</span>}
                 </div>
               )}
+              {attachments.length > 0 && (
+                <AttachmentTray
+                  attachments={attachments}
+                  removeAttachment={removeAttachment}
+                />
+              )}
               <div className="tpg-composer mx-auto flex max-w-4xl items-end gap-2 p-2">
+                <input
+                  ref={fileInputRef}
+                  className="hidden"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => addFiles(event.target.files)}
+                />
+                <button
+                  className="chat-icon-btn shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={busy || attachments.length >= 4}
+                  title="Attach image"
+                  aria-label="Attach image"
+                >
+                  <PaperclipIcon />
+                </button>
                 <button
                   className={`chat-icon-btn shrink-0 ${micState === "recording" ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
                   onClick={() => void toggleListening()}
@@ -1280,7 +1401,7 @@ export default function Chat() {
                   }}
                   placeholder={listening ? "Listening... tap Stop to send" : "Message TPG HomeAI"}
                 />
-                <button className="chat-send-btn" onClick={() => void send()} disabled={busy || !text.trim()}>
+                <button className="chat-send-btn" onClick={() => void send()} disabled={busy || (!text.trim() && attachments.length === 0)}>
                   {busy ? "..." : "Send"}
                 </button>
               </div>
@@ -1288,6 +1409,39 @@ export default function Chat() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function AttachmentTray({
+  attachments,
+  removeAttachment,
+}: {
+  attachments: ChatAttachmentPreview[];
+  removeAttachment: (attachmentId: string) => void;
+}) {
+  return (
+    <div className="mx-auto mb-2 flex max-w-4xl gap-2 overflow-x-auto pb-1">
+      {attachments.map((attachment) => (
+        <div
+          key={attachment.id}
+          className="group relative flex h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-cyan-300/20 bg-black/30"
+          title={attachment.name}
+        >
+          {attachment.previewUrl ? (
+            <img src={attachment.previewUrl} alt={attachment.name} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">Image</div>
+          )}
+          <button
+            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs font-bold text-white opacity-0 transition hover:bg-rose-500 group-hover:opacity-100"
+            onClick={() => removeAttachment(attachment.id)}
+            aria-label={`Remove ${attachment.name}`}
+          >
+            x
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1575,6 +1729,7 @@ function MessageBubble({
 }) {
   const automationDraftId = draftId(message.command);
   const isUser = message.role === "user";
+  const showMode = Boolean(!isUser && message.mode && message.mode !== "conversation" && (message.kind === "preview" || message.kind === "confirmation"));
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       {!isUser && (
@@ -1583,9 +1738,12 @@ function MessageBubble({
         </div>
       )}
       <div className={`max-w-[min(46rem,92%)] ${isUser ? "chat-user-bubble" : "chat-assistant-bubble"}`}>
-        {message.mode && !isUser && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-200/80">{message.mode}</div>}
+        {showMode && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-200/80">{message.mode}</div>}
         {isUser ? (
-          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
+          <>
+            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
+            {message.attachments?.length ? <MessageAttachmentPreview attachments={message.attachments} /> : null}
+          </>
         ) : (
           <Markdown text={message.text} />
         )}
@@ -1612,7 +1770,6 @@ function MessageBubble({
               </div>
             )}
             {message.command.data?.security?.pin_required && <div className="text-amber-200">Security PIN required</div>}
-            <DeveloperDetails data={{ tool_call: message.command.tool_call, resolved: message.command.resolved, data: message.command.data }} />
           </div>
         )}
 
@@ -1650,6 +1807,23 @@ function MessageBubble({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MessageAttachmentPreview({ attachments }: { attachments: ChatAttachmentPreview[] }) {
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {attachments.map((attachment) => (
+        <div key={attachment.id} className="overflow-hidden rounded-xl border border-white/15 bg-black/20">
+          {attachment.previewUrl ? (
+            <img src={attachment.previewUrl} alt={attachment.name} className="h-24 w-full object-cover" />
+          ) : (
+            <div className="flex h-24 items-center justify-center text-xs text-slate-400">Image</div>
+          )}
+          <div className="truncate px-2 py-1 text-[11px] text-slate-300">{attachment.name}</div>
+        </div>
+      ))}
     </div>
   );
 }

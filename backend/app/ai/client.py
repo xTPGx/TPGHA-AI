@@ -65,6 +65,7 @@ class AIClient:
                     "configured": self.settings.openai_configured,
                     "available": self.using_openai,
                     "model": self.settings.openai_model,
+                    "chat_model": self.settings.openai_chat_model,
                     "role": "primary_reasoning",
                 },
                 "ollama": {
@@ -118,6 +119,7 @@ class AIClient:
         *,
         conversation_context: str = "",
         house_context: str = "",
+        attachments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """General conversational assistant response.
 
@@ -135,6 +137,7 @@ class AIClient:
                     user,
                     conversation_context=conversation_context,
                     house_context=house_context,
+                    attachments=attachments or [],
                 )
             except Exception as exc:  # pragma: no cover - network/runtime
                 logger.warning("OpenAI general chat failed (%s); using fallback.", type(exc).__name__)
@@ -198,6 +201,7 @@ class AIClient:
         *,
         conversation_context: str = "",
         house_context: str = "",
+        attachments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         household = config.household.default_household()
         house_name = household.name if household else "the home"
@@ -216,15 +220,35 @@ class AIClient:
             "house unless a backend tool result says so. Suggest safe next steps or ask "
             "for missing specifics. If the user asks for dashboards, rooms, zones, entity "
             "mapping, blueprints, or floor plans, explain how TPG HomeAI can use approved "
-            "entities/config and what data is still needed. Be natural, useful, and direct.\n\n"
+            "entities/config and what data is still needed. When house inventory is provided, "
+            "reason from it directly and name the specific rooms, entities, weak spots, and "
+            "unknowns you see. Do not ask the user to list devices already shown in context. "
+            "If context is incomplete, identify the exact missing mapping instead of giving "
+            "generic advice. Be natural, useful, and direct.\n\n"
             f"House context:\n{house_context or 'No live house context available.'}\n\n"
             f"Recent conversation/action context:\n{conversation_context or 'None.'}"
         )
+        user_content: Any = message
+        if attachments:
+            content_parts: list[dict[str, Any]] = [{"type": "text", "text": message}]
+            for attachment in attachments:
+                content_type = str(attachment.get("content_type") or "image/jpeg")
+                data = str(attachment.get("data_base64") or "")
+                if not data or not content_type.startswith("image/"):
+                    continue
+                name = str(attachment.get("filename") or "image")
+                content_parts.append({"type": "text", "text": f"Attached image: {name}"})
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{content_type};base64,{data}"},
+                })
+            user_content = content_parts
+
         resp = self._client.chat.completions.create(  # type: ignore[union-attr]
-            model=self.settings.openai_model,
+            model=self.settings.openai_chat_model or self.settings.openai_model,
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user", "content": message},
+                {"role": "user", "content": user_content},
             ],
             temperature=0.5,
         )

@@ -24,6 +24,7 @@ async def answer_general(
     user_name: Optional[str],
     message: str,
     conversation_id: Optional[str] = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     config = get_config()
     states = await safe_get_states()
@@ -45,6 +46,7 @@ async def answer_general(
         user,
         conversation_context=recent_context,
         house_context=house_context,
+        attachments=attachments or [],
     )
     _log_general(assistant_id, user_id, message, response.get("message", ""), conversation_id)
     return {
@@ -56,6 +58,14 @@ async def answer_general(
             "house_context": house_context,
             "conversation_context": recent_context,
             "research": research,
+            "attachments": [
+                {
+                    "filename": item.get("filename", ""),
+                    "content_type": item.get("content_type", ""),
+                    "size": item.get("size", 0),
+                }
+                for item in (attachments or [])
+            ],
         },
     }
 
@@ -78,6 +88,12 @@ def _user(resolver: Resolver, user_name: Optional[str], assistant: Optional[Assi
 def _house_context(config, states: dict[str, Any], message: str) -> str:
     parts: list[str] = []
     text = message.lower()
+    design_keywords = (
+        "switch", "install", "where should", "where do", "weak", "weakness",
+        "review what i", "review my", "already have", "recommend", "input",
+        "improve", "smart home", "dashboard", "room", "zone", "blueprint",
+        "floor plan", "floorplan", "map",
+    )
     weather = [entity for entity in states.values() if entity.domain == "weather"]
     if weather and any(k in text for k in ["weather", "temperature outside", "forecast", "rain", "hot outside", "cold outside"]):
         parts.append("Weather from Home Assistant:")
@@ -94,7 +110,8 @@ def _house_context(config, states: dict[str, Any], message: str) -> str:
             if wind is not None:
                 details.append(f"wind={wind}{attrs.get('wind_speed_unit', '')}")
             parts.append(f"- {entity.friendly_name or entity.entity_id}: " + ", ".join(details))
-    if any(k in text for k in ["dashboard", "room", "zone", "blueprint", "floor plan", "floorplan", "map"]):
+    if any(k in text for k in design_keywords):
+        parts.append(_structured_house_inventory(config, states))
         rooms = ", ".join(room.name for room in config.devices.rooms) or "none"
         displays = ", ".join(display.name for display in config.devices.displays) or "none"
         parts.append(f"Configured rooms: {rooms}.")
@@ -107,10 +124,89 @@ def _house_context(config, states: dict[str, Any], message: str) -> str:
             "Blueprint/floor-plan uploads should be reviewed and converted into approved room/zone context before automation use."
         )
     if not parts:
-        rooms = len(config.devices.rooms)
-        devices = len(config.devices.device_aliases) + len(config.devices.speakers) + len(config.devices.displays)
-        parts.append(f"House has {rooms} configured rooms and at least {devices} approved mapped devices/surfaces.")
+        parts.append(_structured_house_inventory(config, states, compact=True))
     return "\n".join(parts)
+
+
+def _structured_house_inventory(config, states: dict[str, Any], *, compact: bool = False) -> str:
+    """Ground advice with actual configured rooms and live HA inventory.
+
+    This is the difference between generic advice and a Jarvis-style answer.
+    It gives the model the mapped rooms/devices plus likely weak spots without
+    requiring the user to restate the devices Home Assistant already knows.
+    """
+
+    lines: list[str] = ["Home Assistant / TPG HomeAI inventory snapshot:"]
+    rooms = list(config.devices.rooms or [])
+    if rooms:
+        lines.append("Configured rooms and mapped controls:")
+        for room in rooms[:18]:
+            controls: list[str] = []
+            if room.lights:
+                controls.append(f"lights={', '.join(room.lights[:5])}")
+            if room.fans:
+                controls.append(f"fans={', '.join(room.fans[:5])}")
+            if room.climate:
+                controls.append(f"climate={room.climate}")
+            if room.speaker:
+                controls.append(f"speaker={room.speaker}")
+            if room.display:
+                controls.append(f"display={room.display}")
+            if room.camera:
+                controls.append(f"camera={room.camera}")
+            if room.lock:
+                controls.append(f"lock={room.lock}")
+            summary = "; ".join(controls) if controls else "no mapped controls yet"
+            lines.append(f"- {room.name} ({room.id}): {summary}")
+        if len(rooms) > 18:
+            lines.append(f"- plus {len(rooms) - 18} more configured rooms")
+
+    domains = {"light", "fan", "switch", "media_player", "climate", "cover", "lock", "person", "device_tracker"}
+    live_items: list[str] = []
+    unavailable: list[str] = []
+    for entity_id in sorted(states):
+        entity = states[entity_id]
+        domain = getattr(entity, "domain", entity_id.split(".", 1)[0])
+        if domain not in domains:
+            continue
+        friendly = getattr(entity, "friendly_name", None) or entity_id
+        state = str(getattr(entity, "state", "") or "")
+        item = f"{entity_id} ({friendly}) = {state}"
+        if state.lower() in {"unavailable", "unknown"}:
+            unavailable.append(item)
+        elif len(live_items) < (32 if compact else 80):
+            live_items.append(item)
+
+    if live_items:
+        lines.append("Relevant live entities:")
+        lines.extend(f"- {item}" for item in live_items)
+    if unavailable:
+        lines.append("Unavailable or unknown relevant entities:")
+        lines.extend(f"- {item}" for item in unavailable[:20])
+        if len(unavailable) > 20:
+            lines.append(f"- plus {len(unavailable) - 20} more unavailable/unknown relevant entities")
+
+    voice_rooms = {source.room for source in (config.devices.voice_sources or []) if source.room}
+    rooms_without_voice = [room.name for room in rooms if room.id not in voice_rooms and room.name not in voice_rooms]
+    weak_spots: list[str] = []
+    if rooms_without_voice:
+        weak_spots.append(
+            "Rooms without mapped voice source/panel context: "
+            + ", ".join(rooms_without_voice[:12])
+            + ("..." if len(rooms_without_voice) > 12 else "")
+        )
+    for room in rooms:
+        if not room.lights and not room.fans and not room.speaker and not room.display and not room.climate:
+            weak_spots.append(f"{room.name} has no mapped controllable devices in TPG config.")
+    if weak_spots:
+        lines.append("Likely smart-home weak spots to consider:")
+        lines.extend(f"- {item}" for item in weak_spots[:16])
+
+    lines.append(
+        "Instruction for advice: use the inventory above first. Do not ask the user to list devices "
+        "that are already present here. If data is missing, name the exact missing mapping or sensor."
+    )
+    return "\n".join(lines)
 
 
 def _recent_context(assistant: str, user: Optional[str], conversation_id: Optional[str]) -> str:

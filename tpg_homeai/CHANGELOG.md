@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.62
+
+- Removed normal-chat developer/debug payload rendering so mobile conversations stay clean like the web app.
+- Added image attachments in Chat with backend vision routing for photo diagnosis and visual advice.
+- Added a dedicated OpenAI chat model option and stronger house-inventory grounding so Atlas uses known HA rooms, devices, weak spots, and unavailable entities before giving advice.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.61
 
 - Added persistent Dark, OLED Black, Light, and White theme modes to the TPG shell.

@@ -149,6 +149,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ assistant, user, message, conversation_id, room }),
     }),
+  chatWithAttachments: (body: {
+    assistant: string;
+    user: string;
+    message: string;
+    conversation_id?: string;
+    room?: string;
+    files: File[];
+  }) => {
+    const form = new FormData();
+    form.append("assistant", body.assistant);
+    form.append("user", body.user || "");
+    form.append("message", body.message || "");
+    form.append("conversation_id", body.conversation_id || "");
+    form.append("room", body.room || "");
+    body.files.forEach((file) => form.append("files", file));
+    return http<any>("/chat/attachments", { method: "POST", body: form });
+  },
   chatPreview: (assistant: string, user: string, message: string, conversation_id?: string, room?: string) =>
     http<any>("/chat/preview", {
       method: "POST",

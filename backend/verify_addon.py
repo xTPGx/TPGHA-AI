@@ -107,6 +107,9 @@ def main() -> int:
     users_frontend = (repo_root / "frontend" / "src" / "pages" / "Users.tsx").read_text(encoding="utf-8")
     api_frontend = (repo_root / "frontend" / "src" / "api.ts").read_text(encoding="utf-8")
     backend_main = (repo_root / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+    ai_client_source = (repo_root / "backend" / "app" / "ai" / "client.py").read_text(encoding="utf-8")
+    conversation_source = (repo_root / "backend" / "app" / "conversation.py").read_text(encoding="utf-8")
+    settings_source = (repo_root / "backend" / "app" / "settings.py").read_text(encoding="utf-8")
     db_models = (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
     control_actions = (repo_root / "backend" / "app" / "actions" / "control.py").read_text(encoding="utf-8")
     climate_actions = (repo_root / "backend" / "app" / "actions" / "climate.py").read_text(encoding="utf-8")
@@ -178,6 +181,28 @@ def main() -> int:
           and "voiceTranscribe" in chat_frontend
           and "/voice/transcribe" in api_frontend,
           "Mobile mic must record audio and upload it for OpenAI transcription.")
+    check("Chat hides developer payloads from normal conversation",
+          "DeveloperDetails" not in chat_frontend
+          and 'message.mode !== "conversation"' in chat_frontend,
+          "Normal Chat should not show tool/debug details under every assistant reply.")
+    check("Chat image attachments are wired front-to-back",
+          "chatWithAttachments" in api_frontend
+          and "/chat/attachments" in backend_main
+          and "image_url" in ai_client_source
+          and "AttachmentTray" in chat_frontend
+          and "MessageAttachmentPreview" in chat_frontend,
+          "Users must be able to attach images for vision-backed diagnosis/advice.")
+    check("OpenAI chat model is separately configurable",
+          "openai_chat_model" in addon_config
+          and "OPENAI_CHAT_MODEL" in run_sh
+          and "openai_chat_model" in settings_source
+          and "self.settings.openai_chat_model" in ai_client_source,
+          "General conversation/vision should be able to use a stronger model than guarded tool routing.")
+    check("General advice uses actual house inventory",
+          "_structured_house_inventory" in conversation_source
+          and "Do not ask the user to list devices" in conversation_source
+          and "reason from it directly" in ai_client_source,
+          "Atlas must ground advice in HA/TPG rooms, entities, weak spots, and unavailable devices.")
     check("Chat mic gives actionable permission diagnostics",
           "Diagnose mic" in chat_frontend
           and "microphoneReadinessReport" in chat_frontend
@@ -3811,6 +3836,23 @@ def main() -> int:
     })
     check("/chat notebook seed returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
+
+    r = client.post(
+        "/chat/attachments",
+        data={
+            "assistant": "atlas",
+            "user": "shawn",
+            "conversation_id": "verify-image-session",
+            "message": "What do you notice in this smart switch photo?",
+        },
+        files={"files": ("switch.jpg", b"\xff\xd8\xff\xe0fake-jpeg", "image/jpeg")},
+    )
+    check("/chat/attachments accepts image upload",
+          r.status_code == 200 and is_json(r) and r.json().get("success") is True,
+          r.text)
+    check("/chat/attachments returns conversational response",
+          r.json().get("mode") == "conversation" and isinstance(r.json().get("response"), str),
+          str(r.json()))
 
     r = client.get("/conversations")
     check("/conversations returns JSON", r.status_code == 200 and is_json(r),

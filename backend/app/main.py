@@ -243,7 +243,14 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.61"
+APP_VERSION = "1.2.62"
+MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
+ALLOWED_CHAT_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -838,6 +845,40 @@ async def chat(req: ChatRequest):
     }
 
 
+@app.post("/chat/attachments")
+async def chat_attachments(
+    assistant: str = Form(...),
+    message: str = Form(""),
+    user: str = Form(""),
+    conversation_id: str = Form(""),
+    room: str = Form(""),
+    files: list[UploadFile] | None = File(default=None),
+):
+    """Vision-enabled chat.
+
+    Uploaded images stay scoped to this conversation. They are not promoted
+    into durable house knowledge unless the user uploads/approves them through
+    the house-assets workflow.
+    """
+
+    attachments = await _read_chat_attachments(files or [])
+    prompt = (message or "").strip() or "Please review the attached image and tell me what you notice, what it means, and what I should do next."
+    general = await answer_general(
+        assistant,
+        user or None,
+        prompt,
+        conversation_id=conversation_id or None,
+        attachments=attachments,
+    )
+    return {
+        "success": True,
+        "mode": general.get("mode", "conversation"),
+        "response": general.get("response") or "",
+        "data": general.get("data", {}),
+        "provider": general.get("provider"),
+    }
+
+
 @app.post("/chat/preview")
 async def chat_preview(req: ChatRequest):
     resp = await intent_router.handle_preview(
@@ -852,6 +893,28 @@ async def chat_preview(req: ChatRequest):
         "response": resp.message,
         "command": resp.model_dump(),
     }
+
+
+async def _read_chat_attachments(files: list[UploadFile]) -> list[dict[str, Any]]:
+    import base64
+
+    attachments: list[dict[str, Any]] = []
+    for file in files[:4]:
+        content_type = (file.content_type or "application/octet-stream").split(";", 1)[0].strip().lower()
+        if content_type not in ALLOWED_CHAT_IMAGE_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unsupported chat image type: {content_type}.")
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail=f"{file.filename or 'image'} is empty.")
+        if len(data) > MAX_CHAT_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail=f"{file.filename or 'image'} is larger than 8 MB.")
+        attachments.append({
+            "filename": file.filename or "image",
+            "content_type": content_type,
+            "size": len(data),
+            "data_base64": base64.b64encode(data).decode("ascii"),
+        })
+    return attachments
 
 
 @app.post("/confirm", response_model=CommandResponse)
