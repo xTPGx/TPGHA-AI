@@ -110,6 +110,7 @@ def main() -> int:
     routine_brain = (repo_root / "backend" / "app" / "routine_brain.py").read_text(encoding="utf-8")
     operations_brain = (repo_root / "backend" / "app" / "operations_brain.py").read_text(encoding="utf-8")
     governance_brain = (repo_root / "backend" / "app" / "governance_brain.py").read_text(encoding="utf-8")
+    experience_brain = (repo_root / "backend" / "app" / "experience_brain.py").read_text(encoding="utf-8")
     house_state_source = (repo_root / "backend" / "app" / "house_state.py").read_text(encoding="utf-8")
     security_action = (repo_root / "backend" / "app" / "actions" / "security.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'^version:\s*"([^"]+)"', addon_config, re.M)
@@ -430,6 +431,34 @@ def main() -> int:
           and "redacted_context_export" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
           and "completion_auditor" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
           "Readiness UI must show privacy, roles, memory, export, and completion audit layers.")
+    check("phases 92-96 experience brain module exists",
+          "build_interaction_quality_report" in experience_brain
+          and "build_voice_acceptance_plan" in experience_brain
+          and "build_device_acceptance_matrix" in experience_brain
+          and "build_release_checklist" in experience_brain
+          and "build_operational_runbook" in experience_brain,
+          "Interaction quality, voice acceptance, device acceptance, release checklist, and runbook must be reusable.")
+    check("experience brain defines acceptance/runbook discipline",
+          "acceptance_tests" in experience_brain
+          and "role_acceptance" in experience_brain
+          and "feature_freeze" in experience_brain
+          and "ship_rule" in experience_brain,
+          "Release readiness must include real-house acceptance and feature-freeze guidance.")
+    check("phases 92-96 endpoints are exposed",
+          "/experience/interaction-quality" in backend_main
+          and "/experience/voice-acceptance" in backend_main
+          and "/experience/device-acceptance" in backend_main
+          and "/release/checklist" in backend_main
+          and "/release/runbook" in backend_main
+          and "/brain/phase-92-96" in backend_main,
+          "Backend must expose phase 92-96 experience/release brains as API endpoints.")
+    check("Jarvis Brain includes experience/release readiness layers",
+          "interaction_quality_report" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "voice_acceptance_plan" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "device_acceptance_matrix" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "release_checklist" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "operational_runbook" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Readiness UI must show interaction, voice, device, release, and runbook layers.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1170,6 +1199,62 @@ def main() -> int:
           "completion" in r.json()
           and "stop_line" in r.json()
           and "blockers" in r.json(),
+          str(r.json()))
+
+    r = client.get("/brain/phase-92-96")
+    check("/brain/phase-92-96 returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-92-96 has experience/release sections",
+          "interaction_quality" in r.json()
+          and "voice_acceptance" in r.json()
+          and "device_acceptance" in r.json()
+          and "release_checklist" in r.json()
+          and "operational_runbook" in r.json(),
+          str(r.json()))
+
+    r = client.get("/experience/interaction-quality")
+    check("/experience/interaction-quality returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/experience/interaction-quality exposes quality signals",
+          "counts" in r.json()
+          and "recent_failures" in r.json()
+          and "recommendations" in r.json(),
+          str(r.json()))
+
+    r = client.get("/experience/voice-acceptance")
+    check("/experience/voice-acceptance returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/experience/voice-acceptance exposes required tests",
+          "acceptance_tests" in r.json()
+          and "blockers" in r.json()
+          and "readiness" in r.json(),
+          str(r.json()))
+
+    r = client.get("/experience/device-acceptance")
+    check("/experience/device-acceptance returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/experience/device-acceptance exposes domain checks",
+          "checks" in r.json()
+          and "role_acceptance" in r.json()
+          and "domain_counts" in r.json(),
+          str(r.json()))
+
+    r = client.get("/release/checklist")
+    check("/release/checklist returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/release/checklist exposes ship rule",
+          "checks" in r.json()
+          and "ship_rule" in r.json()
+          and "blockers" in r.json(),
+          str(r.json()))
+
+    r = client.get("/release/runbook")
+    check("/release/runbook returns JSON", r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/release/runbook exposes operational steps",
+          "runbook" in r.json()
+          and "release_checklist" in r.json()
+          and any(step.get("id") == "feature_freeze" for step in r.json().get("runbook", [])),
           str(r.json()))
 
     r = client.get("/knowledge/physical-devices?include_registries=false")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.9
+
+- Added Jarvis phases 92-96 experience and release acceptance intelligence.
+- Added interaction quality report, voice acceptance plan, device acceptance matrix, release checklist, and operational runbook.
+- Added `/experience/interaction-quality`, `/experience/voice-acceptance`, `/experience/device-acceptance`, `/release/checklist`, `/release/runbook`, and `/brain/phase-92-96` endpoints.
+- Expanded Jarvis Brain readiness with acceptance, release, and operational runbook layers.
+- Added a repeatable owner runbook for after-update checks, acceptance testing, failure triage, and feature-freeze discipline.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.1.8
 
 - Added Jarvis phases 87-91 governance intelligence.

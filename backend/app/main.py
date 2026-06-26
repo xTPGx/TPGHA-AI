@@ -138,19 +138,27 @@ from .governance_brain import (
     build_redacted_context_export,
     build_role_permission_matrix,
 )
+from .experience_brain import (
+    build_device_acceptance_matrix,
+    build_interaction_quality_report,
+    build_jarvis_phase_92_96,
+    build_operational_runbook,
+    build_release_checklist,
+    build_voice_acceptance_plan,
+)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.1.8"
+APP_VERSION = "1.1.9"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "governance", "context", "openapi.json",
+    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "governance", "context", "experience", "release", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -1256,6 +1264,36 @@ async def context_export():
 @app.get("/governance/completion-audit")
 async def governance_completion_audit():
     return await build_completion_auditor(get_config())
+
+
+@app.get("/brain/phase-92-96")
+async def brain_phase_92_96():
+    return await build_jarvis_phase_92_96(get_config(), APP_VERSION)
+
+
+@app.get("/experience/interaction-quality")
+async def experience_interaction_quality():
+    return build_interaction_quality_report(get_config())
+
+
+@app.get("/experience/voice-acceptance")
+async def experience_voice_acceptance():
+    return build_voice_acceptance_plan(get_config())
+
+
+@app.get("/experience/device-acceptance")
+async def experience_device_acceptance():
+    return await build_device_acceptance_matrix(get_config())
+
+
+@app.get("/release/checklist")
+async def release_checklist():
+    return await build_release_checklist(get_config(), APP_VERSION)
+
+
+@app.get("/release/runbook")
+async def release_runbook():
+    return await build_operational_runbook(get_config(), APP_VERSION)
 
 
 @app.get("/ai/providers")

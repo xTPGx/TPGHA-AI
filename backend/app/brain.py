@@ -109,6 +109,16 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "assistants": len(config.assistants.assistants),
         "approved_memories": approved_memories,
     }
+    acceptance_counts = {
+        "command_count": command_count,
+        "conversation_count": conversation_count,
+        "voice_sources": len(config.devices.voice_sources),
+        "voice_source_ids": ops_counts["voice_source_ids"],
+        "core_domains": sum(
+            1 for domain in ("light", "fan", "lock", "climate", "media_player", "camera", "weather")
+            if _domain_count(graph, domain)
+        ),
+    }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
     capability_ready = controllable > 0 and pending == 0
@@ -595,6 +605,66 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Auditor is exposed as /governance/completion-audit and /brain/phase-87-91.",
             ],
             "next": "Keep adding only blockers and bug fixes once the completion audit is clean.",
+        },
+        {
+            "id": "interaction_quality_report",
+            "title": "Interaction Quality Report",
+            "status": "ready" if acceptance_counts["command_count"] else "partial",
+            "score": 100 if acceptance_counts["command_count"] else 75,
+            "evidence": [
+                f"{acceptance_counts['command_count']} command/audit row(s) and {acceptance_counts['conversation_count']} conversation context(s) available for quality scoring.",
+                "Experience endpoint tracks successes, failures, confusion phrases, top intents, and recommendations.",
+                "Recent failures can be used to drive reliability repairs and memory approvals.",
+            ],
+            "next": "Run a full owner/resident/kiosk acceptance chat pass after each release.",
+        },
+        {
+            "id": "voice_acceptance_plan",
+            "title": "Voice Acceptance Plan",
+            "status": "ready" if acceptance_counts["voice_source_ids"] else "partial",
+            "score": 100 if acceptance_counts["voice_source_ids"] else 70,
+            "evidence": [
+                f"{acceptance_counts['voice_sources']} voice source profile(s) and {acceptance_counts['voice_source_ids']} real source identity mapping(s).",
+                "Acceptance plan covers browser mic, assistant TTS, wake words, room context, and security voice flows.",
+                "Voice blockers are listed explicitly instead of buried in setup pages.",
+            ],
+            "next": "Verify mic/TTS/wake-word behavior from actual iPad/iPhone/panel devices over HTTPS.",
+        },
+        {
+            "id": "device_acceptance_matrix",
+            "title": "Device Acceptance Matrix",
+            "status": "ready" if acceptance_counts["core_domains"] >= 5 else "partial",
+            "score": 100 if acceptance_counts["core_domains"] >= 5 else 72,
+            "evidence": [
+                f"{acceptance_counts['core_domains']} core HA domain(s) are visible for acceptance testing.",
+                "Device matrix defines tests for lights, fans, locks, covers, climate, media players, cameras, calendar, and weather.",
+                "Role acceptance checks verify admin, resident, and kiosk/shared behavior.",
+            ],
+            "next": "Use the matrix as the live-house regression checklist before declaring v1 complete.",
+        },
+        {
+            "id": "release_checklist",
+            "title": "Release Checklist",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Release checklist combines version metadata, HA/OpenAI/security readiness, voice acceptance, device acceptance, and interaction quality.",
+                "Checklist returns blockers and a clear ship rule.",
+                "This makes each GitHub release explainable instead of vibes-based.",
+            ],
+            "next": "Surface release blockers in the owner setup dashboard.",
+        },
+        {
+            "id": "operational_runbook",
+            "title": "Operational Runbook",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Runbook documents after-update, acceptance pass, failure triage, and feature-freeze steps.",
+                "Owners get a repeatable procedure after each add-on update.",
+                "Runbook is exposed through /release/runbook and phase 92-96.",
+            ],
+            "next": "Add UI export/copy for the runbook and release checklist.",
         },
         {
             "id": "ha_native_ui",
