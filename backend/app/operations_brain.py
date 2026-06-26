@@ -299,6 +299,52 @@ def build_sidebar_access_diagnostics(config: AppConfig) -> dict[str, Any]:
     }
 
 
+async def build_role_dashboard_summary(config: AppConfig, role: str = "guest", user_id: str = "") -> dict[str, Any]:
+    """Return the safe dashboard summary for the current HA/TPG role.
+
+    This is deliberately read-only: it tells the UI what to show without
+    granting permissions or exposing owner setup tasks to resident/shared views.
+    """
+    normalized_role = (role or "guest").strip().lower()
+    if normalized_role not in {"admin", "manager", "resident", "kiosk", "guest"}:
+        normalized_role = "guest"
+    user = _find_user(config, user_id)
+    assistant = _assistant_for_user(config, user.id if user else user_id)
+    discovery = await discovery_scanner.summary()
+    is_owner_scope = normalized_role in {"admin", "manager"}
+    is_shared = normalized_role in {"kiosk", "guest"}
+    cards = _owner_dashboard_cards(discovery) if is_owner_scope else _resident_dashboard_cards(normalized_role, user, assistant)
+    return {
+        "status": "ready",
+        "role": normalized_role,
+        "mode": "owner_management" if is_owner_scope else ("shared_panel" if is_shared else "personal_jarvis"),
+        "user": {
+            "id": user.id if user else user_id,
+            "name": user.name if user else (user_id or "House"),
+            "role": normalized_role,
+        },
+        "assistant": {
+            "id": assistant.id if assistant else ("jarvis" if is_shared else ""),
+            "name": assistant.name if assistant else ("Jarvis" if is_shared else "Assistant"),
+        },
+        "permissions": {
+            "admin_actions_visible": is_owner_scope,
+            "can_open_setup": is_owner_scope,
+            "can_manage_dashboards": is_owner_scope,
+            "can_manage_users": normalized_role == "admin",
+            "can_create_scheduled_tasks": normalized_role in {"admin", "manager", "resident", "kiosk"},
+            "can_chat": True,
+            "can_use_house_controls": normalized_role in {"admin", "manager", "resident", "kiosk"},
+        },
+        "cards": cards,
+        "guardrails": [
+            "Dashboard owner setup actions are hidden unless the resolved HA user is admin/manager.",
+            "Residents and shared panels can chat, use approved controls, and create scheduled-task requests.",
+            "Dashboard creation, user management, discovery mapping, and system setup remain owner/manager scope.",
+        ],
+    }
+
+
 async def build_jarvis_phase_82_86(config: AppConfig, version: str) -> dict[str, Any]:
     gaps = await build_capability_gap_scanner(config)
     onboarding = await build_onboarding_wizard_plan(config)
@@ -375,3 +421,77 @@ def _has_music_assistant(config: AppConfig, entity_blob: str) -> bool:
         or "music_assistant" in entity_blob
         or "mass_" in entity_blob
     )
+
+
+def _find_user(config: AppConfig, user_id: str) -> Any | None:
+    wanted = (user_id or "").strip().lower()
+    if not wanted:
+        return None
+    for user in config.assistants.users:
+        aliases = {str(alias).strip().lower() for alias in (user.aliases or [])}
+        if wanted in {user.id.lower(), user.name.lower(), str(user.ha_username or "").lower(), str(user.ha_user_id or "").lower()} | aliases:
+            return user
+    return None
+
+
+def _assistant_for_user(config: AppConfig, user_id: str) -> Any | None:
+    wanted = (user_id or "").strip().lower()
+    if not wanted:
+        return None
+    return next((assistant for assistant in config.assistants.assistants if assistant.owner.lower() == wanted), None)
+
+
+def _owner_dashboard_cards(discovery: dict[str, Any]) -> list[dict[str, Any]]:
+    pending = int(discovery.get("pending_count") or 0)
+    unavailable = int(discovery.get("unavailable_count") or 0)
+    return [
+        {
+            "id": "owner_action_plan",
+            "title": "Owner action plan",
+            "detail": "Setup, release blockers, diagnostics, and capability gaps are available from this dashboard.",
+            "target": "/setup",
+            "tone": "brand",
+        },
+        {
+            "id": "device_discovery",
+            "title": "Device discovery",
+            "detail": f"{pending} pending approvals and {unavailable} unavailable entities need owner review.",
+            "target": "/discovery",
+            "tone": "warn" if pending or unavailable else "good",
+        },
+        {
+            "id": "brain_readiness",
+            "title": "Jarvis readiness",
+            "detail": "Open the Brain view for acceptance evidence, role checks, and release gates.",
+            "target": "/jarvis",
+            "tone": "slate",
+        },
+    ]
+
+
+def _resident_dashboard_cards(role: str, user: Any | None, assistant: Any | None) -> list[dict[str, Any]]:
+    assistant_name = assistant.name if assistant else ("Jarvis" if role in {"kiosk", "guest"} else "your assistant")
+    owner = user.name if user else ("shared panel" if role in {"kiosk", "guest"} else "this profile")
+    return [
+        {
+            "id": "personal_assistant",
+            "title": f"{assistant_name} is ready",
+            "detail": f"Signed in as {owner}. Ask questions, brainstorm, or control approved house devices.",
+            "target": "/chat",
+            "tone": "brand",
+        },
+        {
+            "id": "scheduled_tasks",
+            "title": "Scheduled tasks",
+            "detail": "You can ask Jarvis to create safe schedules like turning lights off at 10 PM.",
+            "target": "/chat",
+            "tone": "good",
+        },
+        {
+            "id": "protected_changes",
+            "title": "Protected changes",
+            "detail": "Dashboards, users, discovery mapping, and system setup stay hidden unless HA grants owner access.",
+            "target": "/chat",
+            "tone": "slate",
+        },
+    ]

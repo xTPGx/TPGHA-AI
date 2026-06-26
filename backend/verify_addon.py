@@ -686,6 +686,17 @@ def main() -> int:
     check("phase 120 endpoint is exposed",
           "/brain/phase-120" in backend_main,
           "Backend must expose the phase 120 dashboard action plan readiness marker.")
+    check("phase 121 role-scoped dashboard is wired",
+          "/ops/role-dashboard" in backend_main
+          and "api.roleDashboardSummary" in (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+          and "admin_actions_visible" in (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+          and "role_scoped_dashboard" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_role_dashboard_summary" in operations_brain
+          and "build_jarvis_phase_121" in experience_brain,
+          "Dashboard must use backend role-scoped summaries and hide owner actions for non-admins.")
+    check("phase 121 endpoint is exposed",
+          "/brain/phase-121" in backend_main,
+          "Backend must expose the phase 121 role-scoped dashboard readiness marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1854,6 +1865,35 @@ def main() -> int:
           r.json().get("phase") == 120
           and r.json().get("dashboard_action_plan_summary", {}).get("surface") == "Dashboard"
           and r.json().get("dashboard_action_plan_summary", {}).get("shows_top_actions") is True,
+          str(r.json()))
+
+    r = client.get("/ops/role-dashboard?role=admin&user=shawn")
+    check("/ops/role-dashboard returns owner summary",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/role-dashboard admin exposes owner actions",
+          r.json().get("permissions", {}).get("admin_actions_visible") is True
+          and r.json().get("permissions", {}).get("can_manage_dashboards") is True,
+          str(r.json()))
+
+    r = client.get("/ops/role-dashboard?role=resident&user=jordie")
+    check("/ops/role-dashboard returns resident summary",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/ops/role-dashboard resident hides owner actions",
+          r.json().get("permissions", {}).get("admin_actions_visible") is False
+          and r.json().get("permissions", {}).get("can_manage_dashboards") is False
+          and r.json().get("permissions", {}).get("can_create_scheduled_tasks") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-121")
+    check("/brain/phase-121 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-121 has role-scoped dashboard marker",
+          r.json().get("phase") == 121
+          and r.json().get("role_scoped_dashboard", {}).get("source_endpoint") == "/ops/role-dashboard"
+          and r.json().get("role_scoped_dashboard", {}).get("admin_actions_visible_only_to_owner_scope") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -1027,6 +1027,22 @@ async def build_jarvis_phase_120(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_121(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 121,
+        "role_scoped_dashboard": {
+            "source_endpoint": "/ops/role-dashboard",
+            "owner_scope": "admin/manager users see setup and release actions.",
+            "resident_scope": "resident/kiosk/guest users see personal Jarvis status and allowed actions only.",
+            "admin_actions_visible_only_to_owner_scope": True,
+            "scheduled_task_self_service_visible": True,
+        },
+        "guardrail": "Phase 121 separates dashboard visibility by resolved HA/TPG role; it does not grant permissions or run actions.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

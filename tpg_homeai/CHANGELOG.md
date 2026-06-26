@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.25
+
+- Added Jarvis phase 121 role-scoped Dashboard summaries.
+- Added `/ops/role-dashboard` so Dashboard can show owner, resident, kiosk, and guest-safe status cards.
+- Dashboard now only fetches `/ops/setup-action-plan` for admin/manager sessions.
+- Resident/shared Dashboard views now show personal Jarvis, scheduled-task self-service, and protected-change boundaries without setup links.
+- Added `/brain/phase-121` and Jarvis Brain readiness evidence for role-scoped dashboard access.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.24
 
 - Added Jarvis phase 120 Dashboard owner action plan summary.

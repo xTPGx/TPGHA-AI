@@ -232,6 +232,11 @@ export const api = {
   setupActionPlan: () => http<any>("/ops/setup-action-plan"),
   setupSupportPacket: () => http<any>("/ops/setup-support-packet"),
   sidebarAccess: () => http<any>("/ops/sidebar-access"),
+  roleDashboardSummary: (role: string, user?: string) => {
+    const params = new URLSearchParams({ role: role || "guest" });
+    if (user) params.set("user", user);
+    return http<any>(`/ops/role-dashboard?${params.toString()}`);
+  },
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

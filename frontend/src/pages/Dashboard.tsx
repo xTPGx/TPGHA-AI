@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { homeAssistantSessionHints } from "../haAuth";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import DeveloperDetails from "../components/DeveloperDetails";
@@ -12,7 +13,9 @@ type Phase = "connecting" | "ok" | "degraded" | "initializing" | "offline" | "mi
 export default function Dashboard() {
   const [health, setHealth] = useState<any>(null);
   const [summary, setSummary] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
   const [actionPlan, setActionPlan] = useState<any>(null);
+  const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -34,9 +37,20 @@ export default function Dashboard() {
         /* summary is best-effort */
       }
       try {
-        setActionPlan(await api.setupActionPlan());
+        const currentSession = await api.uiSession(homeAssistantSessionHints());
+        setSession(currentSession);
+        const role = currentSession?.role || "guest";
+        const userId = currentSession?.detected_user?.id || "";
+        setRoleSummary(await api.roleDashboardSummary(role, userId));
+        if (["admin", "manager"].includes(role)) {
+          setActionPlan(await api.setupActionPlan());
+        } else {
+          setActionPlan(null);
+        }
       } catch {
-        /* setup actions are best-effort */
+        setSession(null);
+        setRoleSummary(null);
+        setActionPlan(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -114,7 +128,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      <DashboardActionPlan actionPlan={actionPlan} />
+      <DashboardRoleSummary summary={roleSummary} session={session} />
+
+      {roleSummary?.permissions?.admin_actions_visible && (
+        <DashboardActionPlan actionPlan={actionPlan} />
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card">
@@ -175,6 +193,42 @@ export default function Dashboard() {
       )}
 
       <DeveloperDetails title="Raw health" data={health} />
+    </div>
+  );
+}
+
+function DashboardRoleSummary({ summary, session }: { summary: any; session: any }) {
+  if (!summary) return null;
+  const cards = summary.cards || [];
+  const role = summary.role || session?.role || "guest";
+  const assistantName = summary.assistant?.name || session?.default_assistant?.name || "Jarvis";
+  return (
+    <div className="card">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">{assistantName} dashboard</div>
+          <div className="mt-1 text-sm text-slate-400">
+            {summary.mode || "role"} · {summary.user?.name || session?.detected_user?.name || "House"}
+          </div>
+        </div>
+        <Badge tone={summary.permissions?.admin_actions_visible ? "good" : "brand"}>{role}</Badge>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+        {cards.map((card: any) => (
+          <Link key={card.id || card.title} to={card.target || "/chat"} className="rounded border border-slate-800 bg-slate-950/30 p-3 hover:border-brand/60">
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-semibold text-slate-100">{card.title}</div>
+              <Badge tone={card.tone || "slate"}>{card.target || "/chat"}</Badge>
+            </div>
+            <div className="mt-1 text-sm text-slate-400">{card.detail}</div>
+          </Link>
+        ))}
+      </div>
+      {!summary.permissions?.admin_actions_visible && (
+        <div className="mt-4 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
+          Owner setup, discovery mapping, dashboards, users, and system configuration stay hidden unless Home Assistant grants admin/manager access.
+        </div>
+      )}
     </div>
   );
 }

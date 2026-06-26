@@ -960,6 +960,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add role-scoped dashboard summaries for resident and kiosk health without exposing admin tools.",
         },
         {
+            "id": "role_scoped_dashboard",
+            "title": "Role-Scoped Dashboard",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/role-dashboard returns owner, resident, kiosk, and guest-safe dashboard summaries.",
+                "Dashboard only requests /ops/setup-action-plan for admin/manager sessions.",
+                "Resident and shared views show chat, allowed controls, and scheduled-task self-service without setup links.",
+            ],
+            "next": "Add live per-user acceptance evidence directly to the role-scoped dashboard cards.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
