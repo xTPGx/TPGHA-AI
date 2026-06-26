@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.6
+
+- Added Jarvis phase 102 acceptance report export controls.
+- Brain Live Acceptance now fetches the live acceptance report alongside the test plan.
+- Added Copy report and Download Markdown actions for owner-facing evidence handoff.
+- Added report status and pass/fail summary directly in the Brain page.
+- Added verifier coverage for the frontend report export wiring.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.5
 
 - Added Jarvis phase 101 live acceptance reporting.

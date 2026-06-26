@@ -16,21 +16,25 @@ export default function Brain() {
   const [providers, setProviders] = useState<any>(null);
   const [completion, setCompletion] = useState<any>(null);
   const [acceptance, setAcceptance] = useState<any>(null);
+  const [acceptanceReport, setAcceptanceReport] = useState<any>(null);
   const [acceptanceBusy, setAcceptanceBusy] = useState<string | null>(null);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const [brainResult, providerResult, completionResult, acceptanceResult] = await Promise.all([
+      const [brainResult, providerResult, completionResult, acceptanceResult, reportResult] = await Promise.all([
         api.brainLayers(),
         api.aiProviders(),
         api.completionStatus(),
         api.liveAcceptance(),
+        api.liveAcceptanceReport(),
       ]);
       setBrain(brainResult);
       setProviders(providerResult);
       setCompletion(completionResult);
       setAcceptance(acceptanceResult);
+      setAcceptanceReport(reportResult);
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -56,6 +60,33 @@ export default function Brain() {
     } finally {
       setAcceptanceBusy(null);
     }
+  };
+
+  const copyAcceptanceReport = async () => {
+    const markdown = acceptanceReport?.markdown || "";
+    if (!markdown) return;
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setReportMessage("Acceptance report copied.");
+    } catch {
+      setReportMessage("Clipboard unavailable. Use Download Markdown instead.");
+    }
+  };
+
+  const downloadAcceptanceReport = () => {
+    const markdown = acceptanceReport?.markdown || "";
+    if (!markdown) return;
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const version = acceptanceReport?.version || "report";
+    link.href = url;
+    link.download = `tpg-homeai-live-acceptance-${version}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setReportMessage("Acceptance report downloaded.");
   };
 
   return (
@@ -158,8 +189,12 @@ export default function Brain() {
       {acceptance && (
         <LiveAcceptancePanel
           acceptance={acceptance}
+          report={acceptanceReport}
           busy={acceptanceBusy}
+          reportMessage={reportMessage}
           onRecord={recordAcceptance}
+          onCopyReport={copyAcceptanceReport}
+          onDownloadReport={downloadAcceptanceReport}
         />
       )}
 
@@ -204,12 +239,20 @@ export default function Brain() {
 
 function LiveAcceptancePanel({
   acceptance,
+  report,
   busy,
+  reportMessage,
   onRecord,
+  onCopyReport,
+  onDownloadReport,
 }: {
   acceptance: any;
+  report: any;
   busy: string | null;
+  reportMessage: string | null;
   onRecord: (testId: string, status: "passed" | "failed" | "blocked" | "skipped") => void;
+  onCopyReport: () => void;
+  onDownloadReport: () => void;
 }) {
   const tests = acceptance.tests || [];
   const evidence = acceptance.evidence || {};
@@ -227,6 +270,11 @@ function LiveAcceptancePanel({
           <span className="badge bg-emerald-500/10 text-emerald-200">
             read only
           </span>
+          {report && (
+            <span className={report.status === "ready" ? "badge bg-emerald-500/10 text-emerald-200" : "badge bg-amber-500/10 text-amber-200"}>
+              report: {report.status}
+            </span>
+          )}
           <span className="badge bg-cyan-500/10 text-cyan-200">
             {acceptance.summary?.ready ?? 0}/{acceptance.summary?.total ?? tests.length} ready
           </span>
@@ -243,6 +291,25 @@ function LiveAcceptancePanel({
         <MiniStat label="Sensitive" value={acceptance.summary?.sensitive ?? 0} />
         <MiniStat label="Recorded" value={evidence.count || 0} />
       </div>
+
+      {report && (
+        <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-slate-100">Acceptance report</div>
+              <div className="text-sm text-slate-400">
+                {report.summary?.passed ?? 0}/{report.summary?.required_passes ?? 0} required checks passed,
+                {" "}{report.summary?.failed_or_blocked ?? 0} failed or blocked.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-ghost" onClick={onCopyReport}>Copy report</button>
+              <button className="btn" onClick={onDownloadReport}>Download Markdown</button>
+            </div>
+          </div>
+          {reportMessage && <div className="mt-2 text-sm text-slate-300">{reportMessage}</div>}
+        </div>
+      )}
 
       {acceptance.policy?.executes_actions === false && (
         <div className="mb-3 rounded border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">

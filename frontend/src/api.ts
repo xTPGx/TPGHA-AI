@@ -220,6 +220,7 @@ export const api = {
   },
   aiProviders: () => http<any>("/ai/providers"),
   liveAcceptance: () => http<any>("/experience/live-acceptance"),
+  liveAcceptanceReport: () => http<any>("/experience/live-acceptance/report"),
   liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {

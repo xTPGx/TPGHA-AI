@@ -507,6 +507,11 @@ def main() -> int:
           "/experience/live-acceptance/report" in backend_main
           and "/brain/phase-101" in backend_main,
           "Backend must expose the live acceptance report and phase 101 summary.")
+    check("phase 102 frontend acceptance report export is wired",
+          "liveAcceptanceReport" in api_frontend
+          and "Copy report" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8")
+          and "Download Markdown" in (repo_root / "frontend" / "src" / "pages" / "Brain.tsx").read_text(encoding="utf-8"),
+          "Brain UI must let owners copy or download the live acceptance report.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
