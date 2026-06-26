@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.9
+
+- Added Jarvis phase 105 acceptance repair resolution loop.
+- Added `/experience/acceptance-resolutions` and `/brain/phase-105`.
+- Recording a passed acceptance result now resolves active acceptance repair suggestions for the same test.
+- Resolved repairs leave the audit trail intact while clearing the active repair queue.
+- Added verifier coverage for failed-to-repair-to-passed resolution behavior.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.8
 
 - Added Jarvis phase 104 acceptance repair loop.

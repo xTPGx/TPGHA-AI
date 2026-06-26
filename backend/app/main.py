@@ -140,6 +140,7 @@ from .governance_brain import (
     build_role_permission_matrix,
 )
 from .experience_brain import (
+    build_acceptance_resolution_summary,
     build_acceptance_repair_queue,
     build_device_acceptance_matrix,
     build_interaction_quality_report,
@@ -148,6 +149,7 @@ from .experience_brain import (
     build_jarvis_phase_101,
     build_jarvis_phase_103,
     build_jarvis_phase_104,
+    build_jarvis_phase_105,
     list_live_acceptance_results,
     build_live_acceptance_report,
     build_live_acceptance_runner,
@@ -162,7 +164,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.8"
+APP_VERSION = "1.2.9"
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
@@ -1302,6 +1304,11 @@ async def brain_phase_104():
     return await build_jarvis_phase_104(APP_VERSION)
 
 
+@app.get("/brain/phase-105")
+async def brain_phase_105():
+    return await build_jarvis_phase_105(APP_VERSION)
+
+
 @app.get("/experience/interaction-quality")
 async def experience_interaction_quality():
     return build_interaction_quality_report(get_config())
@@ -1325,6 +1332,11 @@ async def experience_role_acceptance():
 @app.get("/experience/acceptance-repairs")
 async def experience_acceptance_repairs():
     return build_acceptance_repair_queue()
+
+
+@app.get("/experience/acceptance-resolutions")
+async def experience_acceptance_resolutions():
+    return build_acceptance_resolution_summary()
 
 
 @app.get("/experience/live-acceptance")

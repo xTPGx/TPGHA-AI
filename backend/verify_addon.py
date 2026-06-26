@@ -533,6 +533,16 @@ def main() -> int:
           "/experience/acceptance-repairs" in backend_main
           and "/brain/phase-104" in backend_main,
           "Backend must expose acceptance repair queue and phase 104 summary endpoints.")
+    check("phase 105 acceptance repair resolution exists",
+          "build_acceptance_resolution_summary" in experience_brain
+          and "build_jarvis_phase_105" in experience_brain
+          and "_resolve_acceptance_repairs" in experience_brain
+          and "acceptance_resolution_loop" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "Passed acceptance evidence must resolve matching active repair suggestions.")
+    check("phase 105 endpoints are exposed",
+          "/experience/acceptance-resolutions" in backend_main
+          and "/brain/phase-105" in backend_main,
+          "Backend must expose acceptance resolution summary and phase 105 summary endpoints.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1472,6 +1482,47 @@ def main() -> int:
           r.json().get("phase") == 104
           and "acceptance_repairs" in r.json()
           and "active_repairs" in r.json().get("acceptance_repairs", {}),
+          str(r.json()))
+
+    r = client.post("/experience/live-acceptance/results", json={
+        "test_id": "verifier_failed_acceptance",
+        "status": "passed",
+        "assistant": "atlas",
+        "user": "shawn",
+        "notes": "Verifier confirmed the repaired acceptance check now passes.",
+        "evidence": {"source": "verify_addon", "mutating": False, "reason": "phase_105"},
+    })
+    check("/experience/live-acceptance/results resolves matching repair",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("recorded") is True
+          and r.json().get("resolved_repairs", 0) >= 1,
+          f"status={r.status_code} payload={r.text}")
+
+    r = client.get("/experience/acceptance-repairs")
+    check("/experience/acceptance-repairs drops resolved repaired test",
+          r.status_code == 200
+          and is_json(r)
+          and "verifier_failed_acceptance" not in r.json().get("unrepaired_test_ids", []),
+          str(r.json()))
+
+    r = client.get("/experience/acceptance-resolutions")
+    check("/experience/acceptance-resolutions returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/experience/acceptance-resolutions exposes resolved repair count",
+          r.json().get("summary", {}).get("resolved_repairs", 0) >= 1
+          and "verifier_failed_acceptance" in r.json().get("latest_passed_test_ids", []),
+          str(r.json()))
+
+    r = client.get("/brain/phase-105")
+    check("/brain/phase-105 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-105 has acceptance resolution section",
+          r.json().get("phase") == 105
+          and "acceptance_resolutions" in r.json()
+          and "resolution_policy" in r.json().get("acceptance_resolutions", {}),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

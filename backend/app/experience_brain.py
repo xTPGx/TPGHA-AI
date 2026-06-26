@@ -220,6 +220,51 @@ def build_acceptance_repair_queue() -> dict[str, Any]:
     }
 
 
+def build_acceptance_resolution_summary() -> dict[str, Any]:
+    with get_session() as session:
+        resolved_repairs = session.query(Suggestion).filter(
+            Suggestion.category == "acceptance",
+            Suggestion.action_type == "acceptance_repair",
+            Suggestion.status == "resolved",
+        ).count()
+        active_repairs = session.query(Suggestion).filter(
+            Suggestion.category == "acceptance",
+            Suggestion.action_type == "acceptance_repair",
+            Suggestion.status.in_(["suggested", "draft", "edited"]),
+        ).count()
+        latest_rows = session.query(AcceptanceRun).order_by(
+            AcceptanceRun.created_at.desc()
+        ).limit(100).all()
+    latest_by_test: dict[str, AcceptanceRun] = {}
+    for row in latest_rows:
+        if row.test_id and row.test_id not in latest_by_test:
+            latest_by_test[row.test_id] = row
+    passed = sorted(
+        test_id for test_id, row in latest_by_test.items()
+        if row.status == "passed"
+    )
+    still_failing = sorted(
+        test_id for test_id, row in latest_by_test.items()
+        if row.status in {"failed", "blocked"}
+    )
+    return {
+        "status": "ready",
+        "summary": {
+            "resolved_repairs": resolved_repairs,
+            "active_repairs": active_repairs,
+            "latest_passed_tests": len(passed),
+            "latest_failed_or_blocked_tests": len(still_failing),
+        },
+        "latest_passed_test_ids": passed,
+        "latest_failed_or_blocked_test_ids": still_failing,
+        "resolution_policy": [
+            "A passed acceptance result resolves active repair suggestions for the same test_id.",
+            "Resolved suggestions leave the audit trail intact but disappear from the active repair queue.",
+            "If a later result fails again, Monitor Scan can open a fresh repair suggestion.",
+        ],
+    }
+
+
 async def build_device_acceptance_matrix(config: AppConfig) -> dict[str, Any]:
     states = await safe_get_states()
     graph = await build_house_graph(include_registries=False)
@@ -406,8 +451,9 @@ async def build_live_acceptance_runner(config: AppConfig) -> dict[str, Any]:
 
 def record_live_acceptance_result(payload: AcceptanceResultRequest, version: str) -> dict[str, Any]:
     with get_session() as session:
+        test_id = payload.test_id.strip()
         row = AcceptanceRun(
-            test_id=payload.test_id.strip(),
+            test_id=test_id,
             status=payload.status,
             assistant=payload.assistant or "",
             user=payload.user or "",
@@ -416,9 +462,16 @@ def record_live_acceptance_result(payload: AcceptanceResultRequest, version: str
             version=version,
         )
         session.add(row)
+        resolved_repairs = 0
+        if payload.status == "passed":
+            resolved_repairs = _resolve_acceptance_repairs(session, test_id)
         session.commit()
         session.refresh(row)
-        return {"recorded": True, "result": _acceptance_run_card(row)}
+        return {
+            "recorded": True,
+            "result": _acceptance_run_card(row),
+            "resolved_repairs": resolved_repairs,
+        }
 
 
 def list_live_acceptance_results(limit: int = 100) -> dict[str, Any]:
@@ -613,6 +666,17 @@ async def build_jarvis_phase_104(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_105(version: str) -> dict[str, Any]:
+    resolutions = build_acceptance_resolution_summary()
+    return {
+        "status": resolutions["status"],
+        "version": version,
+        "phase": 105,
+        "acceptance_resolutions": resolutions,
+        "guardrail": "Phase 105 only resolves repair suggestions after a human records passed acceptance evidence.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -661,6 +725,24 @@ def _suggestion_card(row: Suggestion) -> dict[str, Any]:
         "payload": _safe_json(row.payload),
         "status": row.status,
     }
+
+
+def _resolve_acceptance_repairs(session, test_id: str) -> int:
+    if not test_id:
+        return 0
+    rows = session.query(Suggestion).filter(
+        Suggestion.category == "acceptance",
+        Suggestion.action_type == "acceptance_repair",
+        Suggestion.status.in_(["suggested", "draft", "edited"]),
+    ).all()
+    resolved = 0
+    for row in rows:
+        payload = _safe_json(row.payload)
+        if payload.get("test_id") != test_id:
+            continue
+        row.status = "resolved"
+        resolved += 1
+    return resolved
 
 
 def _live_acceptance_report_markdown(report: dict[str, Any], tests: list[dict[str, Any]]) -> str:

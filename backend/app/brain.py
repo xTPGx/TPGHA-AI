@@ -60,6 +60,15 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             )
             .count()
         )
+        resolved_acceptance_repairs = (
+            session.query(Suggestion)
+            .filter(
+                Suggestion.category == "acceptance",
+                Suggestion.action_type == "acceptance_repair",
+                Suggestion.status == "resolved",
+            )
+            .count()
+        )
 
     settings = get_settings()
     ai = get_ai_client()
@@ -158,6 +167,7 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
         "failed_acceptance": failed_acceptance,
         "historical_failed_acceptance": historical_failed_acceptance,
         "acceptance_repairs": acceptance_repairs,
+        "resolved_acceptance_repairs": resolved_acceptance_repairs,
     }
     room_context_ready = counts.get("rooms", 0) > 0 and bool(voice_sources)
     security_ready = bool(settings.security_pin)
@@ -743,6 +753,19 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
                 "Later passed evidence clears the failure state because the queue evaluates the newest result per test.",
             ],
             "next": "Resolve repair suggestions, rerun the real-house test, and record a passed acceptance result.",
+        },
+        {
+            "id": "acceptance_resolution_loop",
+            "title": "Acceptance Resolution Loop",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Recording passed acceptance evidence resolves matching active acceptance repair suggestions.",
+                f"{acceptance_counts['resolved_acceptance_repairs']} acceptance repair suggestion(s) have been resolved.",
+                "Resolved suggestions keep the audit trail but disappear from active repair queues.",
+                "If the same test fails again later, Monitor Scan can open a fresh repair item.",
+            ],
+            "next": "Use pass/fail evidence after every real-house acceptance run to keep the repair queue accurate.",
         },
         {
             "id": "release_checklist",
