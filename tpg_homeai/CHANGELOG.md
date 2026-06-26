@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.27
+
+- Added Jarvis phase 123 role action policy API.
+- Added `/ops/role-action-policy` with allowed/denied Jarvis capabilities for admin, manager, resident, kiosk, and guest roles.
+- `/ops/role-dashboard` now includes the same action policy so Dashboard can show allowed actions and owner-only boundaries.
+- Dashboard now highlights chat, scheduled-task, dashboard, and system-setup access by role.
+- Added `/brain/phase-123` and Jarvis Brain readiness evidence for role action policy boundaries.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.26
 
 - Added Jarvis phase 122 role dashboard acceptance evidence.

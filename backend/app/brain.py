@@ -984,6 +984,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Let owners launch role-specific acceptance runs from the dashboard after live-house test execution controls are hardened.",
         },
         {
+            "id": "role_action_policy_api",
+            "title": "Role Action Policy API",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/ops/role-action-policy returns allowed/denied Jarvis capabilities per HA-derived role.",
+                "Residents and kiosk/shared users can chat, control approved devices, and create scheduled-task requests.",
+                "Dashboard authoring, discovery mapping, system setup, users, and permissions stay owner/manager/admin scoped.",
+            ],
+            "next": "Display role policy denials inside Chat when a user asks for a protected owner-only change.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

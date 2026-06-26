@@ -317,6 +317,7 @@ async def build_role_dashboard_summary(config: AppConfig, role: str = "guest", u
     is_owner_scope = normalized_role in {"admin", "manager"}
     is_shared = normalized_role in {"kiosk", "guest"}
     acceptance = _dashboard_acceptance_evidence(normalized_role, user)
+    action_policy = build_role_action_policy(normalized_role)
     cards = (
         _owner_dashboard_cards(discovery, acceptance)
         if is_owner_scope
@@ -345,12 +346,43 @@ async def build_role_dashboard_summary(config: AppConfig, role: str = "guest", u
             "can_use_house_controls": normalized_role in {"admin", "manager", "resident", "kiosk"},
         },
         "acceptance": acceptance,
+        "action_policy": action_policy,
         "cards": cards,
         "guardrails": [
             "Dashboard owner setup actions are hidden unless the resolved HA user is admin/manager.",
             "Residents and shared panels can chat, use approved controls, and create scheduled-task requests.",
             "Dashboard creation, user management, discovery mapping, and system setup remain owner/manager scope.",
         ],
+    }
+
+
+def build_role_action_policy(role: str = "guest") -> dict[str, Any]:
+    normalized_role = (role or "guest").strip().lower()
+    if normalized_role not in {"admin", "manager", "resident", "kiosk", "guest"}:
+        normalized_role = "guest"
+    can_operate_house = normalized_role in {"admin", "manager", "resident", "kiosk"}
+    can_manage = normalized_role in {"admin", "manager"}
+    capabilities = [
+        _role_capability("general_conversation", "Ask questions and brainstorm", True, "ChatGPT-style conversation is available to every role."),
+        _role_capability("web_research", "Ask for current information", True, "Search/research stays conversational and does not change Home Assistant."),
+        _role_capability("safe_device_control", "Control approved lights, fans, climate, covers, and music", can_operate_house, "Allowed for household users; critical/security actions still follow policy."),
+        _role_capability("scheduled_tasks", "Create scheduled-task requests", can_operate_house, "Residents and shared panels can ask Jarvis to draft/install safe HA schedules through guarded automation flow."),
+        _role_capability("security_disable", "Unlock, open garage, or disarm", can_operate_house, "Requires confirmation/PIN and per-user permission even when the role can operate house devices."),
+        _role_capability("dashboard_authoring", "Create or edit HA dashboards", can_manage, "Owner/manager scope only because dashboards change the shared HA experience."),
+        _role_capability("discovery_mapping", "Approve/map discovered entities", can_manage, "Owner/manager scope only to protect the house capability graph."),
+        _role_capability("system_setup", "Change setup, integrations, users, permissions, or diagnostics", normalized_role == "admin", "Owner/admin scope only."),
+    ]
+    denied = [item for item in capabilities if not item["allowed"]]
+    return {
+        "role": normalized_role,
+        "status": "ready",
+        "capabilities": capabilities,
+        "counts": {
+            "allowed": len(capabilities) - len(denied),
+            "denied": len(denied),
+        },
+        "highlights": _role_policy_highlights(normalized_role, capabilities),
+        "guardrail": "Home Assistant remains the access authority; TPG HomeAI never upgrades a non-admin HA user into owner/admin scope.",
     }
 
 
@@ -417,6 +449,48 @@ def _entity_card(entity: Any) -> dict[str, Any]:
 
 def _integration(integration_id: str, name: str, configured: bool, detail: str) -> dict[str, Any]:
     return {"id": integration_id, "name": name, "configured": bool(configured), "detail": detail}
+
+
+def _role_capability(capability_id: str, title: str, allowed: bool, detail: str) -> dict[str, Any]:
+    return {
+        "id": capability_id,
+        "title": title,
+        "allowed": bool(allowed),
+        "detail": detail,
+    }
+
+
+def _role_policy_highlights(role: str, capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_id = {item["id"]: item for item in capabilities}
+    highlights = [
+        {
+            "id": "chat",
+            "label": "Chat + advice",
+            "allowed": True,
+            "detail": "Conversational Jarvis stays available.",
+        },
+        {
+            "id": "scheduled_tasks",
+            "label": "Scheduled tasks",
+            "allowed": bool(by_id.get("scheduled_tasks", {}).get("allowed")),
+            "detail": "Create safe schedule requests through Jarvis.",
+        },
+        {
+            "id": "dashboards",
+            "label": "Dashboards",
+            "allowed": bool(by_id.get("dashboard_authoring", {}).get("allowed")),
+            "detail": "Shared HA dashboard editing is owner/manager scope.",
+        },
+        {
+            "id": "system",
+            "label": "System setup",
+            "allowed": bool(by_id.get("system_setup", {}).get("allowed")),
+            "detail": "Users, permissions, integrations, and diagnostics are owner scope.",
+        },
+    ]
+    if role == "guest":
+        highlights[1]["detail"] = "Guests can chat but cannot schedule house changes."
+    return highlights
 
 
 def _sidebar_check(check_id: str, title: str, ok: bool, detail: str) -> dict[str, Any]:

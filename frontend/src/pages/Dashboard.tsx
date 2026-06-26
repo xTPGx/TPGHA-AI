@@ -231,6 +231,19 @@ function DashboardRoleSummary({ summary, session }: { summary: any; session: any
           <MiniEvidence label="Failed/blocked" value={summary.acceptance.failed_or_blocked ?? 0} warn={summary.acceptance.failed_or_blocked > 0} />
         </div>
       )}
+      {summary.action_policy?.highlights?.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {summary.action_policy.highlights.map((item: any) => (
+            <div key={item.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold text-slate-100">{item.label}</div>
+                <Badge tone={item.allowed ? "good" : "slate"}>{item.allowed ? "allowed" : "owner"}</Badge>
+              </div>
+              <div className="mt-1 text-sm text-slate-400">{item.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
       {!summary.permissions?.admin_actions_visible && (
         <div className="mt-4 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-400">
           Owner setup, discovery mapping, dashboards, users, and system configuration stay hidden unless Home Assistant grants admin/manager access.

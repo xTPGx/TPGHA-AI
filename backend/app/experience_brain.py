@@ -1060,6 +1060,23 @@ async def build_jarvis_phase_122(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_123(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 123,
+        "role_action_policy": {
+            "source_endpoint": "/ops/role-action-policy",
+            "resident_can_chat": True,
+            "resident_can_create_scheduled_tasks": True,
+            "resident_cannot_manage_dashboards": True,
+            "resident_cannot_manage_system": True,
+            "admin_can_manage_all": True,
+        },
+        "guardrail": "Phase 123 documents and exposes the role action policy; enforcement remains server-side in the command router.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

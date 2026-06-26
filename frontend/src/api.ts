@@ -237,6 +237,8 @@ export const api = {
     if (user) params.set("user", user);
     return http<any>(`/ops/role-dashboard?${params.toString()}`);
   },
+  roleActionPolicy: (role: string) =>
+    http<any>(`/ops/role-action-policy?role=${encodeURIComponent(role || "guest")}`),
   recordLiveAcceptanceResult: (body: Record<string, any>) =>
     http<any>("/experience/live-acceptance/results", {
       method: "POST",

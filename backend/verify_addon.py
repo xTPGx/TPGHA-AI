@@ -707,6 +707,17 @@ def main() -> int:
     check("phase 122 endpoint is exposed",
           "/brain/phase-122" in backend_main,
           "Backend must expose the phase 122 role dashboard acceptance evidence marker.")
+    check("phase 123 role action policy API is wired",
+          "/ops/role-action-policy" in backend_main
+          and "build_role_action_policy" in operations_brain
+          and "roleActionPolicy" in api_frontend
+          and "action_policy" in (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+          and "role_action_policy_api" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_123" in experience_brain,
+          "Role action policy must be reusable and visible on Dashboard.")
+    check("phase 123 endpoint is exposed",
+          "/brain/phase-123" in backend_main,
+          "Backend must expose the phase 123 role action policy marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1916,6 +1927,36 @@ def main() -> int:
           and r.json().get("acceptance", {}).get("passed", 0) >= 1
           and r.json().get("acceptance", {}).get("latest", {}).get("user") == "jordie",
           str(r.json()))
+    check("/ops/role-dashboard resident embeds action policy",
+          r.json().get("action_policy", {}).get("role") == "resident"
+          and any(
+              item.get("id") == "scheduled_tasks" and item.get("allowed") is True
+              for item in r.json().get("action_policy", {}).get("capabilities", [])
+          )
+          and any(
+              item.get("id") == "dashboard_authoring" and item.get("allowed") is False
+              for item in r.json().get("action_policy", {}).get("capabilities", [])
+          ),
+          str(r.json()))
+
+    r = client.get("/ops/role-action-policy?role=resident")
+    check("/ops/role-action-policy returns resident policy",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    policy = r.json()
+    check("/ops/role-action-policy resident can schedule but not manage",
+          any(item.get("id") == "scheduled_tasks" and item.get("allowed") is True for item in policy.get("capabilities", []))
+          and any(item.get("id") == "dashboard_authoring" and item.get("allowed") is False for item in policy.get("capabilities", []))
+          and any(item.get("id") == "system_setup" and item.get("allowed") is False for item in policy.get("capabilities", [])),
+          str(policy))
+
+    r = client.get("/ops/role-action-policy?role=admin")
+    check("/ops/role-action-policy admin can manage all",
+          r.status_code == 200
+          and is_json(r)
+          and any(item.get("id") == "dashboard_authoring" and item.get("allowed") is True for item in r.json().get("capabilities", []))
+          and any(item.get("id") == "system_setup" and item.get("allowed") is True for item in r.json().get("capabilities", [])),
+          str(r.json()))
 
     r = client.get("/brain/phase-121")
     check("/brain/phase-121 returns JSON",
@@ -1935,6 +1976,17 @@ def main() -> int:
           r.json().get("phase") == 122
           and r.json().get("role_dashboard_acceptance_evidence", {}).get("source_endpoint") == "/ops/role-dashboard"
           and r.json().get("role_dashboard_acceptance_evidence", {}).get("shows_passed_and_failed_blocked_counts") is True,
+          str(r.json()))
+
+    r = client.get("/brain/phase-123")
+    check("/brain/phase-123 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-123 has role action policy marker",
+          r.json().get("phase") == 123
+          and r.json().get("role_action_policy", {}).get("source_endpoint") == "/ops/role-action-policy"
+          and r.json().get("role_action_policy", {}).get("resident_can_create_scheduled_tasks") is True
+          and r.json().get("role_action_policy", {}).get("resident_cannot_manage_dashboards") is True,
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")
