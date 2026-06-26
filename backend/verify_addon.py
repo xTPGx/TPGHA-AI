@@ -48,6 +48,7 @@ from app.agent_runtime import chat_route_decision  # noqa: E402
 from app.ai.client import pre_route  # noqa: E402
 from app.db.database import get_session, init_db  # noqa: E402
 from app.db.models import MemoryItem, Suggestion  # noqa: E402
+from app.weather import extract_weather_location  # noqa: E402
 from app.main import APP_VERSION, app  # noqa: E402
 from app.router.intent_router import _strip_assistant_address  # noqa: E402
 
@@ -115,6 +116,7 @@ def main() -> int:
     assistants_frontend = (repo_root / "frontend" / "src" / "pages" / "Assistants.tsx").read_text(encoding="utf-8")
     ai_client_source = (repo_root / "backend" / "app" / "ai" / "client.py").read_text(encoding="utf-8")
     conversation_source = (repo_root / "backend" / "app" / "conversation.py").read_text(encoding="utf-8")
+    weather_source = (repo_root / "backend" / "app" / "weather.py").read_text(encoding="utf-8")
     router_source = (repo_root / "backend" / "app" / "router" / "intent_router.py").read_text(encoding="utf-8")
     settings_source = (repo_root / "backend" / "app" / "settings.py").read_text(encoding="utf-8")
     db_models = (repo_root / "backend" / "app" / "db" / "models.py").read_text(encoding="utf-8")
@@ -222,6 +224,13 @@ def main() -> int:
           and "Do not ask the user to list devices" in conversation_source
           and "reason from it directly" in ai_client_source,
           "Atlas must ground advice in HA/TPG rooms, entities, weak spots, and unavailable devices.")
+    check("Named-location weather uses deterministic provider",
+          "fetch_weather_for_message" in conversation_source
+          and "format_weather_context" in conversation_source
+          and "should_fetch_weather" in conversation_source
+          and "open-meteo" in weather_source
+          and "geocoding-api.open-meteo.com" in weather_source,
+          "Named-location weather should use a weather API before generic web research.")
     check("Chat mic gives actionable permission diagnostics",
           "Diagnose mic" in chat_frontend
           and "microphoneReadinessReport" in chat_frontend
@@ -275,8 +284,11 @@ def main() -> int:
           and "Pause when you are done speaking" in chat_frontend,
           "Voice mode should auto-send after a pause, speak the answer, and re-arm listening without push-to-stop turns.")
     check("Chat live voice supports faster turns and barge-in",
-          "VOICE_SILENCE_STOP_MS = 520" in chat_frontend
+          "VOICE_CALIBRATION_MS = 650" in chat_frontend
+          and "VOICE_SILENCE_STOP_MS = 680" in chat_frontend
           and "VOICE_RESUME_DELAY_MS = 120" in chat_frontend
+          and "VOICE_DYNAMIC_NOISE_MULTIPLIER" in chat_frontend
+          and "cleanVoiceTranscript" in chat_frontend
           and "startSpeechRecognition" in chat_frontend
           and "startBargeInDetection" in chat_frontend
           and "VOICE_BARGE_RMS_THRESHOLD" in chat_frontend
@@ -3610,6 +3622,12 @@ def main() -> int:
     check("agent runtime routes scheduled tasks to HA action path",
           chat_route_decision("Create scheduled task. Turn off all lights at 10 PM.").get("path") == "home_action",
           str(chat_route_decision("Create scheduled task. Turn off all lights at 10 PM.")))
+    check("weather parser extracts Banning from assistant phrase",
+          extract_weather_location("hey Alice can you tell me what the weather is like today in Banning").lower() == "banning",
+          extract_weather_location("hey Alice can you tell me what the weather is like today in Banning"))
+    check("weather parser extracts Chicago Illinois from assistant phrase",
+          extract_weather_location("hey Alice can you tell me the weather in Chicago Illinois").lower() == "chicago illinois",
+          extract_weather_location("hey Alice can you tell me the weather in Chicago Illinois"))
 
     r = client.post("/chat", json={
         "assistant": "atlas",

@@ -18,6 +18,7 @@ from .models.schemas import Assistant, User
 from .house_assets import approved_asset_context
 from .research import format_search_context, search_web, should_search
 from .router.resolver import Resolver
+from .weather import fetch_weather_for_message, format_weather_context, should_fetch_weather
 
 
 async def answer_general(
@@ -36,7 +37,13 @@ async def answer_general(
     user_id = user.id if user else (user_name or "")
     house_context = _house_context(config, states, message)
     research = None
-    if should_search(message):
+    weather = None
+    if should_fetch_weather(message):
+        weather = await fetch_weather_for_message(message)
+        weather_context = format_weather_context(weather)
+        if weather_context:
+            house_context = f"{house_context}\n\n{weather_context}"
+    if should_search(message) and not weather:
         research = await search_web(message, max_results=5)
         house_context = f"{house_context}\n\n{format_search_context(research)}"
     recent_context = "\n\n".join(
@@ -64,6 +71,7 @@ async def answer_general(
             "house_context": house_context,
             "conversation_context": recent_context,
             "research": research,
+            "weather": weather,
             "attachments": [
                 {
                     "filename": item.get("filename", ""),

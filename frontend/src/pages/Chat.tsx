@@ -39,15 +39,19 @@ type SpeechRecognitionCtor = new () => {
 type MicState = "idle" | "recording" | "transcribing";
 type RecorderOptions = { autoStop?: boolean };
 
-const VOICE_RMS_THRESHOLD = 0.016;
+const VOICE_RMS_THRESHOLD = 0.024;
 const VOICE_AUDIO_BITS_PER_SECOND = 32000;
-const VOICE_MIN_LISTEN_MS = 420;
-const VOICE_SILENCE_STOP_MS = 520;
-const VOICE_NO_SPEECH_TIMEOUT_MS = 6000;
+const VOICE_CALIBRATION_MS = 650;
+const VOICE_START_MIN_MS = 160;
+const VOICE_MIN_LISTEN_MS = 700;
+const VOICE_SILENCE_STOP_MS = 680;
+const VOICE_NO_SPEECH_TIMEOUT_MS = 5200;
 const VOICE_MAX_TURN_MS = 45000;
 const VOICE_RESUME_DELAY_MS = 120;
-const VOICE_BARGE_RMS_THRESHOLD = 0.022;
-const VOICE_BARGE_MIN_MS = 90;
+const VOICE_DYNAMIC_NOISE_MULTIPLIER = 3.2;
+const VOICE_DYNAMIC_NOISE_OFFSET = 0.012;
+const VOICE_BARGE_RMS_THRESHOLD = 0.032;
+const VOICE_BARGE_MIN_MS = 160;
 const VOICE_BARGE_GRACE_MS = 220;
 
 const FAST_VOICE_GENERAL_PATTERN =
@@ -151,12 +155,12 @@ function matchesConversationWakePhrase(heard: string, phrases: string[]): boolea
 // Returns the command text following a wake word, or "" if no wake word was
 // heard. "Jarvis, turn off the office light" -> "turn off the office light".
 function extractCommandAfterWakeWord(heard: string, wakeWords: string[]): string {
-  const lower = heard.toLowerCase();
   for (const word of wakeWords) {
     if (!word) continue;
-    const idx = lower.indexOf(word);
-    if (idx === -1) continue;
-    const rest = heard.slice(idx + word.length).replace(/^[\s,.:!?-]+/, "").trim();
+    const pattern = new RegExp(`^\\s*(?:hey|hi|ok|okay)?\\s*${escapeRegex(word)}\\b`, "i");
+    const match = pattern.exec(heard);
+    if (!match) continue;
+    const rest = heard.slice(match[0].length).replace(/^[\s,.:!?-]+/, "").trim();
     return rest;
   }
   return "";
@@ -228,6 +232,28 @@ function localVoiceControlCommand(text: string) {
     return "end";
   }
   return "";
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function cleanVoiceTranscript(value: string, wakeWords: string[] = []) {
+  let text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const names = Array.from(new Set([
+    "atlas",
+    "atlass",
+    "alice",
+    "alex",
+    "jarvis",
+    "chatty",
+    "computer",
+    ...wakeWords.map((word) => normalizeWakeText(word)).filter(Boolean),
+  ])).sort((a, b) => b.length - a.length);
+  const namePattern = names.map(escapeRegex).join("|");
+  text = text.replace(new RegExp(`^\\s*(?:hey|hi|ok|okay)?\\s*(?:${namePattern})\\b[\\s,.:;!?-]*`, "i"), "").trim();
+  return text;
 }
 
 async function microphoneReadinessReport() {
@@ -532,8 +558,12 @@ export default function Chat() {
   const bargeVoiceStartedAtRef = useRef(0);
   const assistantSpeechStartedAtRef = useRef(0);
   const voiceStartedRef = useRef(false);
+  const voiceCandidateStartedAtRef = useRef(0);
   const lastVoiceAtRef = useRef(0);
   const recordingStartedAtRef = useRef(0);
+  const vadNoiseFloorRef = useRef(VOICE_RMS_THRESHOLD);
+  const vadCalibrationSumRef = useRef(0);
+  const vadCalibrationCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentUrlsRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -734,8 +764,9 @@ export default function Chat() {
         scheduleResumeVoiceConversation(250);
         return;
       }
-      if (speechSupported && startSpeechRecognition()) return;
-      void startRecorder({ autoStop: true });
+      void startRecorder({ autoStop: true }).then((recordingStarted) => {
+        if (!recordingStarted && speechSupported) startSpeechRecognition();
+      });
     }, delayMs);
   };
 
@@ -784,8 +815,8 @@ export default function Chat() {
     if (micStateRef.current === "idle") {
       setVoiceError(null);
       discardRecordingRef.current = false;
-      if (speechSupported && startSpeechRecognition()) return;
-      await startRecorder({ autoStop: true });
+      const recordingStarted = await startRecorder({ autoStop: true });
+      if (!recordingStarted && speechSupported) startSpeechRecognition();
     }
   }
 
@@ -1239,9 +1270,9 @@ export default function Chat() {
     clearResumeVoiceTimer();
     window.setTimeout(() => {
       if (!voiceConversationActiveRef.current) return;
-      if (speechSupported && startSpeechRecognition()) return;
       void startRecorder({ autoStop: true }).then((recordingStarted) => {
         if (recordingStarted) return;
+        if (speechSupported && startSpeechRecognition()) return;
         voiceConversationActiveRef.current = false;
         setVoiceConversationActive(false);
         setVoiceError(microphoneUnavailableMessage());
@@ -1452,8 +1483,12 @@ export default function Chat() {
     vadSourceRef.current = source;
     vadAnalyserRef.current = analyser;
     voiceStartedRef.current = false;
+    voiceCandidateStartedAtRef.current = 0;
     recordingStartedAtRef.current = performance.now();
     lastVoiceAtRef.current = recordingStartedAtRef.current;
+    vadNoiseFloorRef.current = VOICE_RMS_THRESHOLD;
+    vadCalibrationSumRef.current = 0;
+    vadCalibrationCountRef.current = 0;
     const data = new Uint8Array(analyser.fftSize);
 
     const tick = () => {
@@ -1467,9 +1502,35 @@ export default function Chat() {
       const rms = Math.sqrt(sum / data.length);
       const now = performance.now();
       const elapsed = now - recordingStartedAtRef.current;
-      if (rms >= VOICE_RMS_THRESHOLD) {
-        voiceStartedRef.current = true;
-        lastVoiceAtRef.current = now;
+      if (elapsed < VOICE_CALIBRATION_MS) {
+        vadCalibrationSumRef.current += rms;
+        vadCalibrationCountRef.current += 1;
+        vadFrameRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+      if (vadCalibrationCountRef.current > 0) {
+        const averageNoise = vadCalibrationSumRef.current / vadCalibrationCountRef.current;
+        vadNoiseFloorRef.current = Math.max(averageNoise, VOICE_RMS_THRESHOLD * 0.55);
+        vadCalibrationCountRef.current = 0;
+        vadCalibrationSumRef.current = 0;
+      }
+      const noiseFloor = vadNoiseFloorRef.current;
+      const speechThreshold = Math.max(
+        VOICE_RMS_THRESHOLD,
+        noiseFloor * VOICE_DYNAMIC_NOISE_MULTIPLIER,
+        noiseFloor + VOICE_DYNAMIC_NOISE_OFFSET,
+      );
+      const activeSpeechThreshold = voiceStartedRef.current
+        ? Math.max(VOICE_RMS_THRESHOLD * 0.65, noiseFloor + 0.006, speechThreshold * 0.62)
+        : speechThreshold;
+      if (rms >= activeSpeechThreshold) {
+        if (!voiceCandidateStartedAtRef.current) voiceCandidateStartedAtRef.current = now;
+        if (voiceStartedRef.current || now - voiceCandidateStartedAtRef.current >= VOICE_START_MIN_MS) {
+          voiceStartedRef.current = true;
+          lastVoiceAtRef.current = now;
+        }
+      } else {
+        voiceCandidateStartedAtRef.current = 0;
       }
       const finishedSpeaking =
         voiceStartedRef.current &&
@@ -1507,7 +1568,8 @@ export default function Chat() {
     try {
       const extension = blob.type.includes("mp4") || blob.type.includes("aac") ? "m4a" : "webm";
       const response = await api.voiceTranscribe(blob, `voice-input.${extension}`);
-      const transcript = String(response.text || "").trim();
+      const rawTranscript = String(response.text || "").trim();
+      const transcript = cleanVoiceTranscript(rawTranscript, wakeWords);
       if (!response.success || !transcript) {
         if (!voiceConversationActiveRef.current) {
           setVoiceError(response.error || "I could not understand the microphone recording.");
@@ -1548,6 +1610,13 @@ export default function Chat() {
       recognition.interimResults = true;
       recognition.lang = "en-US";
       let finalTranscript = "";
+      const recognitionTimeout = window.setTimeout(() => {
+        try {
+          recognition.stop();
+        } catch {
+          /* ignore */
+        }
+      }, 12000);
       recognition.onresult = (event: any) => {
         let interimTranscript = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -1558,6 +1627,7 @@ export default function Chat() {
         setText((finalTranscript || interimTranscript).trim());
       };
       recognition.onerror = (event: any) => {
+        window.clearTimeout(recognitionTimeout);
         const error = String(event?.error || event?.message || "");
         setMicState("idle");
         setListening(false);
@@ -1570,13 +1640,14 @@ export default function Chat() {
         setVoiceError(microphoneErrorMessage(event));
       };
       recognition.onend = () => {
+        window.clearTimeout(recognitionTimeout);
         setMicState("idle");
         setListening(false);
         if (discardRecordingRef.current) {
           discardRecordingRef.current = false;
           return;
         }
-        const transcript = finalTranscript.trim();
+        const transcript = cleanVoiceTranscript(finalTranscript.trim(), wakeWords);
         if (!transcript) {
           scheduleResumeVoiceConversation();
           return;
@@ -1699,10 +1770,9 @@ export default function Chat() {
     if (micState === "transcribing") return;
 
     discardRecordingRef.current = false;
-    if (speechSupported && startSpeechRecognition()) return;
-
     const recordingStarted = await startRecorder({ autoStop: true });
     if (recordingStarted) return;
+    if (speechSupported && startSpeechRecognition()) return;
 
     voiceConversationActiveRef.current = false;
     setVoiceConversationActive(false);

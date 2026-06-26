@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.70
+
+- Reworked live voice turns to prefer calibrated recorder/VAD capture over browser speech recognition when running conversational mic mode.
+- Added dynamic room-noise calibration and sustained-speech detection so small clicks, squeaks, and background sounds are less likely to fire a command.
+- Tightened wake-word command matching to leading wake words and cleaned Atlas/Alice-style assistant name mishears from transcribed turns.
+- Added deterministic named-location weather lookup through Open-Meteo before generic web research, including phrases like Banning and Chicago, Illinois.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.69
 
 - Added an AI-first chat runtime gate so normal conversation, advice, brainstorming, weather, and image analysis go directly to the GPT agent before Home Assistant command routing.
