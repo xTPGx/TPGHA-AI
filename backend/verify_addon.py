@@ -921,6 +921,18 @@ def main() -> int:
     check("phase 140 endpoint is exposed",
           "/brain/phase-140" in backend_main,
           "Backend must expose the phase 140 release decision filter marker.")
+    check("phase 141 release decision search is wired",
+          "/release/status-history/search" in backend_main
+          and "search_release_status_snapshots" in experience_brain
+          and "Search release history" in dashboard_frontend
+          and "Clear search" in dashboard_frontend
+          and "api.releaseStatusSearch" in dashboard_frontend
+          and "release_decision_search" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_141" in experience_brain,
+          "Owners need searchable release snapshots by version, label, notes, and blockers.")
+    check("phase 141 endpoint is exposed",
+          "/brain/phase-141" in backend_main,
+          "Backend must expose the phase 141 release decision search marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2591,6 +2603,32 @@ def main() -> int:
           r.json().get("phase") == 140
           and r.json().get("release_decision_filters", {}).get("endpoint") == "/release/status-history/filter"
           and "Show held" in r.json().get("release_decision_filters", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.get("/release/status-history/search?q=verifier&decision=held")
+    check("/release/status-history/search returns matching held snapshots",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("query") == "verifier"
+          and r.json().get("decision") == "held"
+          and r.json().get("total_matching", 0) >= 1
+          and "# TPG HomeAI Release Decision Search" in r.json().get("markdown", ""),
+          str(r.json()))
+    r = client.get("/release/status-history/search?q=not-a-real-release-note")
+    check("/release/status-history/search returns empty results cleanly",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("total_matching") == 0
+          and "No matching release snapshots" in r.json().get("markdown", ""),
+          str(r.json()))
+    r = client.get("/brain/phase-141")
+    check("/brain/phase-141 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-141 has release decision search marker",
+          r.json().get("phase") == 141
+          and r.json().get("release_decision_search", {}).get("endpoint") == "/release/status-history/search"
+          and "Search release history" in r.json().get("release_decision_search", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

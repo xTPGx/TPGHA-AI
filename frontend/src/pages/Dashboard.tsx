@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [releaseComparison, setReleaseComparison] = useState<any>(null);
   const [releaseDecisionDigest, setReleaseDecisionDigest] = useState<any>(null);
   const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
+  const [releaseSearchTerm, setReleaseSearchTerm] = useState("");
   const [releaseMessage, setReleaseMessage] = useState("");
   const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
@@ -256,7 +257,9 @@ export default function Dashboard() {
   const changeReleaseDecisionFilter = async (decision: ReleaseDecisionFilter) => {
     setReleaseDecisionFilter(decision);
     try {
-      setReleaseHistory(await api.releaseStatusFilter(decision));
+      setReleaseHistory(releaseSearchTerm.trim()
+        ? await api.releaseStatusSearch(releaseSearchTerm, decision)
+        : await api.releaseStatusFilter(decision));
       setReleaseMessage(
         decision === "all"
           ? "Showing all release snapshots."
@@ -264,6 +267,32 @@ export default function Dashboard() {
       );
     } catch (e: any) {
       setReleaseMessage(`Filter failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const searchReleaseHistory = async () => {
+    const query = releaseSearchTerm.trim();
+    if (!query) {
+      setReleaseHistory(await api.releaseStatusFilter(releaseDecisionFilter));
+      setReleaseMessage("Release history search cleared.");
+      return;
+    }
+    try {
+      const result = await api.releaseStatusSearch(query, releaseDecisionFilter);
+      setReleaseHistory(result);
+      setReleaseMessage(`${result.total_matching || 0} release snapshot${result.total_matching === 1 ? "" : "s"} matched "${query}".`);
+    } catch (e: any) {
+      setReleaseMessage(`Search failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const clearReleaseSearch = async () => {
+    setReleaseSearchTerm("");
+    try {
+      setReleaseHistory(await api.releaseStatusFilter(releaseDecisionFilter));
+      setReleaseMessage("Release history search cleared.");
+    } catch (e: any) {
+      setReleaseMessage(`Clear search failed: ${e?.message || String(e)}`);
     }
   };
 
@@ -325,6 +354,7 @@ export default function Dashboard() {
             comparison={releaseComparison}
             decisionDigest={releaseDecisionDigest}
             decisionFilter={releaseDecisionFilter}
+            searchTerm={releaseSearchTerm}
             message={releaseMessage}
             onCopy={copyReleaseChecklist}
             onDownload={downloadReleaseChecklist}
@@ -337,6 +367,9 @@ export default function Dashboard() {
             onCopyDecisionDigest={copyDecisionDigest}
             onDownloadDecisionDigest={downloadDecisionDigest}
             onDecisionFilter={changeReleaseDecisionFilter}
+            onSearchTermChange={setReleaseSearchTerm}
+            onSearch={searchReleaseHistory}
+            onClearSearch={clearReleaseSearch}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -508,6 +541,7 @@ function DashboardReleaseStatus({
   comparison,
   decisionDigest,
   decisionFilter,
+  searchTerm,
   message,
   onCopy,
   onDownload,
@@ -520,12 +554,16 @@ function DashboardReleaseStatus({
   onCopyDecisionDigest,
   onDownloadDecisionDigest,
   onDecisionFilter,
+  onSearchTermChange,
+  onSearch,
+  onClearSearch,
 }: {
   release: any;
   history: any;
   comparison: any;
   decisionDigest: any;
   decisionFilter: ReleaseDecisionFilter;
+  searchTerm: string;
   message: string;
   onCopy: () => void;
   onDownload: () => void;
@@ -538,6 +576,9 @@ function DashboardReleaseStatus({
   onCopyDecisionDigest: () => void;
   onDownloadDecisionDigest: () => void;
   onDecisionFilter: (decision: ReleaseDecisionFilter) => void;
+  onSearchTermChange: (value: string) => void;
+  onSearch: () => void;
+  onClearSearch: () => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -593,6 +634,19 @@ function DashboardReleaseStatus({
                 {releaseDecisionFilterLabels[decision]}
               </Button>
             ))}
+          </div>
+          <div className="mb-3 flex flex-col gap-2 md:flex-row">
+            <input
+              className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
+              value={searchTerm}
+              onChange={(event) => onSearchTermChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") onSearch();
+              }}
+              placeholder="Search release history..."
+            />
+            <Button variant="ghost" onClick={onSearch}>Search release history</Button>
+            <Button variant="ghost" onClick={onClearSearch} disabled={!searchTerm}>Clear search</Button>
           </div>
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
             {snapshots.slice(0, 3).map((snapshot: any) => (

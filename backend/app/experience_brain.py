@@ -734,6 +734,31 @@ def filter_release_status_snapshots(decision: str = "all", limit: int = 20) -> d
     return result
 
 
+def search_release_status_snapshots(q: str = "", decision: str = "all", limit: int = 20) -> dict[str, Any]:
+    query = str(q or "").lower().strip()
+    base = filter_release_status_snapshots(decision=decision, limit=200)
+    snapshots = base.get("snapshots", []) or []
+    if query:
+        snapshots = [
+            snapshot for snapshot in snapshots
+            if query in _release_snapshot_search_haystack(snapshot)
+        ]
+    limit = max(1, min(int(limit or 20), 200))
+    matches = snapshots[:limit]
+    result = {
+        "status": "ready",
+        "query": query,
+        "decision": base.get("decision") or "all",
+        "count": len(matches),
+        "total_matching": len(snapshots),
+        "limit": limit,
+        "snapshots": matches,
+        "markdown": "",
+    }
+    result["markdown"] = _release_decision_search_markdown(result)
+    return result
+
+
 def annotate_release_status_snapshot(snapshot_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     label = str(payload.get("label") or "")[:128]
     decision = str(payload.get("decision") or "")[:32]
@@ -830,6 +855,41 @@ def _release_decision_filter_markdown(result: dict[str, Any]) -> str:
     else:
         lines.append("- No matching release snapshots.")
     return "\n".join(lines).strip() + "\n"
+
+
+def _release_decision_search_markdown(result: dict[str, Any]) -> str:
+    lines = [
+        "# TPG HomeAI Release Decision Search",
+        "",
+        f"Query: {result.get('query') or '(empty)'}",
+        f"Decision filter: {result.get('decision') or 'all'}",
+        f"Matching snapshots: {result.get('total_matching', 0)}",
+        "",
+    ]
+    snapshots = result.get("snapshots", []) or []
+    if snapshots:
+        for snapshot in snapshots:
+            lines.append(_release_decision_line(snapshot))
+    else:
+        lines.append("- No matching release snapshots.")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _release_snapshot_search_haystack(snapshot: dict[str, Any]) -> str:
+    blockers = " ".join(
+        " ".join(str(value) for value in blocker.values())
+        for blocker in snapshot.get("blockers", []) or []
+        if isinstance(blocker, dict)
+    )
+    values = [
+        snapshot.get("version"),
+        snapshot.get("status"),
+        snapshot.get("label"),
+        snapshot.get("decision"),
+        snapshot.get("notes"),
+        blockers,
+    ]
+    return " ".join(str(value or "") for value in values).lower()
 
 
 def _release_snapshot_delta(latest: dict[str, Any] | None, previous: dict[str, Any] | None) -> dict[str, Any]:
@@ -1699,6 +1759,20 @@ async def build_jarvis_phase_140(version: str) -> dict[str, Any]:
             "dashboard_actions": ["Show all", "Show shipped", "Show held", "Show unlabeled"],
         },
         "guardrail": "Phase 140 filters release snapshots without changing decisions, annotations, gates, or live-house state.",
+    }
+
+
+async def build_jarvis_phase_141(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 141,
+        "release_decision_search": {
+            "endpoint": "/release/status-history/search",
+            "fields": ["version", "status", "label", "decision", "notes", "blockers"],
+            "dashboard_actions": ["Search release history", "Clear search"],
+        },
+        "guardrail": "Phase 141 searches saved release snapshots without changing release evidence or live-house state.",
     }
 
 

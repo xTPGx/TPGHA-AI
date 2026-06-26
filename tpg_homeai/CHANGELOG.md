@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.45
+
+- Added Jarvis phase 141 release decision search.
+- Added `/release/status-history/search` for searching release snapshots by version, status, label, decision, notes, and blockers.
+- Added Markdown output for filtered release search results.
+- Added owner Dashboard controls to search and clear release history searches.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.44
 
 - Added Jarvis phase 140 release decision filters.

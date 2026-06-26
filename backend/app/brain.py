@@ -1200,6 +1200,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release decision search so owners can find snapshots by version, label, note, or blocker text.",
         },
         {
+            "id": "release_decision_search",
+            "title": "Release Decision Search",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/search searches release snapshots by version, label, notes, decision, and blocker text.",
+                "Search can be combined with shipped, held, or unlabeled decision filters.",
+                "Owner Dashboard exposes release search and clear-search actions.",
+            ],
+            "next": "Add release decision rollup metrics so owners can see trend counts across shipped and held releases.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
