@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.10
+
+- Added Jarvis phase 106 combined acceptance packet.
+- Added `/brain/phase-106` for a one-shot acceptance export summary.
+- Live acceptance reports now include role acceptance, repair queue, and resolution loop sections.
+- Markdown exports now show role checks, unrepaired acceptance blockers, and resolved repair counts.
+- Added verifier coverage for the expanded acceptance report packet.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.9
 
 - Added Jarvis phase 105 acceptance repair resolution loop.

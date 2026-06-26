@@ -543,6 +543,16 @@ def main() -> int:
           "/experience/acceptance-resolutions" in backend_main
           and "/brain/phase-105" in backend_main,
           "Backend must expose acceptance resolution summary and phase 105 summary endpoints.")
+    check("phase 106 combined acceptance packet exists",
+          "build_jarvis_phase_106" in experience_brain
+          and "acceptance_packet" in experience_brain
+          and "## Role Acceptance" in experience_brain
+          and "## Repair Queue" in experience_brain
+          and "combined_acceptance_packet" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8"),
+          "The live acceptance export must include tests, roles, repairs, and resolutions together.")
+    check("phase 106 endpoint is exposed",
+          "/brain/phase-106" in backend_main,
+          "Backend must expose the combined acceptance packet phase endpoint.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -1404,6 +1414,11 @@ def main() -> int:
     check("/experience/live-acceptance/report exports markdown",
           "# TPG HomeAI Live Acceptance Report" in r.json().get("markdown", "")
           and r.json().get("summary", {}).get("evidence_results", 0) >= 1
+          and "role_acceptance" in r.json()
+          and "acceptance_repairs" in r.json()
+          and "acceptance_resolutions" in r.json()
+          and "## Role Acceptance" in r.json().get("markdown", "")
+          and "## Repair Queue" in r.json().get("markdown", "")
           and "blockers" in r.json(),
           str(r.json()))
 
@@ -1523,6 +1538,19 @@ def main() -> int:
           r.json().get("phase") == 105
           and "acceptance_resolutions" in r.json()
           and "resolution_policy" in r.json().get("acceptance_resolutions", {}),
+          str(r.json()))
+
+    r = client.get("/brain/phase-106")
+    check("/brain/phase-106 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-106 has combined acceptance packet",
+          r.json().get("phase") == 106
+          and "acceptance_packet" in r.json()
+          and "role_acceptance" in r.json().get("acceptance_packet", {})
+          and "acceptance_repairs" in r.json().get("acceptance_packet", {})
+          and "acceptance_resolutions" in r.json().get("acceptance_packet", {})
+          and "## Resolution Loop" in r.json().get("acceptance_packet", {}).get("markdown", ""),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

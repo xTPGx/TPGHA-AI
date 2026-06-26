@@ -498,6 +498,9 @@ def list_live_acceptance_results(limit: int = 100) -> dict[str, Any]:
 
 async def build_live_acceptance_report(config: AppConfig, version: str) -> dict[str, Any]:
     live = await build_live_acceptance_runner(config)
+    role_acceptance = build_role_acceptance_matrix(config)
+    repair_queue = build_acceptance_repair_queue()
+    resolutions = build_acceptance_resolution_summary()
     evidence = live.get("evidence", {})
     latest_by_test = evidence.get("latest_by_test", {}) or {}
     tests = live.get("tests", []) or []
@@ -541,6 +544,9 @@ async def build_live_acceptance_report(config: AppConfig, version: str) -> dict[
         "failed_or_blocked_tests": failed_or_blocked_tests,
         "missing_tests": missing_tests,
         "latest_by_test": latest_by_test,
+        "role_acceptance": role_acceptance,
+        "acceptance_repairs": repair_queue,
+        "acceptance_resolutions": resolutions,
         "blockers": blockers,
         "markdown": "",
     }
@@ -677,6 +683,24 @@ async def build_jarvis_phase_105(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_106(config: AppConfig, version: str) -> dict[str, Any]:
+    report = await build_live_acceptance_report(config, version)
+    return {
+        "status": report["status"],
+        "version": version,
+        "phase": 106,
+        "acceptance_packet": {
+            "summary": report["summary"],
+            "blockers": report["blockers"],
+            "role_acceptance": report["role_acceptance"],
+            "acceptance_repairs": report["acceptance_repairs"],
+            "acceptance_resolutions": report["acceptance_resolutions"],
+            "markdown": report["markdown"],
+        },
+        "guardrail": "Phase 106 exports one combined acceptance packet without executing real devices.",
+    }
+
+
 def _command_card(row: CommandLog) -> dict[str, Any]:
     return {
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -748,6 +772,9 @@ def _resolve_acceptance_repairs(session, test_id: str) -> int:
 def _live_acceptance_report_markdown(report: dict[str, Any], tests: list[dict[str, Any]]) -> str:
     latest_by_test = report.get("latest_by_test", {}) or {}
     summary = report.get("summary", {}) or {}
+    role_acceptance = report.get("role_acceptance", {}) or {}
+    repairs = report.get("acceptance_repairs", {}) or {}
+    resolutions = report.get("acceptance_resolutions", {}) or {}
     lines = [
         "# TPG HomeAI Live Acceptance Report",
         "",
@@ -781,6 +808,36 @@ def _live_acceptance_report_markdown(report: dict[str, Any], tests: list[dict[st
         lines.append(f"  - Mode: {test.get('mode')}")
         lines.append(f"  - Domain: {test.get('domain')}")
         lines.append(f"  - Notes: {notes}")
+    lines.extend([
+        "",
+        "## Role Acceptance",
+        "",
+        f"- Status: {role_acceptance.get('status', 'unknown')}",
+        f"- Score: {role_acceptance.get('score', 0)}%",
+    ])
+    for check_item in role_acceptance.get("checks", []) or []:
+        marker = "PASS" if check_item.get("pass") else ("OPTIONAL" if not check_item.get("required") else "ATTENTION")
+        lines.append(f"- [{marker}] {check_item.get('title')} (`{check_item.get('role')}`)")
+    repair_summary = repairs.get("summary", {}) or {}
+    resolution_summary = resolutions.get("summary", {}) or {}
+    lines.extend([
+        "",
+        "## Repair Queue",
+        "",
+        f"- Failed or blocked checks: {repair_summary.get('failed_or_blocked', 0)}",
+        f"- Active repairs: {repair_summary.get('active_repairs', 0)}",
+        f"- Unrepaired checks: {repair_summary.get('unrepaired', 0)}",
+    ])
+    for test_id in repairs.get("unrepaired_test_ids", []) or []:
+        lines.append(f"- Unrepaired: `{test_id}`")
+    lines.extend([
+        "",
+        "## Resolution Loop",
+        "",
+        f"- Resolved repairs: {resolution_summary.get('resolved_repairs', 0)}",
+        f"- Latest passed checks: {resolution_summary.get('latest_passed_tests', 0)}",
+        f"- Latest failed or blocked checks: {resolution_summary.get('latest_failed_or_blocked_tests', 0)}",
+    ])
     lines.extend([
         "",
         "## Stop Line",

@@ -768,6 +768,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Use pass/fail evidence after every real-house acceptance run to keep the repair queue accurate.",
         },
         {
+            "id": "combined_acceptance_packet",
+            "title": "Combined Acceptance Packet",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Live acceptance report exports test evidence, role acceptance, repair queue, and resolution status together.",
+                "Markdown export includes role checks, active/unrepaired blockers, and resolved repair counts.",
+                "Phase 106 exposes a compact acceptance_packet payload for release handoff.",
+            ],
+            "next": "Use the combined packet as the single owner-facing release evidence artifact.",
+        },
+        {
             "id": "release_checklist",
             "title": "Release Checklist",
             "status": "ready",
