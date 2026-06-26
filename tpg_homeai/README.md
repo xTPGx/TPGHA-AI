@@ -45,6 +45,8 @@ backend runs in **degraded** mode (surfaced in `/health`) rather than failing.
 | `home_assistant_url` | Leave as `http://supervisor/core` to use the Supervisor proxy. |
 | `home_assistant_token` | Leave **blank** to use the add-on's Supervisor token automatically. Only set a long-lived token if you run against a remote HA. |
 | `openai_api_key` | **Required** for full AI understanding. Without it, the backend uses a deterministic fallback parser (fewer capabilities). |
+| `openai_model` | Low-cost command/tool selector model. Default `gpt-5.4-nano`. |
+| `openai_chat_model` | Main AI conversation/advice/vision model. Default `gpt-5.4-mini`. |
 | `api_token` | Optional bearer token guarding **direct** (non-ingress) access to port 8088. Leave blank for current behavior. When set, LAN callers must send `Authorization: Bearer <token>`; Home Assistant ingress requests stay exempt (already HA-authenticated), and `/health` + public TTS audio + static assets remain reachable. |
 | `config_dir` | Where YAML config + the database live. Default `/config/tpg_homeai`. |
 | `database_url` | SQLite path for command history / discovery state. Default `sqlite:////config/tpg_homeai/tpg_homeai.db`. |

@@ -44,6 +44,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import bootstrap as bootstrap_mod  # noqa: E402
 from app import __version__ as backend_package_version  # noqa: E402
+from app.agent_runtime import chat_route_decision  # noqa: E402
 from app.ai.client import pre_route  # noqa: E402
 from app.db.database import get_session, init_db  # noqa: E402
 from app.db.models import MemoryItem, Suggestion  # noqa: E402
@@ -206,6 +207,16 @@ def main() -> int:
           and "openai_chat_model" in settings_source
           and "self.settings.openai_chat_model" in ai_client_source,
           "General conversation/vision should be able to use a stronger model than guarded tool routing.")
+    check("OpenAI command selector model is add-on configurable",
+          "openai_model" in addon_config
+          and "OPENAI_MODEL" in run_sh
+          and 'gpt-5.4-nano' in settings_source,
+          "Low-cost command selection should be configurable and default to gpt-5.4-nano.")
+    check("Chat route is AI-first before HA actions",
+          "chat_route_decision" in backend_main
+          and "AI-first conversational entrypoint" in backend_main
+          and "agent_runtime" in backend_main,
+          "Normal Chat must route advice/conversation to the AI agent before the guarded HA command router.")
     check("General advice uses actual house inventory",
           "_structured_house_inventory" in conversation_source
           and "Do not ask the user to list devices" in conversation_source
@@ -3590,6 +3601,16 @@ def main() -> int:
     check("/suggestions/proactive returns JSON", r.status_code == 200 and is_json(r),
           f"status={r.status_code}")
 
+    check("agent runtime routes advice to GPT agent first",
+          chat_route_decision("Can you review what I already have and tell me where smart switches would help?").get("path") == "agent_first",
+          str(chat_route_decision("Can you review what I already have and tell me where smart switches would help?")))
+    check("agent runtime routes direct light control to HA action path",
+          chat_route_decision("Turn off the office light").get("path") == "home_action",
+          str(chat_route_decision("Turn off the office light")))
+    check("agent runtime routes scheduled tasks to HA action path",
+          chat_route_decision("Create scheduled task. Turn off all lights at 10 PM.").get("path") == "home_action",
+          str(chat_route_decision("Create scheduled task. Turn off all lights at 10 PM.")))
+
     r = client.post("/chat", json={
         "assistant": "atlas",
         "user": "shawn",
@@ -3609,7 +3630,33 @@ def main() -> int:
           f"status={r.status_code} ctype={r.headers.get('content-type')}")
     body = r.json()
     check("/chat general weather uses conversation mode",
-          body.get("mode") == "conversation" and body.get("success") is True,
+          body.get("mode") == "conversation"
+          and body.get("success") is True
+          and body.get("data", {}).get("agent_runtime", {}).get("path") == "agent_first",
+          str(body))
+
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "Can you review what I already have and tell me where smart switches would help?",
+    })
+    body = r.json()
+    check("/chat smart-home advice is agent-first conversation",
+          r.status_code == 200
+          and body.get("mode") == "conversation"
+          and body.get("data", {}).get("agent_runtime", {}).get("path") == "agent_first",
+          str(body))
+
+    r = client.post("/chat", json={
+        "assistant": "atlas",
+        "user": "shawn",
+        "message": "Turn off the office light.",
+    })
+    body = r.json()
+    check("/chat direct device command stays on home-action path",
+          r.status_code == 200
+          and body.get("data", {}).get("agent_runtime", {}).get("path") == "home_action"
+          and body.get("command", {}).get("intent") == "turn_off_light",
           str(body))
 
     r = client.post("/chat/general", json={

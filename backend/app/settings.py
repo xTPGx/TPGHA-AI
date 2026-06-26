@@ -22,8 +22,8 @@ class Settings(BaseSettings):
 
     # --- AI ---
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
-    openai_chat_model: str = Field(default="gpt-4o", alias="OPENAI_CHAT_MODEL")
+    openai_model: str = Field(default="gpt-5.4-nano", alias="OPENAI_MODEL")
+    openai_chat_model: str = Field(default="gpt-5.4-mini", alias="OPENAI_CHAT_MODEL")
     openai_tts_model: str = Field(default="gpt-4o-mini-tts", alias="OPENAI_TTS_MODEL")
     openai_tts_format: str = Field(default="mp3", alias="OPENAI_TTS_FORMAT")
     openai_transcribe_model: str = Field(default="gpt-4o-mini-transcribe", alias="OPENAI_TRANSCRIBE_MODEL")

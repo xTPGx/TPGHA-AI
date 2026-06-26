@@ -214,8 +214,8 @@ Edit `.env`:
 
 ```ini
 OPENAI_API_KEY=sk-...            # optional; without it a fallback parser is used
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_CHAT_MODEL=gpt-4o
+OPENAI_MODEL=gpt-5.4-nano
+OPENAI_CHAT_MODEL=gpt-5.4-mini
 HOME_ASSISTANT_URL=http://192.168.4.232:8123
 HOME_ASSISTANT_TOKEN=eyJ...      # your long-lived token
 CONFIG_DIR=./config
@@ -387,7 +387,10 @@ always passes (`ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.12`), so no
 3. Find **TPG HomeAI Orchestrator** in the store and click **Install**.
 4. On the **Configuration** tab, paste your **OpenAI API key**. Leave
    `home_assistant_token` blank to use the add-on's Supervisor token; leave
-   `home_assistant_url` as `http://supervisor/core`.
+   `home_assistant_url` as `http://supervisor/core`. Default model routing is
+   cost-aware: `openai_model=gpt-5.4-nano` for command/tool selection and
+   `openai_chat_model=gpt-5.4-mini` for normal ChatGPT-style conversation,
+   advice, image review, and smart-home planning.
 5. **Start** the add-on, then check the **Log** tab for
    `[tpg_homeai] starting on :8088`.
 6. Open the **Web UI** (or <http://homeassistant.local:8088>), and confirm

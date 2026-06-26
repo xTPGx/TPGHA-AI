@@ -19,6 +19,7 @@ import yaml
 
 from .ai.client import get_ai_client
 from .ai.tools import TOOL_NAMES
+from .agent_runtime import chat_route_decision
 from .bootstrap import bootstrap, get_app_state, periodic_scan_loop
 from .bootstrap.startup import refresh_degraded_reasons
 from .config_loader import config_error, get_config, reload_config
@@ -243,7 +244,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.68"
+APP_VERSION = "1.2.69"
 MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_CHAT_IMAGE_TYPES = {
     "image/jpeg",
@@ -797,11 +798,36 @@ async def command_preview(req: CommandRequest):
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    """Conversational entrypoint.
+    """AI-first conversational entrypoint.
 
-    This wraps the same guarded command path, but classifies no-tool OpenAI
-    replies as normal conversation instead of a failed device command.
+    Normal chat/advice goes directly to the conversational agent. Direct house
+    control, schedules, dashboard creation, and security/status requests stay
+    on the guarded Home Assistant action path.
     """
+    route = chat_route_decision(req.message)
+    if route["path"] == "agent_first":
+        src_assistant, src_user = intent_router.source_identity_override(
+            get_config(), _command_context(req)
+        )
+        general = await answer_general(
+            src_assistant or req.assistant,
+            req.user or src_user,
+            req.message,
+            conversation_id=req.conversation_id,
+        )
+        data = general.get("data", {})
+        if isinstance(data, dict):
+            data = {**data, "agent_runtime": route}
+        else:
+            data = {"agent_runtime": route}
+        return {
+            "success": True,
+            "mode": general.get("mode", "conversation"),
+            "response": general.get("response", ""),
+            "data": data,
+            "provider": general.get("provider"),
+        }
+
     resp = await intent_router.handle_command(
         req.assistant, req.user, req.message, conversation_id=req.conversation_id,
         command_context=_command_context(req),
@@ -823,7 +849,7 @@ async def chat(req: ChatRequest):
             "mode": general.get("mode", "conversation"),
             "response": general.get("response") or resp.message,
             "command": resp.model_dump(),
-            "data": general.get("data", {}),
+            "data": {**(general.get("data", {}) if isinstance(general.get("data", {}), dict) else {}), "agent_runtime": route},
             "provider": general.get("provider"),
         }
     policy = evaluate_action_policy(resp)
@@ -842,6 +868,7 @@ async def chat(req: ChatRequest):
         "mode": mode,
         "response": resp.message,
         "command": resp.model_dump(),
+        "data": {"agent_runtime": route},
     }
 
 
@@ -865,7 +892,10 @@ async def chat_general(req: ChatRequest):
         "success": True,
         "mode": general.get("mode", "conversation"),
         "response": general.get("response", ""),
-        "data": general.get("data", {}),
+        "data": {
+            **(general.get("data", {}) if isinstance(general.get("data", {}), dict) else {}),
+            "agent_runtime": chat_route_decision(req.message),
+        },
         "provider": general.get("provider"),
     }
 
@@ -899,7 +929,10 @@ async def chat_attachments(
         "success": True,
         "mode": general.get("mode", "conversation"),
         "response": general.get("response") or "",
-        "data": general.get("data", {}),
+        "data": {
+            **(general.get("data", {}) if isinstance(general.get("data", {}), dict) else {}),
+            "agent_runtime": chat_route_decision(prompt, has_attachments=bool(attachments)),
+        },
         "provider": general.get("provider"),
     }
 

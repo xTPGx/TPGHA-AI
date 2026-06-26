@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.69
+
+- Added an AI-first chat runtime gate so normal conversation, advice, brainstorming, weather, and image analysis go directly to the GPT agent before Home Assistant command routing.
+- Kept direct device control, schedules, automations, routines, dashboard creation/editing, and security/status requests on the guarded Home Assistant action path.
+- Changed default chat reasoning to `gpt-5.4-mini` and added configurable low-cost command selection with `openai_model` defaulting to `gpt-5.4-nano`.
+- Surfaced `agent_runtime` decisions in chat responses for debugging whether a turn went agent-first or home-action.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.68
 
 - Split assistant wake behavior into command wake words and conversation wake phrases.
