@@ -9,6 +9,14 @@ import PageHeader from "../components/PageHeader";
 import StatusDot from "../components/StatusDot";
 
 type Phase = "connecting" | "ok" | "degraded" | "initializing" | "offline" | "misconfigured";
+type ReleaseDecisionFilter = "all" | "shipped" | "held" | "unlabeled";
+
+const releaseDecisionFilterLabels: Record<ReleaseDecisionFilter, string> = {
+  all: "Show all",
+  shipped: "Show shipped",
+  held: "Show held",
+  unlabeled: "Show unlabeled",
+};
 
 export default function Dashboard() {
   const [health, setHealth] = useState<any>(null);
@@ -19,6 +27,7 @@ export default function Dashboard() {
   const [releaseHistory, setReleaseHistory] = useState<any>(null);
   const [releaseComparison, setReleaseComparison] = useState<any>(null);
   const [releaseDecisionDigest, setReleaseDecisionDigest] = useState<any>(null);
+  const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
   const [releaseMessage, setReleaseMessage] = useState("");
   const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
@@ -51,7 +60,7 @@ export default function Dashboard() {
           setActionPlan(await api.setupActionPlan());
           const [releaseChecklist, history, comparison, digest] = await Promise.all([
             api.releaseChecklist(),
-            api.releaseStatusHistory(),
+            api.releaseStatusFilter(releaseDecisionFilter),
             api.releaseHistoryComparison(),
             api.releaseDecisionDigest(),
           ]);
@@ -89,7 +98,7 @@ export default function Dashboard() {
     return () => {
       if (timer.current) window.clearInterval(timer.current);
     };
-  }, []);
+  }, [releaseDecisionFilter]);
 
   const runScan = async () => {
     setScanning(true);
@@ -132,7 +141,7 @@ export default function Dashboard() {
       const saved = await api.saveReleaseStatusSnapshot();
       if (saved?.checklist) setRelease(saved.checklist);
       const [history, comparison, digest] = await Promise.all([
-        api.releaseStatusHistory(),
+        api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
       ]);
@@ -185,7 +194,7 @@ export default function Dashboard() {
     try {
       const result = await api.pruneReleaseHistory(20, false);
       const [history, comparison, digest] = await Promise.all([
-        api.releaseStatusHistory(),
+        api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
       ]);
@@ -208,7 +217,7 @@ export default function Dashboard() {
           : "Owner marked this release snapshot as held for follow-up.",
       });
       const [history, comparison, digest] = await Promise.all([
-        api.releaseStatusHistory(),
+        api.releaseStatusFilter(releaseDecisionFilter),
         api.releaseHistoryComparison(),
         api.releaseDecisionDigest(),
       ]);
@@ -242,6 +251,20 @@ export default function Dashboard() {
     anchor.click();
     URL.revokeObjectURL(url);
     setReleaseMessage("Decision digest downloaded.");
+  };
+
+  const changeReleaseDecisionFilter = async (decision: ReleaseDecisionFilter) => {
+    setReleaseDecisionFilter(decision);
+    try {
+      setReleaseHistory(await api.releaseStatusFilter(decision));
+      setReleaseMessage(
+        decision === "all"
+          ? "Showing all release snapshots."
+          : `Showing ${decision} release snapshots.`
+      );
+    } catch (e: any) {
+      setReleaseMessage(`Filter failed: ${e?.message || String(e)}`);
+    }
   };
 
   const ha = health?.home_assistant;
@@ -301,6 +324,7 @@ export default function Dashboard() {
             history={releaseHistory}
             comparison={releaseComparison}
             decisionDigest={releaseDecisionDigest}
+            decisionFilter={releaseDecisionFilter}
             message={releaseMessage}
             onCopy={copyReleaseChecklist}
             onDownload={downloadReleaseChecklist}
@@ -312,6 +336,7 @@ export default function Dashboard() {
             onAnnotateSnapshot={annotateReleaseSnapshot}
             onCopyDecisionDigest={copyDecisionDigest}
             onDownloadDecisionDigest={downloadDecisionDigest}
+            onDecisionFilter={changeReleaseDecisionFilter}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -482,6 +507,7 @@ function DashboardReleaseStatus({
   history,
   comparison,
   decisionDigest,
+  decisionFilter,
   message,
   onCopy,
   onDownload,
@@ -493,11 +519,13 @@ function DashboardReleaseStatus({
   onAnnotateSnapshot,
   onCopyDecisionDigest,
   onDownloadDecisionDigest,
+  onDecisionFilter,
 }: {
   release: any;
   history: any;
   comparison: any;
   decisionDigest: any;
+  decisionFilter: ReleaseDecisionFilter;
   message: string;
   onCopy: () => void;
   onDownload: () => void;
@@ -509,6 +537,7 @@ function DashboardReleaseStatus({
   onAnnotateSnapshot: (snapshotId: number, decision: "shipped" | "held") => void;
   onCopyDecisionDigest: () => void;
   onDownloadDecisionDigest: () => void;
+  onDecisionFilter: (decision: ReleaseDecisionFilter) => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -554,6 +583,17 @@ function DashboardReleaseStatus({
               Decisions: {decisionDigest.counts.shipped || 0} shipped, {decisionDigest.counts.held || 0} held, {decisionDigest.counts.unlabeled || 0} unlabeled
             </div>
           )}
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(["all", "shipped", "held", "unlabeled"] as ReleaseDecisionFilter[]).map((decision) => (
+              <Button
+                key={decision}
+                variant={decisionFilter === decision ? "primary" : "ghost"}
+                onClick={() => onDecisionFilter(decision)}
+              >
+                {releaseDecisionFilterLabels[decision]}
+              </Button>
+            ))}
+          </div>
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
             {snapshots.slice(0, 3).map((snapshot: any) => (
               <div key={snapshot.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">

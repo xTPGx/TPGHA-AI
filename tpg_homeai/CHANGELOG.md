@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.44
+
+- Added Jarvis phase 140 release decision filters.
+- Added `/release/status-history/filter` for all, shipped, held, and unlabeled snapshot views.
+- Added Markdown output for filtered release decision history.
+- Added owner Dashboard filter controls for release snapshot decisions.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.43
 
 - Added Jarvis phase 139 release decision digest.

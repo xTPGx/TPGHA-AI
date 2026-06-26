@@ -848,7 +848,7 @@ def main() -> int:
           and "/release/status-history" in backend_main
           and "/release/status-history/snapshot" in backend_main
           and "Save status snapshot" in dashboard_frontend
-          and "api.releaseStatusHistory" in dashboard_frontend
+          and ("api.releaseStatusHistory" in dashboard_frontend or "api.releaseStatusFilter" in dashboard_frontend)
           and "api.saveReleaseStatusSnapshot" in dashboard_frontend
           and "release_status_history" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
           and "build_jarvis_phase_135" in experience_brain,
@@ -908,6 +908,19 @@ def main() -> int:
     check("phase 139 endpoint is exposed",
           "/brain/phase-139" in backend_main,
           "Backend must expose the phase 139 release decision digest marker.")
+    check("phase 140 release decision filters are wired",
+          "/release/status-history/filter" in backend_main
+          and "filter_release_status_snapshots" in experience_brain
+          and "Show shipped" in dashboard_frontend
+          and "Show held" in dashboard_frontend
+          and "Show unlabeled" in dashboard_frontend
+          and "api.releaseStatusFilter" in dashboard_frontend
+          and "release_decision_filters" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_140" in experience_brain,
+          "Owners need focused held, shipped, and unlabeled release snapshot views.")
+    check("phase 140 endpoint is exposed",
+          "/brain/phase-140" in backend_main,
+          "Backend must expose the phase 140 release decision filter marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2539,6 +2552,45 @@ def main() -> int:
           r.json().get("phase") == 139
           and r.json().get("release_decision_digest", {}).get("endpoint") == "/release/status-history/decisions"
           and "Download decision digest" in r.json().get("release_decision_digest", {}).get("dashboard_actions", []),
+          str(r.json()))
+
+    r = client.post("/release/status-history/snapshot")
+    held_target = r.json().get("snapshot", {}).get("id") if is_json(r) else None
+    client.patch(f"/release/status-history/{held_target}", json={
+        "label": "Verifier held",
+        "decision": "held",
+        "notes": "Verifier confirmed release decision filters.",
+    })
+    r = client.get("/release/status-history/filter?decision=held")
+    check("/release/status-history/filter returns held snapshots",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("decision") == "held"
+          and r.json().get("total_matching", 0) >= 1
+          and all(snapshot.get("decision") == "held" for snapshot in r.json().get("snapshots", [])),
+          str(r.json()))
+    r = client.get("/release/status-history/filter?decision=shipped")
+    check("/release/status-history/filter returns shipped snapshots",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("decision") == "shipped"
+          and r.json().get("total_matching", 0) >= 1
+          and "# TPG HomeAI Release Decision Filter" in r.json().get("markdown", ""),
+          str(r.json()))
+    r = client.get("/release/status-history/filter?decision=bogus")
+    check("/release/status-history/filter normalizes invalid filters",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("decision") == "all",
+          str(r.json()))
+    r = client.get("/brain/phase-140")
+    check("/brain/phase-140 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-140 has release decision filter marker",
+          r.json().get("phase") == 140
+          and r.json().get("release_decision_filters", {}).get("endpoint") == "/release/status-history/filter"
+          and "Show held" in r.json().get("release_decision_filters", {}).get("dashboard_actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

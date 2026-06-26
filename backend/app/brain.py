@@ -1188,6 +1188,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add release decision filters so owners can quickly inspect held-only or shipped-only history.",
         },
         {
+            "id": "release_decision_filters",
+            "title": "Release Decision Filters",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/status-history/filter supports all, shipped, held, and unlabeled release snapshot views.",
+                "Filtered release history exports Markdown for focused owner review.",
+                "Owner Dashboard exposes release decision filter controls next to release history.",
+            ],
+            "next": "Add release decision search so owners can find snapshots by version, label, note, or blocker text.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",
