@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.50
+
+- Added self-healing device strategy approvals: eligible repair suggestions can now create approved device memory when approved.
+- Taught fan actions to honor approved `preferred_fan_speed_control` memory so unreliable percentage fans can use preset-mode control first.
+- Added repair suggestion payloads that propose durable device strategy memory for fan preset fallback and media verification paths.
+- Expanded Device Profiles UI with reliability score, last outcome diagnostics, needs-attention count, and service strategy hints.
+- Added verifier coverage for repair suggestion approval creating approved device strategy memory.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.0.49
 
 - Added the Reliability Brain with live `/knowledge/reliability` scoring from recent post-action outcomes.

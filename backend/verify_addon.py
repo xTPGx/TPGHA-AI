@@ -11,6 +11,7 @@ backend self-initializes and degrades gracefully (PART 11).
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import sys
@@ -43,7 +44,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import bootstrap as bootstrap_mod  # noqa: E402
 from app import __version__ as backend_package_version  # noqa: E402
-from app.db.database import init_db  # noqa: E402
+from app.db.database import get_session, init_db  # noqa: E402
+from app.db.models import MemoryItem, Suggestion  # noqa: E402
 from app.main import APP_VERSION, app  # noqa: E402
 
 _PASS = 0
@@ -946,6 +948,38 @@ def main() -> int:
         check("/memory/{id}/approve works",
               r.status_code == 200 and r.json().get("memory", {}).get("status") == "approved",
               r.text)
+
+    with get_session() as session:
+        suggestion = Suggestion(
+            title="Teach office fan preset strategy",
+            message="Approve this to teach TPG HomeAI the preferred service strategy for this device.",
+            category="repair",
+            priority="high",
+            action_type="device_profile_fix",
+            payload=json.dumps({
+                "proposed_memory": {
+                    "scope": "device",
+                    "subject": "fan.office",
+                    "key": "preferred_fan_speed_control",
+                    "value": {"strategy": "preset_mode", "preset_modes": ["low", "medium", "high"]},
+                }
+            }),
+            status="suggested",
+        )
+        session.add(suggestion)
+        session.commit()
+        repair_suggestion_id = suggestion.id
+    r = client.post(f"/suggestions/proactive/{repair_suggestion_id}/approve")
+    with get_session() as session:
+        learned = session.query(MemoryItem).filter(
+            MemoryItem.scope == "device",
+            MemoryItem.subject == "fan.office",
+            MemoryItem.key == "preferred_fan_speed_control",
+            MemoryItem.status == "approved",
+        ).first()
+    check("repair suggestion approval creates device strategy memory",
+          r.status_code == 200 and learned is not None and "preset_mode" in learned.value,
+          r.text)
 
     r = client.post("/suggestions/generate")
     check("/suggestions/generate returns JSON", r.status_code == 200 and is_json(r),

@@ -103,6 +103,17 @@ def approve_memory(memory_id: int) -> dict[str, Any]:
         return _memory_dict(row)
 
 
+def approved_memory_value(scope: str, subject: str, key: str) -> str:
+    with get_session() as session:
+        row = session.query(MemoryItem).filter(
+            MemoryItem.scope == scope,
+            MemoryItem.subject == subject,
+            MemoryItem.key == key,
+            MemoryItem.status == "approved",
+        ).order_by(MemoryItem.updated_at.desc(), MemoryItem.id.desc()).first()
+        return row.value if row else ""
+
+
 def ignore_memory(memory_id: int) -> dict[str, Any]:
     with get_session() as session:
         row = session.get(MemoryItem, memory_id)
@@ -316,5 +327,46 @@ def update_suggestion(suggestion_id: int, status: str) -> dict[str, Any]:
         if row is None:
             raise KeyError(suggestion_id)
         row.status = status
+        if status == "approved":
+            _apply_suggestion_approval(session, row)
         session.commit()
         return _suggestion_dict(row)
+
+
+def _apply_suggestion_approval(session, row: Suggestion) -> None:
+    if row.category != "repair" or row.action_type != "device_profile_fix":
+        return
+    try:
+        payload = json.loads(row.payload or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    memory = payload.get("proposed_memory") or {}
+    if not memory:
+        return
+    scope = str(memory.get("scope") or "device")
+    subject = str(memory.get("subject") or "")
+    key = str(memory.get("key") or "")
+    value = memory.get("value")
+    if not subject or not key or value is None:
+        return
+    value_text = value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+    existing = session.query(MemoryItem).filter(
+        MemoryItem.scope == scope,
+        MemoryItem.subject == subject,
+        MemoryItem.key == key,
+        MemoryItem.status == "approved",
+    ).first()
+    if existing:
+        existing.value = value_text
+        existing.source = "reliability_brain"
+        existing.updated_at = row.created_at
+        return
+    session.add(MemoryItem(
+        scope=scope,
+        owner=str(memory.get("owner") or ""),
+        subject=subject,
+        key=key,
+        value=value_text,
+        source="reliability_brain",
+        status="approved",
+    ))

@@ -60,6 +60,7 @@ export default function DeviceProfiles() {
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
         <Stat label="Profiles" value={data?.counts?.profiles ?? "—"} />
         <Stat label="With quirks" value={data?.counts?.with_quirks ?? "—"} />
+        <Stat label="Needs attention" value={data?.counts?.needs_attention ?? "—"} />
         <Stat label="Adapters" value={data?.adapter_counts?.devices ?? "—"} />
         <Stat label="Visible" value={profiles.length} />
         <input
@@ -95,11 +96,26 @@ function ProfileCard({ profile, adapter }: { profile: any; adapter?: any }) {
               {profile.quirks?.length > 0 && (
                 <span className="badge bg-amber-500/15 text-amber-200">quirks</span>
               )}
+              {profile.reliability && (
+                <span className={`badge ${profile.reliability.grade === "needs_attention" ? "bg-rose-500/15 text-rose-200" : profile.reliability.grade === "watch" ? "bg-amber-500/15 text-amber-200" : "bg-emerald-500/15 text-emerald-200"}`}>
+                  reliability {Math.round((profile.reliability.score ?? 1) * 100)}%
+                </span>
+              )}
             </div>
 
             <Pills label="Capabilities" items={profile.capabilities || []} />
             <Pills label="Quirks" items={profile.quirks || []} mutedFallback="No known quirks" />
             <Pills label="Entities" items={profile.entity_ids || []} mono />
+            <Pills label="Service strategy" items={serviceStrategyItems(profile.service_strategy || {})} mutedFallback="No learned strategy yet" mono />
+            {profile.reliability?.last_outcome && (
+              <div className="mt-3 rounded border border-slate-800 bg-slate-950/30 p-3 text-sm">
+                <div className="text-xs uppercase text-slate-500">Last reliability outcome</div>
+                <div className="mt-1 text-slate-200">{profile.reliability.last_outcome.summary || profile.reliability.last_outcome.status}</div>
+                {(profile.reliability.last_outcome.diagnostics || []).map((item: string) => (
+                  <div key={item} className="mt-1 text-xs text-amber-200">{item}</div>
+                ))}
+              </div>
+            )}
             {adapter && (
               <>
                 <Pills
@@ -117,6 +133,15 @@ function ProfileCard({ profile, adapter }: { profile: any; adapter?: any }) {
             </div>
           </div>
   );
+}
+
+function serviceStrategyItems(strategy: Record<string, any>) {
+  return Object.entries(strategy || {}).map(([entityId, value]) => {
+    const bits = Object.entries(value || {})
+      .filter(([, v]) => v !== undefined && v !== null && v !== "" && (!Array.isArray(v) || v.length > 0))
+      .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join("|") : String(v)}`);
+    return `${entityId}: ${bits.join(", ")}`;
+  });
 }
 
 function Stat({ label, value }: { label: string; value: any }) {

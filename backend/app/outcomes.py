@@ -398,12 +398,18 @@ def _interesting_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
 def _draft_repair_suggestion(result: ActionResult, outcome: dict[str, Any]) -> None:
     title = f"Verify {result.intent.replace('_', ' ')} outcome"
     recovery = _recovery_steps(result, outcome)
+    proposed_memory = _proposed_device_memory(result, outcome)
     payload = {
         "intent": result.intent,
         "resolved": result.resolved,
         "outcome": outcome,
         "recovery_steps": recovery,
+        "proposed_memory": proposed_memory,
     }
+    action_type = "device_profile_fix" if proposed_memory else "device_recovery"
+    first_step = recovery[0] if recovery else "Review the device profile and Home Assistant integration."
+    if proposed_memory:
+        first_step = "Approve this to teach TPG HomeAI the preferred service strategy for this device."
     with get_session() as session:
         exists = session.query(Suggestion).filter(
             Suggestion.title == title,
@@ -416,11 +422,11 @@ def _draft_repair_suggestion(result: ActionResult, outcome: dict[str, Any]) -> N
             title=title,
             message=(
                 "A command executed but the follow-up state check did not match. "
-                + (recovery[0] if recovery else "Review the device profile and Home Assistant integration.")
+                + first_step
             ),
             category="repair",
             priority="high",
-            action_type="device_recovery",
+            action_type=action_type,
             payload=json.dumps(payload),
             status="suggested",
         ))
@@ -458,6 +464,43 @@ def _recovery_steps(result: ActionResult, outcome: dict[str, Any]) -> list[str]:
     if any(not r.get("available", True) for r in outcome.get("readings", [])):
         steps.insert(0, "Home Assistant reported the target unavailable or unreadable.")
     return steps
+
+
+def _proposed_device_memory(result: ActionResult, outcome: dict[str, Any]) -> dict[str, Any]:
+    entity_ids = _target_entity_ids(result)
+    entity_id = entity_ids[0] if entity_ids else ""
+    if not entity_id:
+        return {}
+    domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
+    diagnostics = " ".join(str(d).lower() for d in outcome.get("diagnostics") or [])
+    readings = outcome.get("readings") or []
+    first_attrs = (readings[0] or {}).get("attributes") if readings else {}
+    if (
+        result.intent == "set_fan_percentage"
+        and domain == "fan"
+        and ("preset" in diagnostics or first_attrs.get("preset_modes"))
+    ):
+        return {
+            "scope": "device",
+            "subject": entity_id,
+            "key": "preferred_fan_speed_control",
+            "value": {
+                "strategy": "preset_mode",
+                "reason": "Reliability verification found percentage control did not match expected state.",
+                "preset_modes": first_attrs.get("preset_modes") or (result.resolved or {}).get("preset_modes") or [],
+            },
+        }
+    if domain == "media_player" and result.intent in {"play_music", "turn_on_media", "control_device"}:
+        return {
+            "scope": "device",
+            "subject": entity_id,
+            "key": "preferred_media_control",
+            "value": {
+                "strategy": "verify_playback_state",
+                "reason": "Reliability verification found media player state did not match expected state.",
+            },
+        }
+    return {}
 
 
 def build_reliability_summary(limit: int = 100) -> dict[str, Any]:

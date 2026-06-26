@@ -5,9 +5,11 @@ No arbitrary Home Assistant services are reachable from here.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from ..homeassistant.rest import HAError
+from ..memory import approved_memory_value
 from ..models.results import ActionResult
 from . import ActionContext
 
@@ -79,9 +81,10 @@ async def set_fan_percentage(ctx: ActionContext, params: dict[str, Any]) -> Acti
     try:
         entity = await ctx.ha.get_entity(res.entity_id)
         attrs = (entity or {}).get("attributes", {}) or {}
+        strategy = _approved_fan_strategy(res.entity_id)
         supported_features = int(attrs.get("supported_features") or 0)
         supports_percentage = bool(supported_features & FAN_SET_SPEED) or "percentage" in attrs
-        if not supports_percentage:
+        if strategy == "preset_mode" or not supports_percentage:
             resolved["supported_features"] = supported_features
             resolved["preset_modes"] = attrs.get("preset_modes") or []
             preset = _preset_for_percentage(percentage, resolved["preset_modes"])
@@ -90,6 +93,7 @@ async def set_fan_percentage(ctx: ActionContext, params: dict[str, Any]) -> Acti
                     "fan", "set_preset_mode",
                     {"entity_id": res.entity_id, "preset_mode": preset},
                 )
+                resolved["service_strategy"] = "approved_preset_mode" if strategy == "preset_mode" else "preset_mode_fallback"
                 return ActionResult(success=True, intent=intent, executed=True,
                                     message=f"Set {res.name} to {preset}.",
                                     resolved={**resolved, "preset_mode": preset})
@@ -133,3 +137,16 @@ def _preset_for_percentage(percentage: int, preset_modes: list[str]) -> str:
             return original
     index = round((max(1, min(100, percentage)) - 1) / 99 * (len(normalized) - 1))
     return normalized[index][0]
+
+
+def _approved_fan_strategy(entity_id: str) -> str:
+    raw = approved_memory_value("device", entity_id, "preferred_fan_speed_control")
+    if not raw:
+        return ""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = raw
+    if isinstance(parsed, dict):
+        return str(parsed.get("strategy") or "")
+    return str(parsed or "")
