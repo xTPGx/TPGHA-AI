@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [actionPlan, setActionPlan] = useState<any>(null);
+  const [release, setRelease] = useState<any>(null);
+  const [releaseMessage, setReleaseMessage] = useState("");
   const [roleSummary, setRoleSummary] = useState<any>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [error, setError] = useState<string | null>(null);
@@ -44,13 +46,16 @@ export default function Dashboard() {
         setRoleSummary(await api.roleDashboardSummary(role, userId));
         if (["admin", "manager"].includes(role)) {
           setActionPlan(await api.setupActionPlan());
+          setRelease(await api.releaseChecklist());
         } else {
           setActionPlan(null);
+          setRelease(null);
         }
       } catch {
         setSession(null);
         setRoleSummary(null);
         setActionPlan(null);
+        setRelease(null);
       }
     } catch (e: any) {
       const msg = e?.message || String(e);
@@ -78,6 +83,29 @@ export default function Dashboard() {
     } finally {
       setScanning(false);
     }
+  };
+
+  const copyReleaseChecklist = async () => {
+    if (!release) return;
+    try {
+      await navigator.clipboard.writeText(release.markdown || JSON.stringify(release, null, 2));
+      setReleaseMessage("Release checklist copied.");
+    } catch {
+      setReleaseMessage("Clipboard unavailable.");
+    }
+  };
+
+  const downloadReleaseChecklist = () => {
+    if (!release) return;
+    const body = release.markdown || JSON.stringify(release, null, 2);
+    const blob = new Blob([body], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tpg-homeai-release-checklist-${release.version || "current"}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setReleaseMessage("Release checklist downloaded.");
   };
 
   const ha = health?.home_assistant;
@@ -131,7 +159,15 @@ export default function Dashboard() {
       <DashboardRoleSummary summary={roleSummary} session={session} />
 
       {roleSummary?.permissions?.admin_actions_visible && (
-        <DashboardActionPlan actionPlan={actionPlan} />
+        <>
+          <DashboardReleaseStatus
+            release={release}
+            message={releaseMessage}
+            onCopy={copyReleaseChecklist}
+            onDownload={downloadReleaseChecklist}
+          />
+          <DashboardActionPlan actionPlan={actionPlan} />
+        </>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -290,6 +326,50 @@ function DashboardActionPlan({ actionPlan }: { actionPlan: any }) {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+function DashboardReleaseStatus({
+  release,
+  message,
+  onCopy,
+  onDownload,
+}: {
+  release: any;
+  message: string;
+  onCopy: () => void;
+  onDownload: () => void;
+}) {
+  if (!release) return null;
+  const failed = (release.checks || []).filter((check: any) => !check.pass);
+  return (
+    <div className={`card ${failed.length ? "border-amber-500/30" : "border-emerald-500/30"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">Release status</div>
+          <div className="mt-1 text-sm text-slate-400">
+            {failed.length ? `${failed.length} release gate${failed.length === 1 ? "" : "s"} need attention.` : "All release checklist gates are currently passing."}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={onCopy}>Copy release checklist</Button>
+          <Button variant="ghost" onClick={onDownload}>Download release checklist</Button>
+          <Link to="/setup" className="btn-ghost">Open Setup</Link>
+          <Badge tone={failed.length ? "warn" : "good"}>{release.status || "unknown"}</Badge>
+        </div>
+      </div>
+      {!!failed.length && (
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+          {failed.slice(0, 3).map((check: any) => (
+            <div key={check.id} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+              <div className="font-semibold text-slate-100">{check.title}</div>
+              <div className="mt-1 text-sm text-slate-400">{check.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {message && <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
     </div>
   );
 }

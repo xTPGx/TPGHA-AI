@@ -96,6 +96,7 @@ def main() -> int:
     chat_frontend = (repo_root / "frontend" / "src" / "pages" / "Chat.tsx").read_text(encoding="utf-8")
     ha_auth = (repo_root / "frontend" / "src" / "haAuth.ts").read_text(encoding="utf-8")
     setup_frontend = (repo_root / "frontend" / "src" / "pages" / "Setup.tsx").read_text(encoding="utf-8")
+    dashboard_frontend = (repo_root / "frontend" / "src" / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
     dashboard_builder_frontend = (repo_root / "frontend" / "src" / "pages" / "DashboardBuilder.tsx").read_text(encoding="utf-8")
     suggestions_frontend = (repo_root / "frontend" / "src" / "pages" / "Suggestions.tsx").read_text(encoding="utf-8")
     device_profiles_frontend = (repo_root / "frontend" / "src" / "pages" / "DeviceProfiles.tsx").read_text(encoding="utf-8")
@@ -830,6 +831,17 @@ def main() -> int:
     check("phase 133 endpoint is exposed",
           "/brain/phase-133" in backend_main,
           "Backend must expose the phase 133 release checklist export UI marker.")
+    check("phase 134 dashboard release status is wired",
+          "DashboardReleaseStatus" in dashboard_frontend
+          and "Copy release checklist" in dashboard_frontend
+          and "Download release checklist" in dashboard_frontend
+          and "api.releaseChecklist" in dashboard_frontend
+          and "dashboard_release_status" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_134" in experience_brain,
+          "Owner Dashboard must expose read-only release status and checklist export controls.")
+    check("phase 134 endpoint is exposed",
+          "/brain/phase-134" in backend_main,
+          "Backend must expose the phase 134 dashboard release status marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2338,6 +2350,16 @@ def main() -> int:
           r.json().get("phase") == 133
           and "markdown" in r.json().get("release_checklist_export_ui", {}).get("formats", [])
           and "Copy checklist" in r.json().get("release_checklist_export_ui", {}).get("setup_page_actions", []),
+          str(r.json()))
+
+    r = client.get("/brain/phase-134")
+    check("/brain/phase-134 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-134 has dashboard release status marker",
+          r.json().get("phase") == 134
+          and r.json().get("dashboard_release_status", {}).get("owner_only") is True
+          and "Copy release checklist" in r.json().get("dashboard_release_status", {}).get("actions", []),
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

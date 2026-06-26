@@ -1282,6 +1282,22 @@ async def build_jarvis_phase_133(version: str) -> dict[str, Any]:
     }
 
 
+async def build_jarvis_phase_134(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 134,
+        "dashboard_release_status": {
+            "surface": "Dashboard",
+            "source_endpoint": "/release/checklist",
+            "owner_only": True,
+            "actions": ["Copy release checklist", "Download release checklist"],
+            "links_to_setup": True,
+        },
+        "guardrail": "Phase 134 keeps release status owner-visible and read-only on the Dashboard.",
+    }
+
+
 def _dedupe_setup_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

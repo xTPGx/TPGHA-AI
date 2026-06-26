@@ -1116,6 +1116,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add dashboard-level release status export for owner at-a-glance operations.",
         },
         {
+            "id": "dashboard_release_status",
+            "title": "Dashboard Release Status",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "Owner Dashboard fetches /release/checklist and summarizes passing or blocked release gates.",
+                "Dashboard exposes Copy release checklist and Download release checklist actions.",
+                "Residents do not see the release status management surface because it is tied to admin/manager visibility.",
+            ],
+            "next": "Add release status history so owners can compare readiness across updates.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

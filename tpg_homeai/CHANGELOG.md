@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.38
+
+- Added Jarvis phase 134 owner Dashboard release status.
+- Added owner-only Dashboard release status summary powered by `/release/checklist`.
+- Added Dashboard actions to copy and download the release checklist Markdown.
+- Added `/brain/phase-134` and Jarvis Brain readiness evidence for dashboard-level release visibility.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.37
 
 - Added Jarvis phase 133 release checklist export UI.
