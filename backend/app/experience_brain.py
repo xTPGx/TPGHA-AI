@@ -1028,6 +1028,21 @@ async def build_release_packet(config: AppConfig, version: str, limit: int = 50)
     }
 
 
+async def verify_release_packet_fingerprint(config: AppConfig, version: str, fingerprint: str, limit: int = 50) -> dict[str, Any]:
+    packet = await build_release_packet(config, version, limit=limit)
+    expected = str((packet.get("manifest", {}) or {}).get("fingerprint") or "")
+    provided = str(fingerprint or "").strip().lower()
+    return {
+        "status": "match" if provided and provided == expected else "mismatch",
+        "matches": bool(provided and provided == expected),
+        "provided": provided,
+        "expected": expected,
+        "version": version,
+        "generated_at": packet.get("generated_at"),
+        "algorithm": "sha256",
+    }
+
+
 def _release_packet_section(section_id: str, status: Any, present: bool, item_count: int) -> dict[str, Any]:
     return {
         "id": section_id,
@@ -2350,6 +2365,21 @@ async def build_jarvis_phase_151(version: str) -> dict[str, Any]:
             "dashboard_surface": "Release packet fingerprint",
         },
         "guardrail": "Phase 151 fingerprints release packet evidence only; it does not sign, mutate, or publish release data.",
+    }
+
+
+async def build_jarvis_phase_152(version: str) -> dict[str, Any]:
+    return {
+        "status": "ready",
+        "version": version,
+        "phase": 152,
+        "release_packet_verification": {
+            "endpoint": "/release/packet/verify",
+            "input": "fingerprint",
+            "algorithm": "sha256",
+            "dashboard_surface": "Compare release packet fingerprint",
+        },
+        "guardrail": "Phase 152 compares fingerprints only; it does not trust external packets or change release state.",
     }
 
 

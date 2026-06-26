@@ -224,6 +224,8 @@ export const api = {
   liveAcceptanceResults: () => http<any>("/experience/live-acceptance/results"),
   releaseChecklist: () => http<any>("/release/checklist"),
   releasePacket: () => http<any>("/release/packet"),
+  verifyReleasePacket: (fingerprint: string) =>
+    http<any>(`/release/packet/verify?fingerprint=${encodeURIComponent(fingerprint)}`),
   releaseStatusHistory: () => http<any>("/release/status-history"),
   releaseHistoryComparison: () => http<any>("/release/status-history/compare"),
   releaseStatusFilter: (decision = "all") =>

@@ -33,6 +33,8 @@ export default function Dashboard() {
   const [releaseRecommendationHistory, setReleaseRecommendationHistory] = useState<any>(null);
   const [releasePacket, setReleasePacket] = useState<any>(null);
   const [releaseRecommendationNote, setReleaseRecommendationNote] = useState("");
+  const [releaseFingerprintInput, setReleaseFingerprintInput] = useState("");
+  const [releaseFingerprintCheck, setReleaseFingerprintCheck] = useState<any>(null);
   const [releaseDecisionFilter, setReleaseDecisionFilter] = useState<ReleaseDecisionFilter>("all");
   const [releaseSearchTerm, setReleaseSearchTerm] = useState("");
   const [releaseMessage, setReleaseMessage] = useState("");
@@ -393,6 +395,21 @@ export default function Dashboard() {
     }
   };
 
+  const verifyReleaseFingerprint = async () => {
+    const fingerprint = releaseFingerprintInput.trim();
+    if (!fingerprint) {
+      setReleaseMessage("Enter a release packet fingerprint to compare.");
+      return;
+    }
+    try {
+      const result = await api.verifyReleasePacket(fingerprint);
+      setReleaseFingerprintCheck(result);
+      setReleaseMessage(result.matches ? "Release packet fingerprint matches." : "Release packet fingerprint does not match.");
+    } catch (e: any) {
+      setReleaseMessage(`Fingerprint verification failed: ${e?.message || String(e)}`);
+    }
+  };
+
   const changeReleaseDecisionFilter = async (decision: ReleaseDecisionFilter) => {
     setReleaseDecisionFilter(decision);
     try {
@@ -498,6 +515,8 @@ export default function Dashboard() {
             recommendationHistory={releaseRecommendationHistory}
             releasePacket={releasePacket}
             recommendationNote={releaseRecommendationNote}
+            fingerprintInput={releaseFingerprintInput}
+            fingerprintCheck={releaseFingerprintCheck}
             decisionFilter={releaseDecisionFilter}
             searchTerm={releaseSearchTerm}
             message={releaseMessage}
@@ -521,6 +540,8 @@ export default function Dashboard() {
             onClearSearch={clearReleaseSearch}
             onRecommendationNoteChange={setReleaseRecommendationNote}
             onRecommendationState={updateReleaseRecommendation}
+            onFingerprintInputChange={setReleaseFingerprintInput}
+            onVerifyFingerprint={verifyReleaseFingerprint}
           />
           <DashboardActionPlan actionPlan={actionPlan} />
         </>
@@ -697,6 +718,8 @@ function DashboardReleaseStatus({
   recommendationHistory,
   releasePacket,
   recommendationNote,
+  fingerprintInput,
+  fingerprintCheck,
   decisionFilter,
   searchTerm,
   message,
@@ -720,6 +743,8 @@ function DashboardReleaseStatus({
   onClearSearch,
   onRecommendationNoteChange,
   onRecommendationState,
+  onFingerprintInputChange,
+  onVerifyFingerprint,
 }: {
   release: any;
   history: any;
@@ -731,6 +756,8 @@ function DashboardReleaseStatus({
   recommendationHistory: any;
   releasePacket: any;
   recommendationNote: string;
+  fingerprintInput: string;
+  fingerprintCheck: any;
   decisionFilter: ReleaseDecisionFilter;
   searchTerm: string;
   message: string;
@@ -754,6 +781,8 @@ function DashboardReleaseStatus({
   onClearSearch: () => void;
   onRecommendationNoteChange: (value: string) => void;
   onRecommendationState: (recommendationId: string, state: "active" | "acknowledged" | "snoozed", notes?: string) => void;
+  onFingerprintInputChange: (value: string) => void;
+  onVerifyFingerprint: () => void;
 }) {
   if (!release) return null;
   const failed = (release.checks || []).filter((check: any) => !check.pass);
@@ -870,6 +899,20 @@ function DashboardReleaseStatus({
           {releasePacket?.manifest?.fingerprint && (
             <div className="mt-1 font-mono text-xs text-slate-500">
               Fingerprint: {String(releasePacket.manifest.fingerprint).slice(0, 24)}
+            </div>
+          )}
+          <div className="mt-3 flex flex-col gap-2 md:flex-row">
+            <input
+              className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
+              value={fingerprintInput}
+              onChange={(event) => onFingerprintInputChange(event.target.value)}
+              placeholder="Compare release packet fingerprint..."
+            />
+            <Button variant="ghost" onClick={onVerifyFingerprint}>Verify fingerprint</Button>
+          </div>
+          {fingerprintCheck && (
+            <div className={`mt-2 text-xs ${fingerprintCheck.matches ? "text-emerald-300" : "text-amber-300"}`}>
+              {fingerprintCheck.matches ? "Fingerprint matches current packet." : "Fingerprint does not match current packet."}
             </div>
           )}
           <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">

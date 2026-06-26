@@ -1046,6 +1046,17 @@ def main() -> int:
     check("phase 151 endpoint is exposed",
           "/brain/phase-151" in backend_main,
           "Backend must expose the phase 151 packet fingerprint marker.")
+    check("phase 152 release packet verification is wired",
+          "/release/packet/verify" in backend_main
+          and "verify_release_packet_fingerprint" in experience_brain
+          and "Verify fingerprint" in dashboard_frontend
+          and "api.verifyReleasePacket" in dashboard_frontend
+          and "release_packet_verification" in (repo_root / "backend" / "app" / "brain.py").read_text(encoding="utf-8")
+          and "build_jarvis_phase_152" in experience_brain,
+          "Owners need to compare exported release packet fingerprints.")
+    check("phase 152 endpoint is exposed",
+          "/brain/phase-152" in backend_main,
+          "Backend must expose the phase 152 packet verification marker.")
 
     # Phase 0 — security rating 7 -> 8 and non-ingress API auth.
     apparmor = (repo_root / "tpg_homeai" / "apparmor.txt")
@@ -2938,6 +2949,29 @@ def main() -> int:
     check("/brain/phase-151 has release packet fingerprint marker",
           r.json().get("phase") == 151
           and r.json().get("release_packet_fingerprint", {}).get("algorithm") == "sha256",
+          str(r.json()))
+
+    r = client.get(f"/release/packet/verify?fingerprint={fingerprint}")
+    check("/release/packet/verify matches current fingerprint",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("matches") is True
+          and r.json().get("algorithm") == "sha256",
+          str(r.json()))
+    r = client.get("/release/packet/verify?fingerprint=bad")
+    check("/release/packet/verify rejects mismatched fingerprint",
+          r.status_code == 200
+          and is_json(r)
+          and r.json().get("matches") is False
+          and r.json().get("status") == "mismatch",
+          str(r.json()))
+    r = client.get("/brain/phase-152")
+    check("/brain/phase-152 returns JSON",
+          r.status_code == 200 and is_json(r),
+          f"status={r.status_code} ctype={r.headers.get('content-type')}")
+    check("/brain/phase-152 has release packet verification marker",
+          r.json().get("phase") == 152
+          and r.json().get("release_packet_verification", {}).get("endpoint") == "/release/packet/verify",
           str(r.json()))
 
     r = client.get("/brain/completion?include_registries=false")

@@ -1332,6 +1332,18 @@ def build_brain_layers(graph: dict[str, Any], health: dict[str, Any] | None = No
             "next": "Add signed release packet verification when a signing key is introduced.",
         },
         {
+            "id": "release_packet_verification",
+            "title": "Release Packet Verification",
+            "status": "ready",
+            "score": 100,
+            "evidence": [
+                "/release/packet/verify compares a provided SHA-256 fingerprint against the current packet.",
+                "Verification returns match/mismatch status without mutating release state.",
+                "Owner Dashboard exposes a fingerprint comparison control.",
+            ],
+            "next": "Add owner-configured signing keys for cryptographic release packet signatures.",
+        },
+        {
             "id": "operational_runbook",
             "title": "Operational Runbook",
             "status": "ready",

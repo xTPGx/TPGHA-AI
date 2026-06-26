@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.56
+
+- Added Jarvis phase 152 release packet fingerprint verification.
+- Added `/release/packet/verify` to compare a provided SHA-256 fingerprint with the current release packet.
+- Added owner Dashboard fingerprint comparison controls.
+- Added `/brain/phase-152` readiness marker.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.55
 
 - Added Jarvis phase 151 release packet fingerprint.
