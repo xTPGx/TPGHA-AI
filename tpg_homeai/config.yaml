@@ -51,6 +51,7 @@ options:
   database_url: "sqlite:////config/tpg_homeai/tpg_homeai.db"
   log_level: "info"
   tpg_platform_url: "https://smartops.tpgsmarthomes.com"
+  tpg_platform_activation_code: ""
   tpg_platform_agent_token: ""
   tpg_platform_sync_enabled: false
   tpg_platform_sync_interval_minutes: 5
@@ -79,6 +80,7 @@ schema:
   database_url: "str"
   log_level: "list(debug|info|warning|error)"
   tpg_platform_url: "str?"
+  tpg_platform_activation_code: "password?"
   tpg_platform_agent_token: "password?"
   tpg_platform_sync_enabled: "bool?"
   tpg_platform_sync_interval_minutes: "int(1,1440)?"

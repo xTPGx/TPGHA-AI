@@ -127,6 +127,28 @@ export const api = {
   uiSessionDebug: () => http<any>("/ui/session/debug"),
   health: () => http<any>("/health"),
   config: () => http<any>("/config"),
+  setupStatus: () => http<any>("/setup/status"),
+  setupActivate: (body: Record<string, any>) =>
+    http<any>("/setup/activate", { method: "POST", body: JSON.stringify(body) }),
+  setupDetect: () =>
+    http<any>("/setup/detect", { method: "POST", body: JSON.stringify({}) }),
+  setupTestSmartOps: () =>
+    http<any>("/setup/test-smartops", { method: "POST", body: JSON.stringify({}) }),
+  setupTestOpenAI: () =>
+    http<any>("/setup/test-openai", { method: "POST", body: JSON.stringify({}) }),
+  setupTestTts: () =>
+    http<any>("/setup/test-tts", { method: "POST", body: JSON.stringify({}) }),
+  setupSaveRuntimeSettings: (body: Record<string, any>) =>
+    http<any>("/setup/save-runtime-settings", { method: "POST", body: JSON.stringify(body) }),
+  setupComplete: () =>
+    http<any>("/setup/complete", { method: "POST", body: JSON.stringify({}) }),
+  setupPushStatus: (body: Record<string, any>) =>
+    http<any>("/setup/push-status", { method: "POST", body: JSON.stringify(body) }),
+  setupWizardStatus: () => http<any>("/setup/status"),
+  setupWizardActivate: (body: Record<string, any>) =>
+    http<any>("/setup/activate", { method: "POST", body: JSON.stringify(body) }),
+  setupWizardDetect: () =>
+    http<any>("/setup/detect", { method: "POST", body: JSON.stringify({}) }),
   reloadConfig: () => http<any>("/config/reload", { method: "POST" }),
   saveRoom: (body: Record<string, any>) =>
     http<any>("/config/rooms", { method: "POST", body: JSON.stringify(body) }),

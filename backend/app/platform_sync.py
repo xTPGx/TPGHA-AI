@@ -12,6 +12,7 @@ from copy import deepcopy
 from typing import Any
 
 import httpx
+import yaml
 
 from .discovery import scanner as discovery_scanner
 from .homeassistant.rest import HAError, get_ha_client
@@ -29,6 +30,13 @@ _STATUS: dict[str, Any] = {
     "reasonCode": None,
     "portalUrl": "https://portal.tpgsmarthomes.com/portal/install",
     "subscribeUrl": "https://tpgsmarthomes.com/packages",
+    "profile": {"code": "unknown", "name": ""},
+    "safeConfig": {},
+    "expectedServices": {},
+    "featureFlags": {},
+    "generatedHints": {},
+    "setupChecklist": [],
+    "lastSetupStatusPush": None,
 }
 _LOCK = asyncio.Lock()
 _SECRET_KEYS = (
@@ -70,19 +78,103 @@ async def get_platform_sync_status() -> dict[str, Any]:
     settings = get_settings()
     async with _LOCK:
         status = deepcopy(_STATUS)
-    status["configured"] = settings.tpg_platform_configured
-    status["enabled"] = bool(settings.tpg_platform_sync_enabled)
-    status["portalUrl"] = settings.tpg_platform_portal_url
-    status["subscribeUrl"] = settings.tpg_platform_subscribe_url
+    runtime = _runtime_settings()
+    status["configured"] = bool(_platform_base_url() and _platform_agent_token() and _sync_enabled())
+    status["enabled"] = bool(_sync_enabled())
+    status["portalUrl"] = runtime.get("tpg_platform_portal_url") or settings.tpg_platform_portal_url
+    status["subscribeUrl"] = runtime.get("tpg_platform_subscribe_url") or settings.tpg_platform_subscribe_url
     return status
 
 
 def _platform_base_url() -> str:
-    return get_settings().tpg_platform_url.rstrip("/")
+    runtime = _runtime_settings()
+    return str(runtime.get("tpg_platform_url") or get_settings().tpg_platform_url).rstrip("/")
+
+
+def _runtime_settings() -> dict[str, Any]:
+    path = get_settings().config_path / "runtime_settings.yaml"
+    if not path.exists():
+        return {}
+    try:
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001 - fail soft; settings may still be env-backed
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _save_runtime_settings(updates: dict[str, Any]) -> None:
+    allowed = {
+        "tpg_platform_url",
+        "tpg_platform_sync_enabled",
+        "tpg_platform_sync_interval_minutes",
+        "tpg_platform_portal_url",
+        "tpg_platform_subscribe_url",
+        "profile_code",
+        "profile_name",
+        "kokoro_tts_base_url",
+        "ollama_base_url",
+        "piper_tts_entity_id",
+        "feature_flags",
+        "setup_checklist",
+        "generated_hints",
+    }
+    clean = {key: value for key, value in updates.items() if key in allowed and value is not None}
+    if not clean:
+        return
+    path = get_settings().config_path / "runtime_settings.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    current = _runtime_settings()
+    current.update(clean)
+    current["updated_at"] = _now_iso()
+    path.write_text(yaml.safe_dump(current, sort_keys=True), encoding="utf-8")
+
+
+def _apply_profile_config(result: dict[str, Any]) -> None:
+    profile = result.get("profile") if isinstance(result.get("profile"), dict) else {}
+    expected = result.get("expectedServices") if isinstance(result.get("expectedServices"), dict) else {}
+    safe_config = result.get("safeConfig") if isinstance(result.get("safeConfig"), dict) else {}
+    hints = result.get("generatedHints") if isinstance(result.get("generatedHints"), dict) else {}
+    flags = result.get("featureFlags") if isinstance(result.get("featureFlags"), dict) else {}
+    _save_runtime_settings({
+        "tpg_platform_url": result.get("platformUrl") or safe_config.get("tpg_platform_url"),
+        "tpg_platform_sync_enabled": bool(result.get("syncEnabledRecommended", safe_config.get("tpg_platform_sync_enabled", True))),
+        "tpg_platform_sync_interval_minutes": result.get("syncIntervalMinutes") or safe_config.get("tpg_platform_sync_interval_minutes"),
+        "tpg_platform_portal_url": result.get("portalUrl") or safe_config.get("tpg_platform_portal_url"),
+        "tpg_platform_subscribe_url": result.get("subscribeUrl") or safe_config.get("tpg_platform_subscribe_url"),
+        "profile_code": result.get("profileCode") or profile.get("code"),
+        "profile_name": result.get("profileName") or profile.get("name"),
+        "kokoro_tts_base_url": expected.get("kokoroBaseUrl") or safe_config.get("kokoro_tts_base_url"),
+        "ollama_base_url": expected.get("ollamaBaseUrl") or safe_config.get("ollama_base_url"),
+        "piper_tts_entity_id": expected.get("piperEntityId") or safe_config.get("piper_tts_entity_id"),
+        "feature_flags": flags,
+        "setup_checklist": result.get("setupChecklist") if isinstance(result.get("setupChecklist"), list) else [],
+        "generated_hints": hints,
+    })
+
+
+def _platform_agent_token() -> str:
+    runtime = _runtime_settings()
+    return str(runtime.get("tpg_platform_agent_token") or get_settings().tpg_platform_agent_token or "").strip()
+
+
+def _sync_enabled() -> bool:
+    runtime = _runtime_settings()
+    if "tpg_platform_sync_enabled" in runtime:
+        return bool(runtime.get("tpg_platform_sync_enabled"))
+    return bool(get_settings().tpg_platform_sync_enabled)
+
+
+def _sync_interval_minutes() -> int:
+    runtime = _runtime_settings()
+    value = runtime.get("tpg_platform_sync_interval_minutes", get_settings().tpg_platform_sync_interval_minutes)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 5
 
 
 def _auth_headers() -> dict[str, str]:
-    token = get_settings().tpg_platform_agent_token
+    token = _platform_agent_token()
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -113,8 +205,28 @@ async def _post_json(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
+async def activate_once(activation_code: str, agent_name: str = "TPG HomeAI add-on") -> dict[str, Any]:
+    payload = {"activationCode": activation_code, "agentName": agent_name}
+    timeout = httpx.Timeout(15.0, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(
+            f"{_platform_base_url()}/api/platform/provisioning/activate",
+            headers={"Content-Type": "application/json", "User-Agent": "TPG-HomeAI-Agent"},
+            json=payload,
+        )
+    try:
+        body = response.json()
+    except ValueError:
+        body = {}
+    if response.status_code >= 400:
+        message = body.get("message") if isinstance(body, dict) else None
+        raise httpx.HTTPStatusError(message or "SmartOps activation failed.", request=response.request, response=response)
+    return body if isinstance(body, dict) else {}
+
+
 async def heartbeat_once(app_version: str) -> dict[str, Any]:
     settings = get_settings()
+    runtime = _runtime_settings()
     discovery = await discovery_scanner.summary()
     payload = {
         "version": app_version,
@@ -132,16 +244,23 @@ async def heartbeat_once(app_version: str) -> dict[str, Any]:
         },
     }
     result = await _post_json("/api/platform/agents/heartbeat", payload)
-    allowed = bool(result.get("allowed"))
+    _apply_profile_config(result)
+    allowed = bool(result.get("allowed", result.get("licensed", result.get("ok", False))))
     await _set_status(
-        configured=settings.tpg_platform_configured,
-        enabled=bool(settings.tpg_platform_sync_enabled),
+        configured=bool(_platform_base_url() and _platform_agent_token()),
+        enabled=bool(_sync_enabled()),
         licensed=allowed,
         lastHeartbeatAt=_now_iso(),
         lastError=None if allowed else result.get("message") or "Sync is not licensed.",
         reasonCode=result.get("reasonCode"),
-        portalUrl=settings.tpg_platform_portal_url,
-        subscribeUrl=settings.tpg_platform_subscribe_url,
+        portalUrl=result.get("portalUrl") or runtime.get("tpg_platform_portal_url") or settings.tpg_platform_portal_url,
+        subscribeUrl=result.get("subscribeUrl") or runtime.get("tpg_platform_subscribe_url") or settings.tpg_platform_subscribe_url,
+        profile=result.get("profile") or _STATUS.get("profile"),
+        safeConfig=result.get("safeConfig") or _STATUS.get("safeConfig"),
+        expectedServices=result.get("expectedServices") or _STATUS.get("expectedServices"),
+        featureFlags=result.get("featureFlags") or _STATUS.get("featureFlags"),
+        generatedHints=result.get("generatedHints") or _STATUS.get("generatedHints"),
+        setupChecklist=result.get("setupChecklist") or _STATUS.get("setupChecklist"),
     )
     return result
 
@@ -237,26 +356,55 @@ async def sync_once(app_version: str) -> dict[str, Any]:
     return result
 
 
+async def push_setup_status(
+    event: str,
+    milestones: dict[str, bool] | None = None,
+    detection: dict[str, Any] | None = None,
+    health_reasons: list[str] | None = None,
+    setup_completed: bool = False,
+) -> dict[str, Any]:
+    if not _settings_ready():
+        result = {"ok": False, "skipped": True, "reasonCode": "SMARTOPS_NOT_CONFIGURED"}
+        await _set_status(lastSetupStatusPush=result)
+        return result
+    payload = {
+        "event": event,
+        "milestones": milestones or {},
+        "detection": detection or {},
+        "healthReasons": health_reasons or [],
+        "setupCompleted": setup_completed,
+    }
+    try:
+        result = await _post_json("/api/platform/provisioning/status", payload)
+        await _set_status(lastSetupStatusPush={**result, "event": event, "pushedAt": _now_iso()})
+        return result
+    except Exception as exc:  # noqa: BLE001 - setup status push must not break local control
+        result = {"ok": False, "skipped": False, "reasonCode": "SETUP_STATUS_PUSH_FAILED", "message": _safe_error(exc)}
+        await _set_status(lastSetupStatusPush={**result, "event": event, "pushedAt": _now_iso()})
+        return result
+
+
 def _settings_ready() -> bool:
     settings = get_settings()
     return bool(
-        settings.tpg_platform_sync_enabled
-        and settings.tpg_platform_url
-        and settings.tpg_platform_agent_token
+        _sync_enabled()
+        and _platform_base_url()
+        and _platform_agent_token()
     )
 
 
 async def platform_sync_loop(app_version: str) -> None:
     while True:
         settings = get_settings()
+        runtime = _runtime_settings()
         await _set_status(
-            configured=settings.tpg_platform_configured,
-            enabled=bool(settings.tpg_platform_sync_enabled),
-            portalUrl=settings.tpg_platform_portal_url,
-            subscribeUrl=settings.tpg_platform_subscribe_url,
+            configured=bool(_platform_base_url() and _platform_agent_token()),
+            enabled=bool(_sync_enabled()),
+            portalUrl=runtime.get("tpg_platform_portal_url") or settings.tpg_platform_portal_url,
+            subscribeUrl=runtime.get("tpg_platform_subscribe_url") or settings.tpg_platform_subscribe_url,
         )
         if not _settings_ready():
-            reason = "TOKEN_MISSING" if settings.tpg_platform_sync_enabled else "SYNC_DISABLED"
+            reason = "TOKEN_MISSING" if _sync_enabled() else "SYNC_DISABLED"
             await _set_status(licensed=False, reasonCode=reason, lastError=None)
             await asyncio.sleep(60)
             continue
@@ -275,5 +423,5 @@ async def platform_sync_loop(app_version: str) -> None:
                 reasonCode="SMARTOPS_UNAVAILABLE",
             )
 
-        interval = max(1, min(int(settings.tpg_platform_sync_interval_minutes or 5), 1440))
+        interval = max(1, min(_sync_interval_minutes(), 1440))
         await asyncio.sleep(interval * 60)

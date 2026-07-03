@@ -617,3 +617,21 @@ interface.
 - Sensitive actions: `unlock_door`, `open_garage`, `disarm_alarm`,
   `disable_camera`, `disable_security`, `change_lock_code`,
   `disable_notifications`, `remove_device`, `delete_automation`.
+## SmartOps Install Profiles
+
+SmartOps/Portal can now generate provisioning packages for three install profiles:
+
+- `basic_ha_green` / Basic / HA Green: existing Home Assistant OS or HA Green style install. Install this add-on, connect to SmartOps, and use OpenAI cloud or fallback parsing. Kokoro/Piper are detect-only if already present.
+- `voice_plus` / Voice Plus: Proxmox mini PC with VM 100 Home Assistant OS and VM/LXC 101 for Kokoro/Piper voice services.
+- `local_ai_pro` / Local AI Pro: Proxmox with VM 100 Home Assistant OS and VM 101 Ubuntu Local AI running Ollama and Kokoro.
+
+Most non-secret config is pulled or detected after activation. The Setup page includes a SmartOps setup wizard:
+
+1. Enter the one-time activation code from SmartOps/Portal, or set `tpg_platform_activation_code` in add-on options.
+2. Pull the assigned profile/config.
+3. Detect Home Assistant reachability/entities.
+4. Detect voice/TTS readiness: Piper, Kokoro, and OpenAI fallback readiness.
+5. Detect local AI readiness: Ollama and configured model hints.
+6. Run the first Home Assistant scan/sync.
+
+Activation stores the returned agent token in `/config/tpg_homeai/runtime_settings.yaml` and status endpoints only report whether it is configured. Tokens and activation codes are not logged or returned by normal status JSON. SmartOps activation also returns profile code/name, expected Kokoro/Ollama/Piper values, portal/subscribe URLs, sync interval, feature flags, setup checklist, and generated setup hints. Heartbeat/profile-config responses can refresh those non-secret runtime settings after activation. The add-on pushes setup milestones back to SmartOps through `POST /api/platform/provisioning/status` after activation, detection, scan, sync, and completion; if SmartOps is not configured, the wizard continues in local-only mode and reports "not linked to SmartOps." The add-on exposes safe setup endpoints for the UI and integrations: `GET /setup/status`, `POST /setup/activate`, `POST /setup/detect`, `POST /setup/test-smartops`, `POST /setup/test-openai`, `POST /setup/test-tts`, `POST /setup/save-runtime-settings`, `POST /setup/push-status`, and `POST /setup/complete`.

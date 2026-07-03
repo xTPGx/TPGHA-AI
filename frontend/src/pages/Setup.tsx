@@ -20,6 +20,9 @@ export default function Setup() {
   const [actionPlan, setActionPlan] = useState<any>(null);
   const [supportPacket, setSupportPacket] = useState<any>(null);
   const [supportPacketMessage, setSupportPacketMessage] = useState("");
+  const [setupWizard, setSetupWizard] = useState<any>(null);
+  const [activationCode, setActivationCode] = useState("");
+  const [wizardMessage, setWizardMessage] = useState("");
   const [sidebarAccess, setSidebarAccess] = useState<any>(null);
   const [voice, setVoice] = useState<any>(null);
   const [voiceRuntime, setVoiceRuntime] = useState<any>(null);
@@ -43,6 +46,7 @@ export default function Setup() {
         integrationReadiness,
         setupActionPlan,
         setupSupportPacket,
+        wizardStatus,
         sidebarAccessReport,
         v,
         runtime,
@@ -60,6 +64,7 @@ export default function Setup() {
         api.integrationMatrix(),
         api.setupActionPlan(),
         api.setupSupportPacket(),
+        api.setupStatus(),
         api.sidebarAccess(),
         api.voiceDeployment(),
         api.voiceRuntime(),
@@ -77,6 +82,7 @@ export default function Setup() {
       setIntegrations(integrationReadiness);
       setActionPlan(setupActionPlan);
       setSupportPacket(setupSupportPacket);
+      setSetupWizard(wizardStatus);
       setSidebarAccess(sidebarAccessReport);
       setVoice(v);
       setVoiceRuntime(runtime);
@@ -94,9 +100,100 @@ export default function Setup() {
     setBusy(true);
     try {
       await api.discoveryScan();
+      await api.setupPushStatus({
+        event: "discovery_scan_complete",
+        milestones: { ha_connected: true, discovery_scan_complete: true },
+      }).catch(() => undefined);
       await load();
     } catch (e: any) {
       setError(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const activateSmartOps = async () => {
+    setBusy(true);
+    setWizardMessage("");
+    try {
+      await api.setupActivate({ activation_code: activationCode });
+      setActivationCode("");
+      setWizardMessage("Connected to SmartOps. Token is stored locally and is not displayed.");
+      await load();
+    } catch (e: any) {
+      setWizardMessage(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const detectSetup = async () => {
+    setBusy(true);
+    setWizardMessage("");
+    try {
+      await api.setupDetect();
+      setWizardMessage("Detection refreshed.");
+      await load();
+    } catch (e: any) {
+      setWizardMessage(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testSmartOps = async () => {
+    setBusy(true);
+    setWizardMessage("");
+    try {
+      const result = await api.setupTestSmartOps();
+      setWizardMessage(result.reachable ? "SmartOps is reachable." : `SmartOps check failed: ${result.reason || "unreachable"}.`);
+      await load();
+    } catch (e: any) {
+      setWizardMessage(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testOpenAI = async () => {
+    setBusy(true);
+    setWizardMessage("");
+    try {
+      const result = await api.setupTestOpenAI();
+      setWizardMessage(result.ready ? "OpenAI is configured." : "OpenAI is not configured; fallback parser remains available.");
+      await load();
+    } catch (e: any) {
+      setWizardMessage(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testTts = async () => {
+    setBusy(true);
+    setWizardMessage("");
+    try {
+      const result = await api.setupTestTts();
+      const kokoro = result?.kokoro?.reachable ? "Kokoro ready" : "Kokoro not detected";
+      const piper = result?.piper?.ready ? "Piper ready" : "Piper not detected";
+      setWizardMessage(`${kokoro}. ${piper}.`);
+      await load();
+    } catch (e: any) {
+      setWizardMessage(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const completeSetup = async () => {
+    setBusy(true);
+    setWizardMessage("");
+    try {
+      await api.setupComplete();
+      setWizardMessage("Setup marked complete.");
+      await load();
+    } catch (e: any) {
+      setWizardMessage(e.message || String(e));
     } finally {
       setBusy(false);
     }
@@ -267,6 +364,20 @@ export default function Setup() {
 
       {error && <div className="mb-4 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-200">{error}</div>}
 
+      <SmartOpsSetupWizard
+        status={setupWizard}
+        activationCode={activationCode}
+        onActivationCode={setActivationCode}
+        onActivate={activateSmartOps}
+        onDetect={detectSetup}
+        onTestSmartOps={testSmartOps}
+        onTestOpenAI={testOpenAI}
+        onTestTts={testTts}
+        onComplete={completeSetup}
+        busy={busy}
+        message={wizardMessage}
+      />
+
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
         <Stat label="Readiness" value={`${ready}/${checks.length}`} />
         <Stat label="Software" value={completion?.software_ship_complete ? "ready" : "building"} />
@@ -321,6 +432,189 @@ export default function Setup() {
 }
 
 type SetupAction = { title: string; detail: string; to: string; source: string };
+
+function SmartOpsSetupWizard({
+  status,
+  activationCode,
+  onActivationCode,
+  onActivate,
+  onDetect,
+  onTestSmartOps,
+  onTestOpenAI,
+  onTestTts,
+  onComplete,
+  busy,
+  message,
+}: {
+  status: any;
+  activationCode: string;
+  onActivationCode: (value: string) => void;
+  onActivate: () => void;
+  onDetect: () => void;
+  onTestSmartOps: () => void;
+  onTestOpenAI: () => void;
+  onTestTts: () => void;
+  onComplete: () => void;
+  busy: boolean;
+  message: string;
+}) {
+  const runtime = status?.runtime_settings || {};
+  const sync = status?.smartops_sync || {};
+  const detection = status?.detection || {};
+  const profileCode = runtime.profile_code || sync?.profile?.code || "unknown";
+  const profileName = status?.install_profile_name || runtime.profile_name || sync?.profile?.name || profileCode;
+  const expectedServices = [
+    runtime.kokoro_tts_base_url ? `Kokoro ${runtime.kokoro_tts_base_url}` : "",
+    runtime.ollama_base_url ? `Ollama ${runtime.ollama_base_url}` : "",
+    runtime.piper_tts_entity_id ? `Piper ${runtime.piper_tts_entity_id}` : "",
+  ].filter(Boolean);
+  const steps = [
+    {
+      title: "Connect to SmartOps",
+      state: status?.activation_status === "activated" ? "complete" : "current",
+      detail: runtime.agent_token_configured ? "Agent token stored locally." : "Enter the one-time activation code from SmartOps or add-on options.",
+    },
+    {
+      title: "Pull profile/config",
+      state: profileCode !== "unknown" ? "complete" : "pending",
+      detail: profileCode !== "unknown" ? `${profileCode}` : "Profile arrives after activation/heartbeat.",
+    },
+    {
+      title: "Detect Home Assistant",
+      state: detection?.home_assistant?.areas_devices_entities_detected ? "complete" : "pending",
+      detail: `${detection?.home_assistant?.entity_count ?? 0} entities visible.`,
+    },
+    {
+      title: "Detect voice/TTS",
+      state: detection?.kokoro?.reachable || detection?.piper?.ready || runtime.profile_code === "basic_ha_green" ? "complete" : "pending",
+      detail: `Kokoro ${detection?.kokoro?.reachable ? "ready" : "not detected"} · Piper ${detection?.piper?.ready ? "ready" : "not detected"}.`,
+    },
+    {
+      title: "Detect local AI",
+      state: profileCode !== "local_ai_pro" || detection?.ollama?.reachable ? "complete" : "pending",
+      detail: profileCode === "local_ai_pro" ? `Ollama ${detection?.ollama?.reachable ? "ready" : "not detected"}.` : "Not required for this profile.",
+    },
+    {
+      title: "First device scan/sync",
+      state: sync?.lastSyncAt ? "complete" : "pending",
+      detail: sync?.lastSyncAt ? `Last sync ${sync.lastSyncAt}` : "Run HA scan, then sync after activation.",
+    },
+  ];
+  return (
+    <div className="card mb-6 border-brand/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-100">SmartOps setup wizard</div>
+          <div className="mt-1 text-sm text-slate-400">
+            Activation, profile pull, Home Assistant scan, voice detection, local AI detection, and first sync.
+          </div>
+        </div>
+        <span className={`badge ${status?.setup_completed ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
+          {status?.setup_completed ? "complete" : "setup"}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+          <div className="text-sm font-semibold text-slate-100">Step 1: Connect to SmartOps</div>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              className="min-h-10 flex-1 rounded border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100"
+              type="password"
+              value={activationCode}
+              onChange={(event) => onActivationCode(event.target.value)}
+              placeholder="Activation code"
+            />
+            <button className="btn" onClick={onActivate} disabled={busy}>Activate</button>
+            <button className="btn-ghost" onClick={onTestSmartOps} disabled={busy}>Test</button>
+          </div>
+          <div className="mt-2 text-xs text-slate-500">
+            Token and activation code values are never shown here after activation.
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="badge bg-slate-800 text-slate-200">Profile {profileName}</span>
+            <span className="badge bg-slate-800 text-slate-200">Sync {sync?.enabled ? "enabled" : "disabled"}</span>
+            <span className="badge bg-slate-800 text-slate-200">Token {runtime.agent_token_configured ? "stored" : "missing"}</span>
+          </div>
+          <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">
+            <div className="font-semibold text-slate-100">Connected status</div>
+            <div className="mt-1">{status?.activation_status === "activated" ? "Connected to SmartOps" : "Waiting for activation"}</div>
+            <div className="mt-1">{status?.smartops_configured ? "SmartOps linked" : "Not linked to SmartOps. Local-only setup can continue."}</div>
+            <div className="mt-1 text-xs text-slate-500">Portal {status?.portalUrl || runtime.portal_url || "not provided"} · Subscribe {status?.subscribeUrl || runtime.subscribe_url || "not provided"}</div>
+            <div className="mt-1 text-xs text-slate-500">Last status push {status?.lastSmartOpsStatusPush?.ok ? "ok" : status?.lastSmartOpsStatusPush?.reasonCode || "not sent"}</div>
+          </div>
+        </div>
+
+        <div className="rounded border border-slate-800 bg-slate-950/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-slate-100">Detection status</div>
+              <div className="mt-1 text-xs text-slate-500">Short-timeout checks do not overwrite user settings.</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-ghost" onClick={onDetect} disabled={busy}>Detect</button>
+              <button className="btn-ghost" onClick={onTestTts} disabled={busy}>Test TTS</button>
+              <button className="btn-ghost" onClick={onTestOpenAI} disabled={busy}>Test OpenAI</button>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+            <MiniStatus label="HA" ok={detection?.home_assistant?.reachable} />
+            <MiniStatus label="Kokoro" ok={detection?.kokoro?.reachable} />
+            <MiniStatus label="Ollama" ok={detection?.ollama?.reachable} />
+            <MiniStatus label="Piper" ok={detection?.piper?.ready} />
+          </div>
+          <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 p-3">
+            <div className="text-sm font-semibold text-slate-100">Expected local services</div>
+            <div className="mt-2 grid gap-1 text-sm text-slate-400">
+              {expectedServices.length ? expectedServices.map((item) => <div key={item}>{item}</div>) : <div>No local services required for this profile.</div>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-3">
+        {steps.map((step) => (
+          <div key={step.title} className="rounded border border-slate-800 bg-slate-950/30 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-semibold text-slate-100">{step.title}</div>
+              <span className={`badge ${step.state === "complete" ? "bg-emerald-500/10 text-emerald-200" : step.state === "current" ? "bg-brand/10 text-brand" : "bg-slate-800 text-slate-200"}`}>
+                {step.state}
+              </span>
+            </div>
+            <div className="mt-1 text-sm text-slate-400">{step.detail}</div>
+          </div>
+        ))}
+      </div>
+
+      {!!status?.missing_setup_items?.length && (
+        <div className="mt-4 rounded border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+          Missing services/setup: {status.missing_setup_items.join(", ")}
+        </div>
+      )}
+      {!!status?.missing_recommended_items?.length && (
+        <div className="mt-3 rounded border border-slate-700 bg-slate-950/40 p-3 text-sm text-slate-300">
+          Recommended next checks: {status.missing_recommended_items.join(", ")}
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800 bg-slate-950/30 p-3">
+        <div className="text-sm text-slate-400">
+          Mark complete after activation, local detection, first HA scan, and SmartOps sync are acceptable for this install path.
+        </div>
+        <button className="btn-ghost" onClick={onComplete} disabled={busy}>Mark complete</button>
+      </div>
+      {message && <div className="mt-4 rounded border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-300">{message}</div>}
+    </div>
+  );
+}
+
+function MiniStatus({ label, ok }: { label: string; ok?: boolean }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-950/40 p-2">
+      <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className={ok ? "text-emerald-200" : "text-amber-200"}>{ok ? "ready" : "check"}</div>
+    </div>
+  );
+}
 
 function OwnerActionChecklistPanel({ actionPlan, release, gaps, onboarding }: { actionPlan: any; release: any; gaps: any; onboarding: any }) {
   const actions: SetupAction[] = actionPlan?.top_actions?.length ? actionPlan.top_actions.map((action: any) => ({

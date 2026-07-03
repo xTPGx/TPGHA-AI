@@ -34,6 +34,7 @@ if command -v bashio >/dev/null 2>&1; then
   DB_URL="$(bashio::config 'database_url')"
   LOG_LEVEL="$(bashio::config 'log_level')"
   TPG_PLATFORM_URL_OPT="$(bashio::config 'tpg_platform_url')"
+  TPG_PLATFORM_ACTIVATION_CODE_OPT="$(bashio::config 'tpg_platform_activation_code')"
   TPG_PLATFORM_AGENT_TOKEN_OPT="$(bashio::config 'tpg_platform_agent_token')"
   TPG_PLATFORM_SYNC_ENABLED_OPT="$(bashio::config 'tpg_platform_sync_enabled')"
   TPG_PLATFORM_SYNC_INTERVAL_OPT="$(bashio::config 'tpg_platform_sync_interval_minutes')"
@@ -68,6 +69,7 @@ else
   DB_URL="$(jq -r '.database_url // "sqlite:////config/tpg_homeai/tpg_homeai.db"' "${OPTIONS_FILE}")"
   LOG_LEVEL="$(jq -r '.log_level // "info"' "${OPTIONS_FILE}")"
   TPG_PLATFORM_URL_OPT="$(jq -r '.tpg_platform_url // "https://smartops.tpgsmarthomes.com"' "${OPTIONS_FILE}")"
+  TPG_PLATFORM_ACTIVATION_CODE_OPT="$(jq -r '.tpg_platform_activation_code // ""' "${OPTIONS_FILE}")"
   TPG_PLATFORM_AGENT_TOKEN_OPT="$(jq -r '.tpg_platform_agent_token // ""' "${OPTIONS_FILE}")"
   TPG_PLATFORM_SYNC_ENABLED_OPT="$(jq -r '.tpg_platform_sync_enabled // false' "${OPTIONS_FILE}")"
   TPG_PLATFORM_SYNC_INTERVAL_OPT="$(jq -r '.tpg_platform_sync_interval_minutes // 5' "${OPTIONS_FILE}")"
@@ -84,6 +86,7 @@ fi
 # bashio/jq may yield the literal "null" for empty values.
 for var in HA_URL HA_TOKEN OPENAI_KEY OPENAI_MODEL OPENAI_CHAT_MODEL OPENAI_TTS_MODEL OPENAI_TTS_FORMAT OPENAI_TRANSCRIBE_MODEL OPENAI_TRANSCRIBE_LANGUAGE OLLAMA_URL OLLAMA_MODEL KOKORO_TTS_BASE_URL CUSTOM_TTS_BASE_URL CUSTOM_TTS_API_KEY PIPER_TTS_ENTITY_ID VOICE_PUBLIC_BASE_URL SECURITY_PIN API_TOKEN CONFIG_DIR_OPT DB_URL LOG_LEVEL \
            TPG_PLATFORM_URL_OPT TPG_PLATFORM_AGENT_TOKEN_OPT TPG_PLATFORM_SYNC_ENABLED_OPT TPG_PLATFORM_SYNC_INTERVAL_OPT TPG_PLATFORM_SUBSCRIBE_URL_OPT TPG_PLATFORM_PORTAL_URL_OPT \
+           TPG_PLATFORM_ACTIVATION_CODE_OPT \
            SCAN_ON_START SCAN_INTERVAL NOTIFY_NEW NOTIFY_UNAVAIL \
            AUTO_LOW_RISK AUTO_DOMAINS; do
   if [ "$(eval echo \$$var)" = "null" ]; then eval "$var=''"; fi
@@ -129,6 +132,7 @@ export CONFIG_DIR="${CONFIG_DIR_OPT}"
 export DATABASE_URL="${DB_URL}"
 export LOG_LEVEL="${LOG_LEVEL}"
 export TPG_PLATFORM_URL="${TPG_PLATFORM_URL_OPT}"
+export TPG_PLATFORM_ACTIVATION_CODE="${TPG_PLATFORM_ACTIVATION_CODE_OPT}"
 export TPG_PLATFORM_AGENT_TOKEN="${TPG_PLATFORM_AGENT_TOKEN_OPT}"
 export TPG_PLATFORM_SYNC_ENABLED="${TPG_PLATFORM_SYNC_ENABLED_OPT}"
 export TPG_PLATFORM_SYNC_INTERVAL_MINUTES="${TPG_PLATFORM_SYNC_INTERVAL_OPT}"

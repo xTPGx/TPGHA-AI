@@ -74,6 +74,7 @@ class Settings(BaseSettings):
         default="https://smartops.tpgsmarthomes.com", alias="TPG_PLATFORM_URL"
     )
     tpg_platform_agent_token: str = Field(default="", alias="TPG_PLATFORM_AGENT_TOKEN")
+    tpg_platform_activation_code: str = Field(default="", alias="TPG_PLATFORM_ACTIVATION_CODE")
     tpg_platform_sync_enabled: bool = Field(
         default=False, alias="TPG_PLATFORM_SYNC_ENABLED"
     )
@@ -167,6 +168,7 @@ class Settings(BaseSettings):
             "tpg_platform_url": self.tpg_platform_url,
             "tpg_platform_sync_enabled": self.tpg_platform_sync_enabled,
             "tpg_platform_agent_token_configured": bool(self.tpg_platform_agent_token),
+            "tpg_platform_activation_code_configured": bool(self.tpg_platform_activation_code),
             "tpg_platform_configured": self.tpg_platform_configured,
             "tpg_platform_subscribe_url": self.tpg_platform_subscribe_url,
             "tpg_platform_portal_url": self.tpg_platform_portal_url,

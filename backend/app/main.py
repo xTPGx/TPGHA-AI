@@ -146,6 +146,17 @@ from .operations_brain import (
     build_sidebar_access_diagnostics,
 )
 from .platform_sync import get_platform_sync_status, platform_sync_loop
+from .setup_wizard import (
+    activate_setup,
+    complete_setup,
+    detect_local_services,
+    save_runtime_settings_safe,
+    setup_status,
+    push_setup_event,
+    test_openai_readiness,
+    test_smartops_connection,
+    test_tts_readiness,
+)
 from .governance_brain import (
     build_completion_auditor,
     build_jarvis_phase_87_91,
@@ -259,7 +270,7 @@ _API_PREFIXES = (
     "api", "health", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
-    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "governance", "context", "experience", "release", "openapi.json",
+    "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "governance", "context", "experience", "release", "setup", "setup-wizard", "openapi.json",
 )
 
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
@@ -321,7 +332,7 @@ def _auth_guard_response(request: Request) -> JSONResponse | None:
 _INGRESS_DIRECT_API_PREFIXES = (
     "health", "state", "events", "ui", "config", "command", "confirm",
     "confirmations", "automation", "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain",
-    "ai", "voice", "test", "tools", "docs", "redoc", "openapi.json",
+    "ai", "voice", "test", "tools", "docs", "redoc", "setup", "setup-wizard", "openapi.json",
 )
 
 
@@ -452,6 +463,7 @@ async def health():
             "unavailable_count": disc["unavailable_count"],
         },
         "tpg_platform_sync": await get_platform_sync_status(),
+        "setup": await setup_status(),
         "config": {
             "config_dir": s.config_dir,
             "valid": cfg_err is None,
@@ -468,6 +480,70 @@ async def health():
 async def get_config_endpoint():
     cfg = get_config()
     return cfg.model_dump()
+
+
+@app.get("/setup/status")
+async def setup_status_endpoint():
+    return await setup_status()
+
+
+@app.post("/setup/activate")
+async def setup_activate(payload: dict[str, Any]):
+    activation_code = str(payload.get("activation_code") or payload.get("activationCode") or get_settings().tpg_platform_activation_code or "").strip()
+    if not activation_code:
+        raise HTTPException(status_code=400, detail="Activation code is required.")
+    agent_name = str(payload.get("agent_name") or payload.get("agentName") or "TPG HomeAI add-on")
+    return await activate_setup(activation_code, agent_name)
+
+
+@app.post("/setup/detect")
+async def setup_detect():
+    return await detect_local_services()
+
+
+@app.post("/setup/test-smartops")
+async def setup_test_smartops():
+    return await test_smartops_connection()
+
+
+@app.post("/setup/test-openai")
+async def setup_test_openai():
+    return await test_openai_readiness()
+
+
+@app.post("/setup/test-tts")
+async def setup_test_tts():
+    return await test_tts_readiness()
+
+
+@app.post("/setup/save-runtime-settings")
+async def setup_save_runtime_settings(payload: dict[str, Any]):
+    return {"runtime_settings": save_runtime_settings_safe(payload)}
+
+
+@app.post("/setup/complete")
+async def setup_complete():
+    return await complete_setup()
+
+
+@app.post("/setup/push-status")
+async def setup_push_status(payload: dict[str, Any]):
+    return await push_setup_event(payload)
+
+
+@app.get("/setup-wizard/status")
+async def setup_wizard_status():
+    return await setup_status_endpoint()
+
+
+@app.post("/setup-wizard/activate")
+async def setup_wizard_activate(payload: dict[str, Any]):
+    return await setup_activate(payload)
+
+
+@app.post("/setup-wizard/detect")
+async def setup_wizard_detect():
+    return await setup_detect()
 
 
 @app.get("/ui/session")
@@ -1109,6 +1185,7 @@ async def state():
         "last_scan_ts": disc["last_scan_ts"],
         "last_successful_scan_ts": disc["last_successful_scan_ts"],
         "tpg_platform_sync": await get_platform_sync_status(),
+        "setup": await setup_status(),
         "needs_attention": needs_attention,
     }
 

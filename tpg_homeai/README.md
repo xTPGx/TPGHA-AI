@@ -58,6 +58,7 @@ backend runs in **degraded** mode (surfaced in `/health`) rather than failing.
 | `auto_approve_low_risk_entities` | Auto-approve low-risk discoveries (default `false`). |
 | `auto_approve_domains` | List of domains to auto-approve, e.g. `["light", "fan"]`. |
 | `tpg_platform_url` | SmartOps platform URL for optional inventory sync. Default `https://smartops.tpgsmarthomes.com`. |
+| `tpg_platform_activation_code` | One-time activation code from SmartOps/Portal. Used only for setup activation and never logged. |
 | `tpg_platform_agent_token` | Agent token generated in SmartOps or the customer portal. It is sent only as a bearer token to SmartOps and is never logged. |
 | `tpg_platform_sync_enabled` | Enables optional heartbeat and inventory sync to SmartOps. Default `false`. |
 | `tpg_platform_sync_interval_minutes` | Heartbeat/sync interval, 1-1440 minutes. Default `5`. |
@@ -176,3 +177,24 @@ This add-on builds from the public GitHub repo. To get new code:
    new code takes effect — **no need to remove/re-add the repository or
    reinstall**. The build always re-clones the latest code (the version busts
    the Docker layer cache).
+# SmartOps Provisioning
+
+TPG HomeAI supports SmartOps-generated install profiles:
+
+- Basic / HA Green (`basic_ha_green`) for existing Home Assistant OS or HA Green installs.
+- Voice Plus (`voice_plus`) for Proxmox VM 100 Home Assistant OS plus VM/LXC 101 Kokoro/Piper voice services.
+- Local AI Pro (`local_ai_pro`) for Proxmox VM 100 Home Assistant OS plus VM 101 Ubuntu Local AI with Ollama and Kokoro.
+
+Use SmartOps/Portal to generate a provisioning package and one-time activation code. In the add-on Setup page, open the SmartOps setup wizard, enter the activation code, then run detection. The wizard pulls safe profile/config hints, detects Home Assistant, Piper/Kokoro/OpenAI readiness, detects Ollama for Local AI Pro, and reports missing setup items.
+
+Secrets are not logged. The activation code is exchanged for an agent token and the token is stored locally in `/config/tpg_homeai/runtime_settings.yaml` or add-on options. SmartOps also returns safe profile code/name, expected Kokoro/Ollama/Piper values, portal/subscribe URLs, sync interval, feature flags, setup checklist, and generated hints. Heartbeat/profile-config responses refresh only those non-secret runtime settings after activation. The wizard pushes setup milestones to SmartOps after activation, detection, scan, sync, and completion; local-only setup stays available when SmartOps is not linked. Status endpoints report only configured yes/no values.
+
+Safe setup endpoints:
+
+- `GET /setup/status` returns activation/profile/detection status without secrets.
+- `POST /setup/activate` exchanges a one-time activation code for safe SmartOps config and, when issued, stores the agent token locally.
+- `POST /setup/detect` probes Home Assistant, Piper, Kokoro, Ollama, Music Assistant, and OpenAI readiness with short timeouts.
+- `POST /setup/test-smartops`, `POST /setup/test-openai`, and `POST /setup/test-tts` power the wizard test buttons.
+- `POST /setup/save-runtime-settings` persists only non-secret runtime hints.
+- `POST /setup/push-status` pushes non-secret setup milestones to SmartOps when linked.
+- `POST /setup/complete` marks first-run setup complete after the installer accepts the profile state.
