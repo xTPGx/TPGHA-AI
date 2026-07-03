@@ -119,6 +119,14 @@ Home Assistant on port `8088`, with an Ingress panel in the HA sidebar.
    automatically (no manual long-lived token needed).
 3. Open the UI via **Open Web UI**.
 
+Optional SmartOps inventory sync is configured with `tpg_platform_url`,
+`tpg_platform_agent_token`, `tpg_platform_sync_enabled`,
+`tpg_platform_sync_interval_minutes`, `tpg_platform_subscribe_url`, and
+`tpg_platform_portal_url`. Sync is disabled by default. Get an agent token from
+<https://portal.tpgsmarthomes.com/portal/install>; subscription help is at
+<https://tpgsmarthomes.com/packages>. The token is sent only as a bearer token
+to SmartOps, is never logged, and sync is inventory/status only.
+
 Full add-on docs: [`tpg_homeai/README.md`](tpg_homeai/README.md).
 
 ### C. HACS custom integration mode (Home Assistant Assist)

@@ -70,6 +70,23 @@ class Settings(BaseSettings):
         default=30.0, alias="INITIAL_SCAN_TIMEOUT_SECONDS"
     )
     voice_public_base_url: str = Field(default="", alias="VOICE_PUBLIC_BASE_URL")
+    tpg_platform_url: str = Field(
+        default="https://smartops.tpgsmarthomes.com", alias="TPG_PLATFORM_URL"
+    )
+    tpg_platform_agent_token: str = Field(default="", alias="TPG_PLATFORM_AGENT_TOKEN")
+    tpg_platform_sync_enabled: bool = Field(
+        default=False, alias="TPG_PLATFORM_SYNC_ENABLED"
+    )
+    tpg_platform_sync_interval_minutes: int = Field(
+        default=5, alias="TPG_PLATFORM_SYNC_INTERVAL_MINUTES"
+    )
+    tpg_platform_subscribe_url: str = Field(
+        default="https://tpgsmarthomes.com/packages", alias="TPG_PLATFORM_SUBSCRIBE_URL"
+    )
+    tpg_platform_portal_url: str = Field(
+        default="https://portal.tpgsmarthomes.com/portal/install",
+        alias="TPG_PLATFORM_PORTAL_URL",
+    )
 
     # --- Server / CORS ---
     cors_origins: str = Field(default="*", alias="CORS_ORIGINS")
@@ -110,6 +127,14 @@ class Settings(BaseSettings):
         return "standalone"
 
     @property
+    def tpg_platform_configured(self) -> bool:
+        return bool(
+            self.tpg_platform_url
+            and self.tpg_platform_agent_token
+            and self.tpg_platform_sync_enabled
+        )
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
@@ -139,6 +164,12 @@ class Settings(BaseSettings):
             "api_token_configured": bool(self.api_token),
             "home_assistant_url": self.home_assistant_url,
             "ha_configured": self.ha_configured,
+            "tpg_platform_url": self.tpg_platform_url,
+            "tpg_platform_sync_enabled": self.tpg_platform_sync_enabled,
+            "tpg_platform_agent_token_configured": bool(self.tpg_platform_agent_token),
+            "tpg_platform_configured": self.tpg_platform_configured,
+            "tpg_platform_subscribe_url": self.tpg_platform_subscribe_url,
+            "tpg_platform_portal_url": self.tpg_platform_portal_url,
             "config_dir": self.config_dir,
             "database_url": _mask_db_url(self.database_url),
         }

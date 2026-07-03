@@ -145,6 +145,7 @@ from .operations_brain import (
     save_chat_followup_preference,
     build_sidebar_access_diagnostics,
 )
+from .platform_sync import get_platform_sync_status, platform_sync_loop
 from .governance_brain import (
     build_completion_auditor,
     build_jarvis_phase_87_91,
@@ -349,6 +350,7 @@ async def lifespan(app: FastAPI):
     tasks = [
         asyncio.create_task(bootstrap()),
         asyncio.create_task(periodic_scan_loop()),
+        asyncio.create_task(platform_sync_loop(APP_VERSION)),
     ]
     logger.info("TPG HomeAI Orchestrator starting; bootstrap running in background.")
     try:
@@ -449,6 +451,7 @@ async def health():
             "pending_count": disc["pending_count"],
             "unavailable_count": disc["unavailable_count"],
         },
+        "tpg_platform_sync": await get_platform_sync_status(),
         "config": {
             "config_dir": s.config_dir,
             "valid": cfg_err is None,
@@ -1105,6 +1108,7 @@ async def state():
         "last_command": bus.last_command,
         "last_scan_ts": disc["last_scan_ts"],
         "last_successful_scan_ts": disc["last_successful_scan_ts"],
+        "tpg_platform_sync": await get_platform_sync_status(),
         "needs_attention": needs_attention,
     }
 

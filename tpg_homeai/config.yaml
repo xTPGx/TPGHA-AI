@@ -50,6 +50,12 @@ options:
   config_dir: "/config/tpg_homeai"
   database_url: "sqlite:////config/tpg_homeai/tpg_homeai.db"
   log_level: "info"
+  tpg_platform_url: "https://smartops.tpgsmarthomes.com"
+  tpg_platform_agent_token: ""
+  tpg_platform_sync_enabled: false
+  tpg_platform_sync_interval_minutes: 5
+  tpg_platform_subscribe_url: "https://tpgsmarthomes.com/packages"
+  tpg_platform_portal_url: "https://portal.tpgsmarthomes.com/portal/install"
 schema:
   home_assistant_url: "str"
   home_assistant_token: "password?"
@@ -72,6 +78,12 @@ schema:
   config_dir: "str"
   database_url: "str"
   log_level: "list(debug|info|warning|error)"
+  tpg_platform_url: "str?"
+  tpg_platform_agent_token: "password?"
+  tpg_platform_sync_enabled: "bool?"
+  tpg_platform_sync_interval_minutes: "int(1,1440)?"
+  tpg_platform_subscribe_url: "str?"
+  tpg_platform_portal_url: "str?"
   scan_on_start: "bool?"
   scan_interval_minutes: "int(1,1440)?"
   notify_on_new_devices: "bool?"

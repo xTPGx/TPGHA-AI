@@ -57,6 +57,29 @@ backend runs in **degraded** mode (surfaced in `/health`) rather than failing.
 | `notify_on_unavailable_devices` | Notify when known devices go unavailable (default `true`). |
 | `auto_approve_low_risk_entities` | Auto-approve low-risk discoveries (default `false`). |
 | `auto_approve_domains` | List of domains to auto-approve, e.g. `["light", "fan"]`. |
+| `tpg_platform_url` | SmartOps platform URL for optional inventory sync. Default `https://smartops.tpgsmarthomes.com`. |
+| `tpg_platform_agent_token` | Agent token generated in SmartOps or the customer portal. It is sent only as a bearer token to SmartOps and is never logged. |
+| `tpg_platform_sync_enabled` | Enables optional heartbeat and inventory sync to SmartOps. Default `false`. |
+| `tpg_platform_sync_interval_minutes` | Heartbeat/sync interval, 1-1440 minutes. Default `5`. |
+| `tpg_platform_subscribe_url` | Subscription/help link shown when sync is unlicensed. Default `https://tpgsmarthomes.com/packages`. |
+| `tpg_platform_portal_url` | Portal install page used to create/copy/rotate a token. Default `https://portal.tpgsmarthomes.com/portal/install`. |
+
+### Optional SmartOps sync
+
+Need an agent token or subscription? Open
+<https://portal.tpgsmarthomes.com/portal/install> or contact TPG at
+<https://tpgsmarthomes.com/packages>.
+
+SmartOps sync is optional and disabled by default. When enabled with a platform
+URL and agent token, the add-on sends a heartbeat and a redacted Home Assistant
+inventory payload to SmartOps. The payload is for inventory and health
+visibility only; it does not let SmartOps control Home Assistant devices.
+
+The token comes from SmartOps or the customer portal. It is not printed in
+startup logs and is only sent in the `Authorization` header to the configured
+SmartOps URL. If SmartOps is unavailable or the license is invalid, the add-on
+keeps local Home Assistant control running and reports a safe status in
+`/health` and `/state`.
 
 ### Home Assistant token
 
@@ -102,6 +125,9 @@ state-changing actions, and `guest` sources are blocked from sensitive actions
   security rating 7 → 8).
 - Set `api_token` to require a bearer token on direct port-8088 access; Home
   Assistant ingress stays exempt because it is already authenticated.
+- Optional SmartOps sync keeps the agent token out of logs, sends it only to the
+  configured SmartOps URL, redacts sync payload metadata, and refuses sync when
+  the license check fails.
 - Low-confidence or ambiguous device commands are routed into a
   confirmation/clarification flow instead of executing on a guess.
 
