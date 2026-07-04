@@ -1,5 +1,6 @@
-import type { UIEvent } from "react";
+import type { RefObject, UIEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, CommandResponse } from "../api";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -24,6 +25,12 @@ interface Msg {
   originalText?: string;
   attachments?: ChatAttachmentPreview[];
 }
+
+type ChatSystemStatus = {
+  health: any;
+  setup: any;
+  providers: any;
+};
 
 type SpeechRecognitionCtor = new () => {
   continuous: boolean;
@@ -524,6 +531,7 @@ export default function Chat() {
   const [actionPolicy, setActionPolicy] = useState<any>(null);
   const [suggestedPrompts, setSuggestedPrompts] = useState<any[]>([]);
   const [followups, setFollowups] = useState<any[]>([]);
+  const [systemStatus, setSystemStatus] = useState<ChatSystemStatus>({ health: null, setup: null, providers: null });
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [lastTranscript, setLastTranscript] = useState("");
@@ -919,6 +927,25 @@ export default function Chat() {
     return () => {
       cancelled = true;
       stopBridge();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled([api.health(), api.setupStatus(), api.aiProviders()])
+      .then(([health, setup, providers]) => {
+        if (cancelled) return;
+        setSystemStatus({
+          health: health.status === "fulfilled" ? health.value : null,
+          setup: setup.status === "fulfilled" ? setup.value : null,
+          providers: providers.status === "fulfilled" ? providers.value : null,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setSystemStatus({ health: null, setup: null, providers: null });
+      });
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -1855,45 +1882,24 @@ export default function Chat() {
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="tpg-chrome flex h-[4.5rem] shrink-0 items-center justify-between border-b px-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <button className="chat-icon-btn lg:hidden" onClick={() => setHistoryOpen(true)} aria-label="Open chat history">
-              <span className="block h-0.5 w-5 rounded bg-current" />
-              <span className="block h-0.5 w-5 rounded bg-current" />
-              <span className="block h-0.5 w-5 rounded bg-current" />
-            </button>
-            <div className="min-w-0">
-              <div className="tpg-glow-text truncate text-sm font-semibold sm:text-base">{selectedAssistant?.name || "TPG HomeAI"}</div>
-              <div className="truncate text-xs text-slate-500">{selectedUser?.name || "Home Assistant user"} profile</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              className={`chat-pill ${activeTab === "notebook" ? "tpg-segment-active" : ""}`}
-              onClick={() => setActiveTab(activeTab === "notebook" ? "chat" : "notebook")}
-            >
-              {activeTab === "notebook" ? "Chat" : "Notes"}
-            </button>
-            {speechSupported && (
-              <button
-                className={`chat-pill ${panelMode ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100" : ""}`}
-                onClick={() => setPanelMode(!panelMode)}
-                title="Always-listening panel mode (say the wake word)"
-              >
-                {panelMode ? "Panel on" : "Panel"}
-              </button>
-            )}
-            <button
-              className={`chat-icon-btn ${voiceConversationActive || listening ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
-              onClick={() => void toggleListening()}
-              disabled={micButtonDisabled}
-              title={micButtonTitle}
-              aria-label={micButtonTitle}
-            >
-              {micButtonText}
-            </button>
-          </div>
-        </header>
+        <AssistantHeader
+          activeTab={activeTab}
+          selectedAssistant={selectedAssistant}
+          selectedUser={selectedUser}
+          sessionRole={session?.role || "profile"}
+          status={systemStatus}
+          speechSupported={speechSupported}
+          panelMode={panelMode}
+          micActive={voiceConversationActive || listening}
+          micButtonText={micButtonText}
+          micButtonDisabled={micButtonDisabled}
+          micButtonTitle={micButtonTitle}
+          onHistory={() => setHistoryOpen(true)}
+          onToggleNotes={() => setActiveTab(activeTab === "notebook" ? "chat" : "notebook")}
+          onTogglePanel={() => setPanelMode(!panelMode)}
+          onToggleMic={() => void toggleListening()}
+          onDiagnoseMic={async () => setVoiceError(await microphoneReadinessReport())}
+        />
 
         {error && <div className="mx-4 mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
         {voiceError && (
@@ -1932,6 +1938,7 @@ export default function Chat() {
           <>
             <section className="relative min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-6" onScroll={handleChatScroll}>
               <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col">
+                <SetupStatusBanner status={systemStatus} />
                 {messages.length === 0 && (
                   <EmptyState
                     assistantName={selectedAssistant?.name || "TPG HomeAI"}
@@ -1974,7 +1981,7 @@ export default function Chat() {
               )}
             </section>
 
-            <div className="tpg-chrome shrink-0 border-t px-3 py-3 sm:px-6">
+            <div className="tpg-composer-dock shrink-0 border-t px-3 py-3 sm:px-6">
               {followups.length > 0 && (
                 <ChatFollowups
                   followups={followups}
@@ -2006,55 +2013,287 @@ export default function Chat() {
                   removeAttachment={removeAttachment}
                 />
               )}
-              <div className="tpg-composer mx-auto flex max-w-4xl items-end gap-2 p-2">
-                <input
-                  ref={fileInputRef}
-                  className="hidden"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(event) => addFiles(event.target.files)}
-                />
-                <button
-                  className="chat-icon-btn shrink-0"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={busy || attachments.length >= 4}
-                  title="Attach image"
-                  aria-label="Attach image"
-                >
-                  <PaperclipIcon />
-                </button>
-                <button
-                  className={`chat-icon-btn shrink-0 ${voiceConversationActive || micState === "recording" ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
-                  onClick={() => void toggleListening()}
-                  disabled={micButtonDisabled}
-                  title={micButtonTitle}
-                  aria-label={micButtonTitle}
-                >
-                  {micButtonText}
-                </button>
-                <textarea
-                  className="min-h-[3rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void send();
-                    }
-                  }}
-                  placeholder={composerPlaceholder}
-                />
-                <button className="chat-send-btn" onClick={() => void send()} disabled={busy || (!text.trim() && attachments.length === 0)}>
-                  {busy ? "..." : "Send"}
-                </button>
-              </div>
+              <ChatComposer
+                fileInputRef={fileInputRef}
+                text={text}
+                setText={setText}
+                busy={busy}
+                attachmentCount={attachments.length}
+                placeholder={composerPlaceholder}
+                micActive={voiceConversationActive || micState === "recording"}
+                micButtonText={micButtonText}
+                micButtonDisabled={micButtonDisabled}
+                micButtonTitle={micButtonTitle}
+                onAddFiles={addFiles}
+                onAttach={() => fileInputRef.current?.click()}
+                onMic={() => void toggleListening()}
+                onSend={() => void send()}
+              />
             </div>
           </>
         )}
       </main>
     </div>
   );
+}
+
+function AssistantHeader({
+  activeTab,
+  selectedAssistant,
+  selectedUser,
+  sessionRole,
+  status,
+  speechSupported,
+  panelMode,
+  micActive,
+  micButtonText,
+  micButtonDisabled,
+  micButtonTitle,
+  onHistory,
+  onToggleNotes,
+  onTogglePanel,
+  onToggleMic,
+  onDiagnoseMic,
+}: {
+  activeTab: "chat" | "notebook";
+  selectedAssistant: any;
+  selectedUser: any;
+  sessionRole: string;
+  status: ChatSystemStatus;
+  speechSupported: boolean;
+  panelMode: boolean;
+  micActive: boolean;
+  micButtonText: string;
+  micButtonDisabled: boolean;
+  micButtonTitle: string;
+  onHistory: () => void;
+  onToggleNotes: () => void;
+  onTogglePanel: () => void;
+  onToggleMic: () => void;
+  onDiagnoseMic: () => void;
+}) {
+  const assistantName = selectedAssistant?.name || "Atlas";
+  const userName = selectedUser?.name || "Home Assistant user";
+  return (
+    <header className="tpg-assistant-header shrink-0 border-b px-3 py-3 sm:px-5">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <button className="chat-icon-btn lg:hidden" onClick={onHistory} aria-label="Open chat history">
+            <span className="block h-0.5 w-5 rounded bg-current" />
+            <span className="block h-0.5 w-5 rounded bg-current" />
+            <span className="block h-0.5 w-5 rounded bg-current" />
+          </button>
+          <div className="tpg-brand-mark hidden sm:flex" aria-hidden="true">A</div>
+          <div className="min-w-0">
+            <div className="tpg-glow-text truncate text-sm font-semibold sm:text-base">{assistantName}</div>
+            <div className="truncate text-xs text-slate-500">{userName} profile / {sessionRole}</div>
+          </div>
+        </div>
+        <div className="hidden min-w-0 items-center justify-center gap-2 md:flex">
+          <HeaderStatus label="SmartOps" value={chatSmartOpsLabel(status.setup)} state={status.setup?.activation_status === "activated" ? "good" : "warn"} />
+          <HeaderStatus label="HA" value={chatHaLabel(status.health)} state={chatHaOnline(status.health) ? "good" : "warn"} />
+          <HeaderStatus label="AI" value={chatProviderLabel(status.providers)} state={status.health?.openai?.configured ? "good" : "neutral"} />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            className={`chat-pill hidden sm:inline-flex ${activeTab === "notebook" ? "tpg-segment-active" : ""}`}
+            onClick={onToggleNotes}
+          >
+            {activeTab === "notebook" ? "Chat" : "Notes"}
+          </button>
+          {speechSupported && (
+            <button
+              className={`chat-pill hidden sm:inline-flex ${panelMode ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100" : ""}`}
+              onClick={onTogglePanel}
+              title="Always-listening panel mode"
+            >
+              {panelMode ? "Panel on" : "Panel"}
+            </button>
+          )}
+          <button
+            className={`chat-icon-btn hidden sm:inline-flex ${micActive ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
+            onClick={onToggleMic}
+            disabled={micButtonDisabled}
+            title={micButtonTitle}
+            aria-label={micButtonTitle}
+          >
+            {micButtonText}
+          </button>
+          <Link className="chat-pill hidden lg:inline-flex" to="/setup">Setup</Link>
+          <Link className="chat-pill hidden lg:inline-flex" to="/ha">Diagnostics</Link>
+          <details className="relative sm:hidden">
+            <summary className="chat-icon-btn flex min-h-11 min-w-11 list-none items-center justify-center px-0" aria-label="Open chat actions">
+              <span className="text-lg leading-none">...</span>
+            </summary>
+            <div className="tpg-action-menu absolute right-0 top-12 z-20 w-52 p-2">
+              <button className="tpg-action-menu-item" onClick={onToggleNotes}>{activeTab === "notebook" ? "Chat" : "Notes"}</button>
+              {speechSupported && <button className="tpg-action-menu-item" onClick={onTogglePanel}>{panelMode ? "Panel on" : "Panel"}</button>}
+              <button className="tpg-action-menu-item" onClick={onToggleMic} disabled={micButtonDisabled}>{micButtonText}</button>
+              <button className="tpg-action-menu-item" onClick={onDiagnoseMic}>Mic diagnostics</button>
+              <Link className="tpg-action-menu-item" to="/setup">Setup</Link>
+              <Link className="tpg-action-menu-item" to="/ha">Diagnostics</Link>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
+        <HeaderStatus label="SmartOps" value={chatSmartOpsLabel(status.setup)} state={status.setup?.activation_status === "activated" ? "good" : "warn"} />
+        <HeaderStatus label="HA" value={chatHaLabel(status.health)} state={chatHaOnline(status.health) ? "good" : "warn"} />
+        <HeaderStatus label="AI" value={chatProviderLabel(status.providers)} state={status.health?.openai?.configured ? "good" : "neutral"} />
+      </div>
+    </header>
+  );
+}
+
+function HeaderStatus({ label, value, state }: { label: string; value: string; state: "good" | "warn" | "neutral" }) {
+  return (
+    <span className={`tpg-status-pill tpg-status-${state}`}>
+      <span className="tpg-status-dot" aria-hidden="true" />
+      <span className="text-slate-500">{label}</span>
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
+function SetupStatusBanner({ status }: { status: ChatSystemStatus }) {
+  const chips = chatSetupChips(status);
+  if (!chips.length) return null;
+  return (
+    <div className="tpg-setup-banner mb-5 flex flex-wrap items-center justify-center gap-2 p-3 text-sm">
+      <span className="font-semibold text-slate-100">Console status</span>
+      {chips.map((chip) => (
+        <Link key={chip.label} to={chip.to} className={`tpg-mini-chip tpg-mini-chip-${chip.tone}`}>
+          {chip.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function ChatComposer({
+  fileInputRef,
+  text,
+  setText,
+  busy,
+  attachmentCount,
+  placeholder,
+  micActive,
+  micButtonText,
+  micButtonDisabled,
+  micButtonTitle,
+  onAddFiles,
+  onAttach,
+  onMic,
+  onSend,
+}: {
+  fileInputRef: RefObject<HTMLInputElement>;
+  text: string;
+  setText: (value: string) => void;
+  busy: boolean;
+  attachmentCount: number;
+  placeholder: string;
+  micActive: boolean;
+  micButtonText: string;
+  micButtonDisabled: boolean;
+  micButtonTitle: string;
+  onAddFiles: (files: FileList | null) => void;
+  onAttach: () => void;
+  onMic: () => void;
+  onSend: () => void;
+}) {
+  return (
+    <div className="tpg-composer mx-auto max-w-4xl p-2">
+      <input
+        ref={fileInputRef}
+        className="hidden"
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(event) => onAddFiles(event.target.files)}
+      />
+      <div className="flex items-end gap-2">
+        <button
+          className="chat-icon-btn shrink-0"
+          onClick={onAttach}
+          disabled={busy || attachmentCount >= 4}
+          title="Attach image"
+          aria-label="Attach image"
+        >
+          <PaperclipIcon />
+        </button>
+        <textarea
+          className="min-h-[3rem] flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 sm:px-3"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSend();
+            }
+          }}
+          placeholder={placeholder}
+          rows={1}
+        />
+        <button
+          className={`chat-icon-btn hidden shrink-0 sm:inline-flex ${micActive ? "border-rose-400/60 bg-rose-500/20 text-rose-100" : ""}`}
+          onClick={onMic}
+          disabled={micButtonDisabled}
+          title={micButtonTitle}
+          aria-label={micButtonTitle}
+        >
+          {micButtonText}
+        </button>
+        <button className="chat-send-btn shrink-0 px-4" onClick={onSend} disabled={busy || (!text.trim() && attachmentCount === 0)}>
+          {busy ? "..." : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function chatSetupChips(status: ChatSystemStatus) {
+  const setup = status.setup || {};
+  const detection = setup.detection || {};
+  const sync = setup.smartops_sync || {};
+  const out: { label: string; to: string; tone: "warn" | "info" }[] = [];
+  if (setup.setup_completed === false || (!setup.setup_completed && setup.activation_status !== "activated")) {
+    out.push({ label: "Setup incomplete", to: "/setup", tone: "warn" });
+  }
+  if (setup.activation_status && setup.activation_status !== "activated") {
+    out.push({ label: "SmartOps not linked", to: "/setup", tone: "info" });
+  }
+  if (detection.kokoro && detection.kokoro.reachable === false) {
+    out.push({ label: "Kokoro not detected", to: "/setup", tone: "info" });
+  }
+  if (sync && !sync.lastSyncAt && setup.activation_status === "activated") {
+    out.push({ label: "Device sync pending", to: "/discovery", tone: "warn" });
+  }
+  if (!chatHaOnline(status.health)) {
+    out.push({ label: "HA connection check", to: "/ha", tone: "warn" });
+  }
+  return out.slice(0, 4);
+}
+
+function chatHaOnline(health: any) {
+  return Boolean(health?.home_assistant?.reachable || health?.ha?.reachable || health?.status === "ok");
+}
+
+function chatHaLabel(health: any) {
+  if (!health) return "Checking";
+  if (chatHaOnline(health)) return "Connected";
+  return health?.status || "Degraded";
+}
+
+function chatProviderLabel(providers: any) {
+  const active = providers?.active || providers?.mode || providers?.provider || providers?.default_provider;
+  if (active) return String(active).replace(/_/g, " ");
+  return "AI provider";
+}
+
+function chatSmartOpsLabel(setup: any) {
+  if (!setup) return "Checking";
+  if (setup.activation_status === "activated") return "Linked";
+  return "Local";
 }
 
 function AttachmentTray({

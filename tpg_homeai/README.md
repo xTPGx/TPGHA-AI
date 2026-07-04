@@ -139,7 +139,10 @@ state-changing actions, and `guest` sources are blocked from sensitive actions
 - **Discovery:** <http://homeassistant.local:8088/discovery/summary> — JSON with
   `pending_count`, `known_count`, `unavailable_count`, `last_scan_ts`.
 - **Web UI:** open the add-on's *Open Web UI* button, or
-  <http://homeassistant.local:8088>
+  <http://homeassistant.local:8088>. The UI uses the Atlas assistant shell with
+  a desktop sidebar, mobile drawer, status chips for HA/SmartOps/AI, a polished
+  chat composer, and direct entries for Setup Wizard, SmartOps Enrollment,
+  Device Discovery, Voice/TTS, Local AI, and Diagnostics.
 - In the custom integration, set the server URL to
   `http://homeassistant.local:8088` (or `http://<HA-IP>:8088`).
 
@@ -185,7 +188,7 @@ TPG HomeAI supports SmartOps-generated install profiles:
 - Voice Plus (`voice_plus`) for Proxmox VM 100 Home Assistant OS plus VM/LXC 101 Kokoro/Piper voice services.
 - Local AI Pro (`local_ai_pro`) for Proxmox VM 100 Home Assistant OS plus VM 101 Ubuntu Local AI with Ollama and Kokoro.
 
-Use SmartOps/Portal to generate a provisioning package and one-time activation code. In the add-on Setup page, open the SmartOps setup wizard, enter the activation code, then run detection. The wizard pulls safe profile/config hints, detects Home Assistant, Piper/Kokoro/OpenAI readiness, detects Ollama for Local AI Pro, and reports missing setup items.
+Use SmartOps/Portal to generate a provisioning package and one-time activation code. In the add-on UI, open **Setup > Setup Wizard** or **Setup > SmartOps Enrollment**, enter the activation code, then run detection. The wizard pulls safe profile/config hints, detects Home Assistant, Piper/Kokoro/OpenAI readiness, detects Ollama for Local AI Pro, and reports missing setup items.
 
 Secrets are not logged. The activation code is exchanged for an agent token and the token is stored locally in `/config/tpg_homeai/runtime_settings.yaml` or add-on options. SmartOps also returns safe profile code/name, expected Kokoro/Ollama/Piper values, portal/subscribe URLs, sync interval, feature flags, setup checklist, and generated hints. Heartbeat/profile-config responses refresh only those non-secret runtime settings after activation. The wizard pushes setup milestones to SmartOps after activation, detection, scan, sync, and completion; local-only setup stays available when SmartOps is not linked. Status endpoints report only configured yes/no values.
 

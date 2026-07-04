@@ -33,7 +33,16 @@ const navGroups: NavGroupDef[] = [
     label: "Main",
     items: [
       { to: "/chat", label: "Chat", roles: ["admin", "manager", "resident", "kiosk", "guest"] },
+      { to: "/owner", label: "Owner Console", roles: ["admin", "manager"] },
+    ],
+  },
+  {
+    label: "Smart Home",
+    items: [
       { to: "/home", label: "House", roles: ["admin", "manager", "resident", "kiosk"] },
+      { to: "/dashboard-builder", label: "Dashboard Builder", roles: ["admin", "manager"] },
+      { to: "/rooms", label: "Rooms", roles: ["admin", "manager"] },
+      { to: "/entities", label: "Entities", roles: ["admin"] },
     ],
   },
   {
@@ -45,6 +54,18 @@ const navGroups: NavGroupDef[] = [
     ],
   },
   {
+    label: "Setup",
+    collapsible: true,
+    items: [
+      { to: "/setup", label: "Setup Wizard", roles: ["admin", "manager"] },
+      { to: "/setup", label: "SmartOps Enrollment", roles: ["admin", "manager"] },
+      { to: "/discovery", label: "Device Discovery", roles: ["admin", "manager"] },
+      { to: "/assistants", label: "Voice/TTS", roles: ["admin", "manager", "resident"] },
+      { to: "/setup", label: "Local AI", roles: ["admin", "manager"] },
+      { to: "/ha", label: "Diagnostics", roles: ["admin"] },
+    ],
+  },
+  {
     label: "Owner Console",
     collapsible: true,
     items: [
@@ -52,16 +73,10 @@ const navGroups: NavGroupDef[] = [
       { to: "/dashboard", label: "System Status", roles: ["admin", "manager"] },
       { to: "/jarvis", label: "Brain", roles: ["admin", "manager"] },
       { to: "/suggestions", label: "Suggestions", roles: ["admin", "manager"] },
-      { to: "/dashboard-builder", label: "Dashboard Builder", roles: ["admin", "manager"] },
       { to: "/house-knowledge", label: "House Knowledge", roles: ["admin", "manager"] },
-      { to: "/setup", label: "Setup", roles: ["admin", "manager"] },
-      { to: "/discovery", label: "Discovery", roles: ["admin", "manager"] },
-      { to: "/rooms", label: "Rooms", roles: ["admin", "manager"] },
       { to: "/users", label: "Users", roles: ["admin"] },
       { to: "/permissions", label: "Permissions", roles: ["admin"] },
-      { to: "/entities", label: "Entities", roles: ["admin"] },
       { to: "/profiles", label: "Device Profiles", roles: ["admin"] },
-      { to: "/ha", label: "HA Integration", roles: ["admin"] },
       { to: "/tester", label: "Command Tester", roles: ["admin"] },
       { to: "/capabilities", label: "Capability Map", roles: ["admin"] },
       { to: "/identity-debug", label: "Identity Debug", roles: ["admin", "manager"] },

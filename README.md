@@ -117,7 +117,10 @@ Home Assistant on port `8088`, with an Ingress panel in the HA sidebar.
    `home_assistant_url`, `home_assistant_token`, `log_level`, `config_path`),
    then **Start**. Leave the HA url/token blank to use the Supervisor proxy
    automatically (no manual long-lived token needed).
-3. Open the UI via **Open Web UI**.
+3. Open the UI via **Open Web UI**. The web UI now uses the premium Atlas
+   assistant shell: a desktop sidebar, mobile drawer, top status bar, ChatGPT-
+   style chat composer, and direct navigation for Setup Wizard, SmartOps
+   Enrollment, Device Discovery, Voice/TTS, Local AI, and Diagnostics.
 
 Optional SmartOps inventory sync is configured with `tpg_platform_url`,
 `tpg_platform_agent_token`, `tpg_platform_sync_enabled`,
@@ -625,7 +628,9 @@ SmartOps/Portal can now generate provisioning packages for three install profile
 - `voice_plus` / Voice Plus: Proxmox mini PC with VM 100 Home Assistant OS and VM/LXC 101 for Kokoro/Piper voice services.
 - `local_ai_pro` / Local AI Pro: Proxmox with VM 100 Home Assistant OS and VM 101 Ubuntu Local AI running Ollama and Kokoro.
 
-Most non-secret config is pulled or detected after activation. The Setup page includes a SmartOps setup wizard:
+Most non-secret config is pulled or detected after activation. The sidebar now
+surfaces setup as its own group, and the Setup page includes a SmartOps setup
+wizard:
 
 1. Enter the one-time activation code from SmartOps/Portal, or set `tpg_platform_activation_code` in add-on options.
 2. Pull the assigned profile/config.

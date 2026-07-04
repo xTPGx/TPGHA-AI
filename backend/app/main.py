@@ -256,7 +256,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.70"
+APP_VERSION = "1.2.71"
 MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_CHAT_IMAGE_TYPES = {
     "image/jpeg",
@@ -2537,6 +2537,15 @@ def _is_api_path(full_path: str) -> bool:
     return head in _API_PREFIXES
 
 
+_SPA_ROUTES = {
+    "setup",
+}
+
+
+def _is_spa_route(full_path: str) -> bool:
+    return full_path.strip("/").lower() in _SPA_ROUTES
+
+
 async def _verified_ha_current_user(ha_access_token: str = "") -> dict | None:
     token = str(ha_access_token or "").strip()
     if not token:
@@ -2729,7 +2738,7 @@ if _STATIC_DIR and os.path.isdir(_STATIC_DIR):
     async def spa_fallback(full_path: str):
         normalized_path = _strip_ingress_prefix(full_path)
         # Never let the SPA shadow an API route: unknown API paths get JSON 404.
-        if _is_api_path(normalized_path):
+        if _is_api_path(normalized_path) and not _is_spa_route(normalized_path):
             return JSONResponse({"detail": f"Not found: /{normalized_path}"}, status_code=404)
         # Serve a real static file if it exists, else index.html for routing.
         candidate = os.path.join(_STATIC_DIR, normalized_path)

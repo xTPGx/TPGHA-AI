@@ -64,7 +64,7 @@ export default function OwnerConsole() {
 
       <div className="space-y-6">
         {sections.map((section) => (
-          <section key={section.title} className="card">
+          <section key={section.title} className="tpg-page-section">
             <div className="mb-4">
               <div className="text-xl font-semibold text-slate-100">{section.title}</div>
               <div className="mt-1 text-sm text-slate-400">{section.description}</div>
@@ -74,7 +74,7 @@ export default function OwnerConsole() {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="group min-h-[9rem] rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-white/30"
+                  className="group tpg-console-tile min-h-[9rem] p-4"
                 >
                   <div className="mb-3 inline-flex rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 group-hover:text-slate-200">
                     {item.tag}
