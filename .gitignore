@@ -60,3 +60,6 @@ Thumbs.db
 # Local Codex and test artifacts
 .tpg-codex/
 tmp/
+backend/tmp/
+*.db-journal
+config/ignored.yaml
