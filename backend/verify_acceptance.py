@@ -7,18 +7,26 @@ resolved entities and confirmation gating.
 """
 import asyncio
 import os
+import shutil
 import sys
-import tempfile
+import time
+from pathlib import Path
 
 os.environ.setdefault("CONFIG_DIR", os.path.join(os.path.dirname(__file__), "..", "config"))
-os.environ["DATABASE_URL"] = "sqlite:///./verify_tmp.db"
-os.environ["HA_CONFIG_DIR"] = tempfile.mkdtemp(prefix="tpg_ha_cfg_")
+_ROOT = Path(__file__).resolve().parents[1]
+_TMP_ROOT = _ROOT / ".tpg-codex" / "tmp"
+_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+_TMP_NAME = f"acceptance-{os.getpid()}-{time.time_ns()}"
+_TMP = _TMP_ROOT / _TMP_NAME
+_TMP.mkdir(parents=True)
+os.environ["DATABASE_URL"] = f"sqlite:///file:{_TMP_NAME}?mode=memory&cache=shared&uri=true"
+os.environ["HA_CONFIG_DIR"] = str(_TMP / "ha_cfg")
 # Ensure no OpenAI usage.
 os.environ.pop("OPENAI_API_KEY", None)
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from app.db.database import init_db  # noqa: E402
+from app.db.database import engine, init_db  # noqa: E402
 from app.ai.client import ToolCall  # noqa: E402
 from app.homeassistant import rest  # noqa: E402
 from app.models.schemas import HAEntity  # noqa: E402
@@ -390,4 +398,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        engine.dispose()
+        shutil.rmtree(_TMP, ignore_errors=True)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.72
+
+- Added `/ready` for add-on/API readiness and `/diagnostics` for redacted support handoff.
+- Hardened diagnostic redaction for URLs, tokens, activation codes, API keys, and PINs.
+- Enforced confirmation replay as the only execution path for sensitive generic service plans.
+- Added Phase 4 offline verification for degraded deterministic operation, confirmation expiry/replay, direct API auth, diagnostics redaction, and version alignment.
+- Kept add-on, backend, Docker label, and custom integration versions aligned.
+
 ## 1.2.70
 
 - Reworked live voice turns to prefer calibrated recorder/VAD capture over browser speech recognition when running conversational mic mode.

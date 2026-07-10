@@ -1005,7 +1005,9 @@ async def handle_confirmation(token: str, security_pin: Optional[str] = None) ->
     plan = pc.plan or {}
     friendly = pc.target or plan.get("data", {}).get("entity_id", pc.intent)
 
-    result = await control_action.execute_service_plan(ctx, plan, friendly, pc.intent)
+    result = await control_action.execute_service_plan(
+        ctx, plan, friendly, pc.intent, confirmed=True
+    )
     outcome = await verify_action_outcome(ctx, result)
     result.data = {**(result.data or {}), "outcome": outcome}
     _log_command(pc.assistant or "", pc.user or "", f"[confirm:{pc.intent}]", result)

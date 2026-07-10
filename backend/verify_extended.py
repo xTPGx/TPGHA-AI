@@ -9,18 +9,23 @@ import asyncio
 import os
 import shutil
 import sys
-import tempfile
 import time
+from pathlib import Path
 
 _SRC_CONFIG = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config"))
-_TMP_CONFIG = tempfile.mkdtemp(prefix="tpg_ext_cfg_")
+_ROOT = Path(__file__).resolve().parents[1]
+_TMP_ROOT = _ROOT / ".tpg-codex" / "phase4-test-temp"
+_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+_TMP_NAME = f"verify-extended-{os.getpid()}-{time.time_ns()}"
+_TMP_CONFIG = _TMP_ROOT / f"{_TMP_NAME}-cfg"
+_TMP_CONFIG.mkdir(parents=True, exist_ok=True)
 shutil.copytree(_SRC_CONFIG, _TMP_CONFIG, dirs_exist_ok=True)
 for _overlay in ("discovered.yaml", "ignored.yaml"):
     with open(os.path.join(_TMP_CONFIG, _overlay), "w", encoding="utf-8") as _fh:
         _fh.write("{}\n")
 
-os.environ["CONFIG_DIR"] = _TMP_CONFIG
-os.environ["DATABASE_URL"] = "sqlite:///./verify_ext_tmp.db"
+os.environ["CONFIG_DIR"] = str(_TMP_CONFIG)
+os.environ["DATABASE_URL"] = f"sqlite:///file:{_TMP_NAME}?mode=memory&cache=shared&uri=true"
 os.environ.pop("OPENAI_API_KEY", None)
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -307,10 +312,9 @@ async def main():
     check("P10 media_player display requires entity_id", bad)
 
     # backend stays up (degraded) on invalid config instead of crashing
-    import tempfile
-    from pathlib import Path
     from app import config_loader
-    tmp = Path(tempfile.mkdtemp())
+    tmp = _TMP_ROOT / f"{_TMP_NAME}-invalid-config"
+    tmp.mkdir(parents=True, exist_ok=True)
     (tmp / "devices.yaml").write_text(
         "displays:\n  - id: bad\n    name: Bad\n    type: media_player\n",
         encoding="utf-8")

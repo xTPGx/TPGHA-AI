@@ -9,6 +9,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -256,7 +257,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("tpg.main")
 
-APP_VERSION = "1.2.71"
+APP_VERSION = "1.2.72"
 MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_CHAT_IMAGE_TYPES = {
     "image/jpeg",
@@ -267,7 +268,7 @@ ALLOWED_CHAT_IMAGE_TYPES = {
 
 # API path prefixes that the SPA fallback must NEVER intercept (PART 1).
 _API_PREFIXES = (
-    "api", "health", "state", "events", "ui", "config", "discovery", "command",
+    "api", "health", "ready", "diagnostics", "state", "events", "ui", "config", "discovery", "command",
     "chat", "confirm", "confirmations", "automation", "suggestions", "ha",
     "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain", "ai", "voice", "test", "tools", "docs", "redoc",
     "media", "security", "rooms", "awareness", "briefings", "routines", "ops", "governance", "context", "experience", "release", "setup", "setup-wizard", "openapi.json",
@@ -276,7 +277,7 @@ _API_PREFIXES = (
 # Paths that stay reachable without a bearer token even when TPG_API_TOKEN is
 # set (health checks, public TTS audio for room speakers, static UI + docs).
 _PUBLIC_NO_AUTH_PREFIXES = (
-    "/health", "/voice/audio", "/assets", "/docs", "/redoc", "/openapi.json",
+    "/health", "/ready", "/voice/audio", "/assets", "/docs", "/redoc", "/openapi.json",
     "/favicon", "/logo", "/icon", "/manifest", "/robots",
 )
 
@@ -330,7 +331,7 @@ def _auth_guard_response(request: Request) -> JSONResponse | None:
 # allowlist for direct ingress API compatibility. Do not include frontend route
 # names such as discovery/chat/suggestions/ha; those must serve index.html.
 _INGRESS_DIRECT_API_PREFIXES = (
-    "health", "state", "events", "ui", "config", "command", "confirm",
+    "health", "ready", "diagnostics", "state", "events", "ui", "config", "command", "confirm",
     "confirmations", "automation", "dashboards", "debug", "knowledge", "house", "memory", "conversations", "research", "brain",
     "ai", "voice", "test", "tools", "docs", "redoc", "setup", "setup-wizard", "openapi.json",
 )
@@ -341,6 +342,71 @@ def _iso(ts: float | None) -> str | None:
         return None
     return datetime.datetime.fromtimestamp(
         ts, datetime.timezone.utc).isoformat()
+
+
+_REDACT_KEYS = {
+    "authorization",
+    "api_key",
+    "api_token",
+    "access_token",
+    "activation_code",
+    "agent_token",
+    "bearer",
+    "cookie",
+    "home_assistant_token",
+    "openai_api_key",
+    "password",
+    "pin",
+    "secret",
+    "security_pin",
+    "supervisor_token",
+    "token",
+}
+
+
+def _redact_support_value(key: str, value: Any) -> Any:
+    key_l = str(key or "").lower()
+    if key_l.endswith("_configured") or key_l in {"pin_required"}:
+        return value
+    if any(secret in key_l for secret in _REDACT_KEYS):
+        return "***" if value not in (None, "", False) else value
+    if isinstance(value, str) and "url" in key_l:
+        return _redact_url(value)
+    if isinstance(value, dict):
+        return {str(k): _redact_support_value(str(k), v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_support_value(key_l, item) for item in value[:50]]
+    if isinstance(value, str) and any(marker in value.lower() for marker in ("bearer ", "access_token=", "api_key=", "token=")):
+        return "***"
+    return value
+
+
+def _redact_url(value: str) -> str:
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return value
+    netloc = parts.netloc
+    if "@" in netloc:
+        _creds, host = netloc.rsplit("@", 1)
+        netloc = f"***@{host}"
+    sensitive = {"token", "access_token", "api_key", "key", "secret", "password"}
+    query = urlencode([
+        (key, "***" if key.lower() in sensitive else val)
+        for key, val in parse_qsl(parts.query, keep_blank_values=True)
+    ])
+    return urlunsplit((parts.scheme, netloc, parts.path, query, parts.fragment))
+
+
+def _safe_command_summary(command: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not command:
+        return None
+    return {
+        "intent": command.get("intent"),
+        "success": command.get("success"),
+        "executed": command.get("executed"),
+        "error": command.get("error"),
+    }
 
 
 def _command_context(req: CommandRequest) -> dict:
@@ -447,7 +513,7 @@ async def health():
         "home_assistant": {
             "configured": s.ha_configured,
             "reachable": state.ha_reachable,
-            "url": s.home_assistant_url,
+            "url": _redact_support_value("home_assistant_url", s.home_assistant_url),
             "auth_mode": s.ha_auth_mode,
         },
         "openai": {
@@ -473,6 +539,83 @@ async def health():
         "last_command": get_event_bus().last_command,
         "settings": s.safe_dict(),
     }
+
+
+@app.get("/ready")
+async def readiness():
+    """Small readiness contract for Supervisor/container checks.
+
+    This reports whether the TPG HomeAI API process can serve requests. Home
+    Assistant, OpenAI, Local AI, and SmartOps outages are dependency degradation,
+    not reasons for Home Assistant itself to stop operating.
+    """
+    state = get_app_state()
+    cfg_err = config_error()
+    refresh_degraded_reasons(state)
+    ready = bool(state.ready and not state.initializing and cfg_err is None)
+    return {
+        "ready": ready,
+        "status": "ready" if ready else ("initializing" if state.initializing else "not_ready"),
+        "version": app.version,
+        "mode": state.mode,
+        "degraded": bool(state.degraded_reasons),
+        "degraded_reasons": list(state.degraded_reasons),
+        "config_valid": cfg_err is None,
+        "home_assistant_authoritative": True,
+        "home_assistant_required_for_basic_operation": False,
+        "cloud_ai_required_for_deterministic_commands": False,
+        "smartops_required_for_local_operation": False,
+    }
+
+
+@app.get("/diagnostics")
+async def diagnostics():
+    """Support-safe diagnostics. No secrets, prompts, conversations, or raw HA history."""
+    h = await health()
+    st = get_app_state()
+    pending = get_confirmation_store().list_pending()
+    cfg = get_config()
+    payload = {
+        "version": app.version,
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "status": h.get("status"),
+        "reasons": h.get("reasons", []),
+        "backend": h.get("backend", {}),
+        "home_assistant": h.get("home_assistant", {}),
+        "openai": h.get("openai", {}),
+        "config": h.get("config", {}),
+        "settings": h.get("settings", {}),
+        "readiness": await readiness(),
+        "capability_allowlist": {
+            "tools": TOOL_NAMES,
+            "custom_integration_is_thin_bridge": True,
+            "home_assistant_owns_entities_services_automations": True,
+        },
+        "assistant_profiles": {
+            "users": len(cfg.assistants.users),
+            "assistants": len(cfg.assistants.assistants),
+            "voice_sources": len(cfg.devices.voice_sources),
+        },
+        "confirmations": {
+            "pending_count": len(pending),
+            "items": [pc.public_dict() for pc in pending],
+        },
+        "last_command": _safe_command_summary(get_event_bus().last_command),
+        "restart_upgrade": {
+            "started_at": _iso(st.started_at),
+            "uptime_seconds": st.uptime_seconds,
+            "ready_after_bootstrap": st.ready,
+            "config_hot_reload_endpoint": "/config/reload",
+        },
+        "privacy": {
+            "includes_camera_images": False,
+            "includes_microphone_audio": False,
+            "includes_conversation_text": False,
+            "includes_full_ha_event_history": False,
+            "includes_detailed_occupancy_timeline": False,
+        },
+    }
+    return _redact_support_value("diagnostics", payload)
 
 
 # --------------------------------------------------------------------- config
@@ -1234,7 +1377,14 @@ async def test_action(req: TestActionRequest):
 
 @app.get("/tools")
 async def list_tools():
-    return {"tools": TOOL_NAMES}
+    return {
+        "tools": TOOL_NAMES,
+        "allowlist": {
+            "arbitrary_home_assistant_services": False,
+            "execution_path": "tool_name -> vetted handler -> vetted service plan",
+            "sensitive_services_require_confirmation": True,
+        },
+    }
 
 
 # --------------------------------------------------------------- debug/audit

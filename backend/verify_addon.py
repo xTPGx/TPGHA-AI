@@ -15,12 +15,15 @@ import json
 import os
 import re
 import sys
-import tempfile
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 # ---- Environment MUST be set before importing the app (settings/db cache it).
-_TMP = tempfile.mkdtemp(prefix="tpg_addon_test_")
+_ROOT = Path(__file__).resolve().parents[1]
+_TMP_ROOT = _ROOT / ".tpg-codex" / "tmp"
+_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+_TMP = str(_TMP_ROOT / f"tpg_addon_test_{os.getpid()}_{time.time_ns()}")
 _CFG = os.path.join(_TMP, "cfg")
 _HA_CFG = os.path.join(_TMP, "ha")
 _STATIC = os.path.join(_TMP, "static")
@@ -33,7 +36,7 @@ with open(os.path.join(_STATIC, "assets", "app.js"), "w", encoding="utf-8") as f
 
 os.environ["CONFIG_DIR"] = _CFG
 os.environ["HA_CONFIG_DIR"] = _HA_CFG
-os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_TMP, 'test.db')}"
+os.environ["DATABASE_URL"] = f"sqlite:///file:tpg_addon_{os.getpid()}_{time.time_ns()}?mode=memory&cache=shared&uri=true"
 os.environ["STATIC_DIR"] = _STATIC
 os.environ["HOME_ASSISTANT_URL"] = ""       # not configured -> degraded
 os.environ["HOME_ASSISTANT_TOKEN"] = ""

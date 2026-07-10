@@ -62,7 +62,8 @@ async def _verify(ctx: ActionContext, entity_id: Optional[str]) -> dict[str, Any
 
 
 async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
-                               friendly: str, intent: str) -> ActionResult:
+                               friendly: str, intent: str,
+                               *, confirmed: bool = False) -> ActionResult:
     """Execute a previously-resolved service plan and verify the result.
 
     Reused by /confirm so the actual side effect happens in exactly one place.
@@ -75,6 +76,36 @@ async def execute_service_plan(ctx: ActionContext, plan: dict[str, Any],
     domain = plan["domain"]
     service = plan["service"]
     data = plan.get("data", {})
+    sensitive_key = _sensitive_key_for_service(domain, service, data, friendly)
+    if sensitive_key and not confirmed:
+        msg = ctx.permissions.confirmation_message(sensitive_key, friendly)
+        guarded_plan = dict(plan)
+        guarded_plan.setdefault("success_message", _sensitive_success(sensitive_key, friendly))
+        pc = ctx.confirmations.create(
+            intent=sensitive_key,
+            params={"source_intent": intent, "entity_id": data.get("entity_id")},
+            message=msg,
+            ttl=ctx.config.permissions.confirmation_ttl_seconds,
+            assistant=ctx.assistant.id if ctx.assistant else None,
+            user=ctx.user.id if ctx.user else None,
+            plan=guarded_plan,
+            risk_level="critical",
+            target=friendly,
+            pin_required=ctx.permissions.pin_required(sensitive_key, "critical"),
+        )
+        result = ActionResult.needs_confirmation(
+            sensitive_key,
+            msg,
+            pc.token,
+            {
+                "entity_id": data.get("entity_id"),
+                "domain": domain,
+                "service": service,
+                "target": friendly,
+            },
+        )
+        result.data = {"security": {"pin_required": pc.pin_required}}
+        return result
     if domain == "media_player":
         media_result = await _execute_media_player_plan(ctx, plan, friendly, intent)
         if media_result is not None:
@@ -391,6 +422,7 @@ async def control_device(ctx: ActionContext, params: dict[str, Any]) -> ActionRe
             ttl=ctx.config.permissions.confirmation_ttl_seconds,
             assistant=ctx.assistant.id if ctx.assistant else None,
             user=user_id, plan=plan_dict, risk_level=plan.risk, target=res.name or target,
+            pin_required=ctx.permissions.pin_required(plan.sensitive_key, plan.risk),
         )
         return ActionResult.needs_confirmation(plan.sensitive_key, msg, pc.token, resolved)
 
@@ -429,3 +461,24 @@ def _sensitive_success(key: str, friendly: str) -> str:
         "open_garage": f"Opened {friendly}.",
         "disarm_alarm": "Alarm disarmed.",
     }.get(key, f"Confirmed: {friendly}.")
+
+
+def _sensitive_key_for_service(
+    domain: str,
+    service: str,
+    data: dict[str, Any],
+    friendly: str,
+) -> str:
+    name = f"{domain}.{service}".lower()
+    if name == "lock.unlock":
+        return "unlock_door"
+    if name in {"alarm_control_panel.alarm_disarm"}:
+        return "disarm_alarm"
+    if name in {"cover.open_cover", "cover.open_garage_door"}:
+        text = f"{data.get('entity_id') or ''} {friendly}".lower()
+        return "open_garage" if any(word in text for word in ("garage", "gate")) else "open_cover"
+    if name == "valve.open_valve":
+        return "open_valve"
+    if name == "siren.turn_on":
+        return "enable_siren"
+    return ""

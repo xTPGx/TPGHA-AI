@@ -308,6 +308,8 @@ curl -X POST http://localhost:8088/confirm -H "Content-Type: application/json" \
 | Method | Path                   | Purpose                                  |
 | ------ | ---------------------- | ---------------------------------------- |
 | GET    | `/health`              | Backend / HA / OpenAI status             |
+| GET    | `/ready`               | Small readiness check for add-on/API boot |
+| GET    | `/diagnostics`         | Redacted support diagnostics             |
 | GET    | `/config`              | Full validated config                    |
 | POST   | `/config/reload`       | Hot-reload YAML from `CONFIG_DIR`        |
 | GET    | `/ha/entities`         | All Home Assistant entities              |
@@ -318,6 +320,20 @@ curl -X POST http://localhost:8088/confirm -H "Content-Type: application/json" \
 | POST   | `/test/action`         | Run one action handler directly          |
 
 The **Command Tester** page in the UI exposes all of this interactively.
+
+`/ready` reports whether the TPG HomeAI API process is ready to serve requests.
+Home Assistant, SmartOps, OpenAI, and Local AI outages are reported as degraded
+dependencies, not as reasons for normal Home Assistant operation to stop.
+
+`/diagnostics` is intended for support handoff. It redacts secrets and excludes
+camera images, microphone audio, conversation text, full Home Assistant event
+history, and detailed occupancy timelines. When `TPG_API_TOKEN` is configured,
+direct LAN access to `/diagnostics` requires `Authorization: Bearer ...`;
+Supervisor ingress remains Home Assistant-authenticated.
+
+Rollback for Phase 4 stabilization changes: restore the previous add-on image
+or revert the phase commit, then restart the add-on. No database migration is
+introduced by this phase.
 
 ---
 

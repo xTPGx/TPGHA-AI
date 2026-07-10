@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -154,7 +155,7 @@ class Settings(BaseSettings):
             "openai_transcribe_model": self.openai_transcribe_model,
             "openai_transcribe_language": self.openai_transcribe_language,
             "ollama_configured": bool(self.ollama_base_url and self.ollama_model),
-            "ollama_base_url": self.ollama_base_url,
+            "ollama_base_url": _mask_url(self.ollama_base_url),
             "ollama_model": self.ollama_model,
             "kokoro_tts_configured": bool(self.kokoro_tts_base_url),
             "custom_tts_configured": bool(self.custom_tts_base_url),
@@ -163,15 +164,15 @@ class Settings(BaseSettings):
             "voice_public_base_url_configured": bool(self.voice_public_base_url),
             "security_pin_configured": bool(self.security_pin),
             "api_token_configured": bool(self.api_token),
-            "home_assistant_url": self.home_assistant_url,
+            "home_assistant_url": _mask_url(self.home_assistant_url),
             "ha_configured": self.ha_configured,
-            "tpg_platform_url": self.tpg_platform_url,
+            "tpg_platform_url": _mask_url(self.tpg_platform_url),
             "tpg_platform_sync_enabled": self.tpg_platform_sync_enabled,
             "tpg_platform_agent_token_configured": bool(self.tpg_platform_agent_token),
             "tpg_platform_activation_code_configured": bool(self.tpg_platform_activation_code),
             "tpg_platform_configured": self.tpg_platform_configured,
-            "tpg_platform_subscribe_url": self.tpg_platform_subscribe_url,
-            "tpg_platform_portal_url": self.tpg_platform_portal_url,
+            "tpg_platform_subscribe_url": _mask_url(self.tpg_platform_subscribe_url),
+            "tpg_platform_portal_url": _mask_url(self.tpg_platform_portal_url),
             "config_dir": self.config_dir,
             "database_url": _mask_db_url(self.database_url),
         }
@@ -185,6 +186,26 @@ def _mask_db_url(url: str) -> str:
             _creds, host = rest.split("@", 1)
             return f"{scheme}//***@{host}"
     return url
+
+
+def _mask_url(url: str) -> str:
+    """Redact credentials and common token query parameters from URLs."""
+    if not url:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "***" if any(word in url.lower() for word in ("token", "key", "secret")) else url
+    netloc = parts.netloc
+    if "@" in netloc:
+        _creds, host = netloc.rsplit("@", 1)
+        netloc = f"***@{host}"
+    sensitive = {"token", "access_token", "api_key", "key", "secret", "password"}
+    query = urlencode([
+        (key, "***" if key.lower() in sensitive else value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+    ])
+    return urlunsplit((parts.scheme, netloc, parts.path, query, parts.fragment))
 
 
 @lru_cache
